@@ -126,7 +126,7 @@ describe('FootballOS prototype workflow', () => {
 
     // Real footage by default, labelled as illustration and credited.
     const video = screen.getByTestId('film-video') as HTMLVideoElement;
-    expect(video.getAttribute('src')).toMatch(/demo-film\/swosu-2010-11-06-endzone-run\.mp4$/);
+    expect(video.getAttribute('src')).toMatch(/demo-film\/play-1\.mp4$/);
     expect(screen.getByTestId('stage-label')).toHaveTextContent(/Real game film, shown as illustration/);
     expect(screen.getByTestId('stage-label')).toHaveTextContent(/not this footage/);
     expect(screen.getByTestId('stage-label')).toHaveTextContent(/CC BY-NC 4\.0/);
@@ -141,6 +141,11 @@ describe('FootballOS prototype workflow', () => {
     expect(screen.getByTestId('stage-label')).toHaveTextContent(/Illustrative play diagram/);
     await user.click(screen.getByRole('button', { name: /^Footage$/ }));
     expect(screen.getByTestId('film-video')).toBeInTheDocument();
+
+    // A different play gets its own clip.
+    await backToQueue(user);
+    await openPlay(user, 2);
+    expect(screen.getByTestId('film-video').getAttribute('src')).toMatch(/demo-film\/play-2\.mp4$/);
   });
 
   it('credits the demo footage where the film is chosen', () => {

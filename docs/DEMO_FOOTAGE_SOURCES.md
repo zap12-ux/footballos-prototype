@@ -1,8 +1,8 @@
 # Real football footage available for the FootballOS demo
 
-Compiled 2026-10-24. **Used in the prototype:** one run from SWOSU item 71 (end-zone
-angle, 11/06/2010 vs UCO), trimmed to about six seconds, lives at
-`public/demo-film/swosu-2010-11-06-endzone-run.mp4` and is credited in the app and in the
+Compiled 2026-10-24. **Used in the prototype:** six snaps from SWOSU item 71 (end-zone
+angle, 11/06/2010 vs UCO), one per demo play, each trimmed to a single play, live at
+`public/demo-film/play-1.mp4` … `play-6.mp4` and are credited in the app and in the
 README. Every item below was checked on its host page for a stated
 license. The prototype's film screen plays a local MP4 / MOV / M4V / WebM file in the
 browser (object URL, nothing uploaded), so any of these can be trimmed to a short clip

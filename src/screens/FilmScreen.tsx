@@ -113,7 +113,7 @@ export function FilmScreen() {
                 Use Demo Film
               </button>
               <p className="small muted film-credit" data-testid="demo-film-credit" style={{ marginTop: 10, marginBottom: 0 }}>
-                Footage: one real end-zone run from {DEMO_FILM_CREDIT.title},{' '}
+                Footage: six real end-zone snaps from {DEMO_FILM_CREDIT.title},{' '}
                 <a href={DEMO_FILM_CREDIT.sourceUrl} target="_blank" rel="noreferrer">
                   {DEMO_FILM_CREDIT.holder}
                 </a>
@@ -121,8 +121,8 @@ export function FilmScreen() {
                 <a href={DEMO_FILM_CREDIT.licenseUrl} target="_blank" rel="noreferrer">
                   {DEMO_FILM_CREDIT.license}
                 </a>
-                ; {DEMO_FILM_CREDIT.changes}. It is shown as illustration on every play and is
-                not analyzed.
+                ; {DEMO_FILM_CREDIT.changes}. The footage is shown as illustration, one clip per
+                play, and is not analyzed.
               </p>
             </div>
 

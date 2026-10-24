@@ -92,10 +92,10 @@ backend, no API key, and no network request of any kind at runtime.
   `src/utils/filmCheck.ts`. No file is inspected.
 - "Checking film / Identifying plays / Preparing review candidates" is a staged delay,
   labelled *simulated processing*, with a Cancel control.
-- The demo film is real footage: one end-zone run from openly licensed college game film
-  (see [Film credit](#film-credit)), bundled in `public/demo-film/` and shown for every
-  demo play as an illustration of what a coach would be looking at. Selecting a frame
-  seeks the clip to the matching moment of the run. The evaluation shown describes the
+- The demo film is real footage: six end-zone snaps from openly licensed college game
+  film (see [Film credit](#film-credit)), bundled in `public/demo-film/` with one clip
+  per demo play as an illustration of what a coach would be looking at. Selecting a
+  frame seeks the clip to the matching moment of the snap. The evaluation shown describes the
   authored demo play, not this footage, and nothing in the clip is analyzed. The
   authored play diagram stays one toggle away on the film stage.
 - If you pick a local video, it plays in your browser through an object URL and is never
@@ -164,7 +164,7 @@ src/
   components/         Stepper, play diagram, film stage, evidence panel, indicators
   screens/            Landing page plus one file per screen in the seven-step flow
   data/               Seeded plays and storyboards, team context and grade definitions, reasons, public links, demo-film credit
-public/demo-film/     The credited demo clip (real footage, CC BY-NC 4.0; see Film credit)
+public/demo-film/     The credited demo clips, one per play (real footage, CC BY-NC 4.0; see Film credit)
   state/              Session reducer + context (also the research event log; demo / research / resume)
   types/              Shared types
   utils/              localStorage, hash routes, film check, practice-focus logic, summary and JSON export
@@ -184,11 +184,12 @@ GitHub Pages. Tests gate the deploy. Hash routing means no 404 fallback is neede
 
 ## Film credit
 
-The demo clip in `public/demo-film/swosu-2010-11-06-endzone-run.mp4` is taken from
+The demo clips in `public/demo-film/play-1.mp4` … `play-6.mp4` are taken from
 *11/06/2010 SWOSU vs UCO (endzone angle)*, Southwestern Oklahoma State University,
 SWOSU Football Videos, <https://dc.swosu.edu/football_vid/71>, licensed
-[CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/). Changes: one run play
-trimmed to about six seconds, re-encoded for the web, audio removed. The credit is also
+[CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/). Changes: six plays
+trimmed to one snap each (about six to nine seconds), re-encoded for the web, audio
+removed. The credit is also
 shown in the prototype on the film-selection screen and on the film stage. Other
 openly licensed footage that was considered is listed in
 [`docs/DEMO_FOOTAGE_SOURCES.md`](docs/DEMO_FOOTAGE_SOURCES.md).

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import type { Play } from '../types';
 import { PlayDiagram } from './PlayDiagram';
-import { DEMO_FILM_CREDIT, DEMO_FILM_PHASE_SECONDS } from '../data/demoFilm';
+import { DEMO_FILM_CREDIT, demoClipFor } from '../data/demoFilm';
 
 /** Footage available for the stage: the bundled demo clip or a coach-selected local file. */
 export interface FilmVideo {
@@ -47,17 +47,26 @@ export function FilmStage({
   const videoRef = useRef<HTMLVideoElement>(null);
   const [view, setView] = useState<'footage' | 'diagram'>('footage');
   const showVideo = video !== null && view === 'footage';
+  // The demo film has one clip per play; a local file is a single video the coach chose.
+  const demoClip = video?.kind === 'demo' ? demoClipFor(play.id) : null;
+  const videoSrc = demoClip ? demoClip.src : video?.url ?? null;
+  const seekSeconds = demoClip ? demoClip.phaseSeconds[current.phase] : toSeconds(current.timestamp);
 
-  useEffect(() => {
+  function seekToFrame() {
     const v = videoRef.current;
-    if (!v || !video) return;
+    if (!v) return;
     try {
-      v.currentTime =
-        video.kind === 'demo' ? DEMO_FILM_PHASE_SECONDS[current.phase] : toSeconds(current.timestamp);
+      v.currentTime = seekSeconds;
     } catch {
       /* not seekable yet */
     }
-  }, [current.phase, current.timestamp, video, showVideo]);
+  }
+
+  useEffect(() => {
+    if (!video) return;
+    seekToFrame();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seekSeconds, videoSrc, showVideo]);
 
   const evidenceForFrame = revealed
     ? play.observedEvidence.find((e) => e.frame === frame) ?? null
@@ -109,8 +118,10 @@ export function FilmStage({
       <div className="stage">
         {showVideo && video ? (
           <video
+            key={videoSrc ?? 'none'}
             ref={videoRef}
-            src={video.url}
+            src={videoSrc ?? undefined}
+            onLoadedMetadata={seekToFrame}
             controls
             playsInline
             preload="metadata"
@@ -129,10 +140,10 @@ export function FilmStage({
       <p className="stage-label" data-testid="stage-label">
         {showVideo && video?.kind === 'demo' ? (
           <>
-            <strong>Real game film, shown as illustration.</strong> One end-zone run from
-            openly licensed college game film, shown for every demo play. The simulated
-            evaluation on this screen describes the authored demo play, not this footage, and
-            nothing in the clip was analyzed.{' '}
+            <strong>Real game film, shown as illustration.</strong> One end-zone snap from
+            openly licensed college game film, a different play for each demo play. The
+            simulated evaluation on this screen describes the authored demo play, not this
+            footage, and nothing in the clip was analyzed.{' '}
             <span className="film-credit">
               Film: {DEMO_FILM_CREDIT.title},{' '}
               <a href={DEMO_FILM_CREDIT.sourceUrl} target="_blank" rel="noreferrer">
