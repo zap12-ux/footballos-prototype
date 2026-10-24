@@ -164,9 +164,12 @@ label overlapped the quarterback; two status messages ran together on the result
   claims, testimonials, logos or user counts. The workflow stepper is hidden on the landing
   page; header, banner and accuracy statement are unchanged.
 - **Hash routes** (`src/utils/routes.ts`): `#/` landing, `#/demo` demo mode, `#/research`
-  the existing Screen 1. Read once on load (`resolveInitialState` in
+  the existing Screen 1. Read on load (`resolveInitialState` in
   `src/state/SessionContext.tsx`), written with `history.replaceState` when the mode
-  changes. No router library.
+  changes. A hash typed after load (or Back/Forward) is applied only when nothing would be
+  lost — a blank session starts the requested mode, a saved session in the same mode is
+  resumed, `#/` returns to the landing page — and otherwise the hash is put back. No router
+  library.
 - **Demo mode**: reducer action `startDemo` sets `mode: 'demo'`, records a placeholder
   baseline `{ minutesForSixSnaps: null, demo: true, capturedBeforeTask: true }`, starts the
   timer, selects the demo film and opens the review queue with the film check visible; logs
@@ -179,10 +182,10 @@ label overlapped the quarterback; two status messages ran together on the result
   replaces a saved session; starting a new session over one asks for confirmation.
 - `src/data/links.ts` (public URLs, course line), `DEMO_NOTE` in `src/data/team.ts`,
   `headingLevel` prop on `EvidencePanel` so heading order holds where it is embedded.
-- **Tests** (`src/tests/landing.test.tsx`, 11 tests): landing renders both calls to action and
+- **Tests** (`src/tests/landing.test.tsx`, 12 tests): landing renders both calls to action and
   the honesty line with no baseline form and no percentage; the four output cards render live
   with frame-linked evidence; demo from the landing page, `#/demo` deep link, `#/research`
-  deep link with gating intact; a demo decision, the summary demo note and `mode: 'demo'` in
+  deep link with gating intact; a hash typed after load; a demo decision, the summary demo note and `mode: 'demo'` in
   the export; a saved session is resumable and a deep link does not destroy it; confirmation
   before replacing a saved session; route helpers, `resolveInitialState` and the demo
   baseline.
@@ -222,7 +225,7 @@ label overlapped the quarterback; two status messages ran together on the result
 | Check | Command | Before changes | After changes |
 | --- | --- | --- | --- |
 | Type check | `npm run typecheck` | Passed (0 errors) | Passed (0 errors) |
-| Unit + integration tests | `npm test` | 27 passed, 2 files | 38 passed, 0 failed, 3 files (27 original + 11 new) |
+| Unit + integration tests | `npm test` | 27 passed, 2 files | 39 passed, 0 failed, 3 files (27 original + 12 new) |
 | Production build | `npm run build` | Built | Built (`dist/index.html`, one CSS and one JS asset, ~299 kB JS / ~89 kB gzipped) |
 | Pages build | `GITHUB_PAGES=true npm run build` | — | Built; asset paths resolve under `/footballos-prototype/` |
 | Node / npm used | — | Node 25.9.0, npm 11.12.1 | same |
@@ -249,10 +252,20 @@ fictional program and its fictional opponent, present since the September protot
 "Hudl" (a product name in the method options), and the GitHub account name in the public
 URLs.
 
+## Deployment (October 24, 2026)
+
+| Step | Result |
+| --- | --- |
+| Repository | `zap12-ux/footballos-prototype`, public, created from this folder only with `gh repo create --public --source=. --push`; commit author is the GitHub noreply identity |
+| Pages source | GitHub Actions (`gh api -X POST …/pages -f build_type=workflow`) |
+| First run (`Deploy to GitHub Pages`, commit a542e79) | build job (npm ci, typecheck, 38 tests, build) and deploy job both succeeded |
+| Live URL | <https://zap12-ux.github.io/footballos-prototype/> — HTTP 200; page title "FootballOS — AI-assisted film review (prototype)"; both hashed assets under `/footballos-prototype/assets/` return 200 |
+| Live walk-through (built-in browser) | Landing page renders with both calls to action, the honesty line and the header accuracy statement; 0 px horizontal overflow; `#/demo` opened in a fresh load reaches the review queue |
+| Not run | Playwright (not installed locally); the e2e script was not executed against the live site |
+
 ## Not verified / remaining limitations
 
-- Deployment result: see the note at the end of this section, added after the first
-  GitHub Actions run.
+- `verification/e2e.mjs` and screen-reader testing, as above.
 - **No human usability testing has been done.** The protocol is a plan.
 - The landing page was walked by the author in one Chromium-based browser pane; it was not
   tested with a screen reader.

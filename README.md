@@ -40,7 +40,7 @@ works on narrower screens.
 Other commands:
 
 ```bash
-npm test           # Vitest + React Testing Library suite (38 tests)
+npm test           # Vitest + React Testing Library suite (39 tests)
 npm run typecheck  # tsc --noEmit
 npm run build      # production build to dist/
 npm run preview    # serve the production build at http://localhost:4173

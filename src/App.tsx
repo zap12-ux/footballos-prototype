@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { SessionProvider, useSession } from './state/SessionContext';
 import { Stepper } from './components/Stepper';
 import { AccuracyNote } from './components/Indicators';
@@ -12,7 +12,7 @@ import { PlayReviewScreen } from './screens/PlayReviewScreen';
 import { PracticeFocusScreen } from './screens/PracticeFocusScreen';
 import { ResearchSummaryScreen } from './screens/ResearchSummaryScreen';
 import type { SessionState } from './types';
-import { syncHash } from './utils/routes';
+import { parseHash, syncHash } from './utils/routes';
 
 function SessionTimer({ startedAtMs }: { startedAtMs: number | null }) {
   const [now, setNow] = useState(Date.now());
@@ -33,7 +33,9 @@ function SessionTimer({ startedAtMs }: { startedAtMs: number | null }) {
 }
 
 function Shell() {
-  const { state } = useSession();
+  const { state, dispatch } = useSession();
+  const latest = useRef(state);
+  latest.current = state;
 
   // Keep focus and scroll predictable when the screen changes.
   useEffect(() => {
@@ -43,10 +45,23 @@ function Shell() {
   }, [state.screen, state.activePlayId]);
 
   // Keep the URL hash in step with the entry point (#/, #/demo, #/research) so a deep
-  // link can be copied. The hash is read once on load; it is never a router.
+  // link can be copied. The hash is read on load; it is never a router.
   useEffect(() => {
     syncHash(state);
   }, [state.screen, state.mode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A hash typed after load (or Back/Forward) applies only when nothing would be lost;
+  // otherwise the hash is put back to match the session. replaceState never fires this.
+  useEffect(() => {
+    function onHashChange() {
+      dispatch({ type: 'applyRoute', route: parseHash(window.location.hash) });
+      // If the route could not be applied the state is unchanged; re-sync the hash so the
+      // URL never claims a mode the session is not in.
+      setTimeout(() => syncHash(latest.current), 0);
+    }
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, [dispatch]);
 
   const landing = state.screen === 'landing';
 

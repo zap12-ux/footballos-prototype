@@ -17,7 +17,7 @@ import type {
   SessionState,
 } from '../types';
 import { loadSession, saveSession, clearSession } from '../utils/storage';
-import { parseHash } from '../utils/routes';
+import { parseHash, type Route } from '../utils/routes';
 import { DEMO_FILM_LABEL } from '../data/plays';
 
 function newSessionId(): string {
@@ -72,7 +72,13 @@ export type Action =
   /** Landing page: demo mode. Placeholder baseline, straight to the review queue. Replaces any saved session. */
   | { type: 'startDemo' }
   /** Landing page: return to the screen a saved session was on. */
-  | { type: 'resume' };
+  | { type: 'resume' }
+  /**
+   * The URL hash changed after load (typed URL, Back/Forward). Applies the route only when
+   * it can do so without discarding anything; otherwise the state is returned unchanged
+   * and the caller re-syncs the hash.
+   */
+  | { type: 'applyRoute'; route: Route };
 
 /**
  * A session that has not started anything: no baseline, no timer, no decisions. Such a
@@ -316,6 +322,27 @@ export function reducer(state: SessionState, action: Action): SessionState {
         screen: 'queue',
       };
       return withEvent(fresh, 'demo_started', undefined, { mode: 'demo' });
+    }
+
+    case 'applyRoute': {
+      if (action.route === 'landing') {
+        if (state.screen === 'landing') return state;
+        return {
+          ...state,
+          screen: 'landing',
+          resumeScreen: isBlankSession(state) ? null : state.screen,
+        };
+      }
+      const wanted = action.route === 'demo' ? 'demo' : 'research';
+      if (isBlankSession(state)) {
+        return reducer(state, { type: wanted === 'demo' ? 'startDemo' : 'startResearch' });
+      }
+      // A saved session in the same mode can be resumed from the landing page; a saved
+      // session in the other mode is never replaced by a URL change.
+      if (state.mode === wanted && state.screen === 'landing' && state.resumeScreen) {
+        return reducer(state, { type: 'resume' });
+      }
+      return state;
     }
 
     case 'resume': {

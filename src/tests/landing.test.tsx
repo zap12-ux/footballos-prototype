@@ -166,6 +166,39 @@ describe('landing page and entry routes', () => {
     expect(window.location.hash).toBe('#/demo');
   });
 
+  it('a hash typed after load applies when nothing would be lost and never replaces a saved session', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    // Blank session: a typed #/demo starts the demo.
+    window.location.hash = '#/demo';
+    expect(await screen.findByRole('heading', { name: /Review queue/i })).toBeInTheDocument();
+    expect(stored().mode).toBe('demo');
+
+    // Record a decision so the session is no longer blank.
+    const row = screen.getByRole('row', { name: /^Play 1\b/ });
+    await user.click(within(row).getByRole('button', { name: /Review Play 1/i }));
+    await user.click(screen.getByRole('button', { name: /Accept candidate/i }));
+    await screen.findByTestId('decision-recorded');
+    const sessionId = stored().sessionId;
+
+    // #/ goes back to the landing page with the session resumable.
+    window.location.hash = '#/';
+    expect(await screen.findByRole('button', { name: /Resume your session/i })).toBeInTheDocument();
+    expect(stored().resumeScreen).toBe('review');
+
+    // #/research must not replace the saved demo session; the hash is put back.
+    window.location.hash = '#/research';
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByLabelText(/Minutes \(approximate\)/i)).not.toBeInTheDocument();
+    expect(stored().sessionId).toBe(sessionId);
+    expect(window.location.hash).toBe('#/');
+
+    // #/demo resumes the saved demo session instead of starting a new one.
+    window.location.hash = '#/demo';
+    expect(await screen.findByRole('heading', { name: /Play and player/i })).toBeInTheDocument();
+    expect(stored().sessionId).toBe(sessionId);
+  });
+
   it('starting a new session over a saved one asks for confirmation first', async () => {
     const user = userEvent.setup();
     setHash('#/demo');

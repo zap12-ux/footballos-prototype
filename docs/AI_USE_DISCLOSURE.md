@@ -21,7 +21,7 @@
 ## Second session (October 24, 2026): landing page, demo mode, deployment
 
 A second session with the same assistant added the grader-facing landing page, hash-based
-entry routes, demo mode, the resume control, eleven tests, the GitHub Pages deployment
+entry routes, demo mode, the resume control, twelve tests, the GitHub Pages deployment
 workflow, the document updates in this folder and the Module 7 submission description,
 working from a written brief that fixed the honesty, trust, accessibility and palette
 constraints in advance. The assistant ran the type check, the test suite and the production
