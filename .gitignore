@@ -1,0 +1,18 @@
+# dependencies and build output
+node_modules/
+dist/
+coverage/
+.verify/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.claude/
+*.swp
+*.swo
+*~
+
+# local env
+*.local
