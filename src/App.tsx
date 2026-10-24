@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { SessionProvider, useSession } from './state/SessionContext';
 import { Stepper } from './components/Stepper';
 import { AccuracyNote } from './components/Indicators';
-import { DEMO_NOTE } from './data/team';
+import { ACCURACY_STATEMENT, DEMO_NOTE } from './data/team';
 import { LandingScreen } from './screens/LandingScreen';
 import { IntroScreen } from './screens/IntroScreen';
 import { TeamContextScreen } from './screens/TeamContextScreen';
@@ -83,11 +83,39 @@ function Shell() {
         )}
         <SessionTimer startedAtMs={state.startedAtMs} />
       </header>
-      <div className="sim-banner" role="note">
-        Simulated AI. No video is processed and no model is called. Every candidate grade,
-        confidence label and evidence note is authored mock data. The coach makes every final
-        decision.
-      </div>
+      {state.screen === 'intro' ? (
+        // Research entry: one neutral line, no examples and nothing about grades or confidence.
+        <div className="sim-banner" role="note" data-testid="sim-banner">
+          <strong>Prototype.</strong> This tool calls no model and analyzes no video. Nothing you
+          enter leaves this browser.
+        </div>
+      ) : (
+        <details className="sim-banner" role="note" data-testid="sim-banner">
+          <summary>
+            <strong>Simulated AI.</strong> Every candidate grade, confidence label and evidence
+            note is authored mock data. The coach makes every final decision.{' '}
+            <span className="sim-more">More</span>
+          </summary>
+          <ul className="small">
+            <li>No video is processed and no model is called, at any point, for any file or link.</li>
+            <li>
+              Confidence labels are authored, illustrative values, not calibrated probabilities.{' '}
+              {ACCURACY_STATEMENT}
+            </li>
+            <li>
+              The practice focus is composed deterministically from the coach&rsquo;s own decisions.
+              It is not coaching guidance from any outside source.
+            </li>
+            <li>
+              Research instrumentation (baseline, review timing, reasons, feedback, export) is real
+              and stays in this browser.{' '}
+              {state.mode === 'demo'
+                ? 'This is a demo session: no baseline is collected and the export is marked demo.'
+                : ''}
+            </li>
+          </ul>
+        </details>
+      )}
       {!landing && <Stepper current={state.screen} />}
       <main id="main" tabIndex={-1}>
         {landing && <LandingScreen />}

@@ -593,3 +593,51 @@ pre.log { background: var(--bg-0); color: #cfd8e3; padding: 12px; border: 1px so
   .landing-example-wide .landing-grid-2 { grid-template-columns: minmax(0, 1fr); }
   .landing-example .tag.conf { white-space: normal; }
 }
+
+
+/* ---------- scan-first review screen & expandable help (October 24 revision) ----------
+   Uses the theme tokens only; the sticky .review-context toolbar is styled above. */
+
+.review-context .review-nav { margin-left: auto; display: flex; gap: 6px; }
+.review-context .review-nav button { min-height: 30px; padding: 3px 10px; font-size: 12px; font-family: var(--sans); letter-spacing: 0; }
+
+details.help { margin: 10px 0 0; border-top: 1px solid var(--line-soft); padding-top: 6px; }
+details.help > summary {
+  cursor: pointer; font-size: 13.5px; color: var(--focus); text-decoration: underline;
+  padding: 4px 0; min-height: 32px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+details.help > summary::marker { color: var(--ink-faint); }
+details.help[open] > summary { text-decoration: none; color: var(--ink); font-weight: 600; }
+details.card.help { padding: 12px 22px; margin-bottom: 20px; border-top: 1px solid var(--line); }
+details.card.help > summary { font-size: 15px; text-decoration: none; color: var(--ink); }
+details.card.help > summary .summary-heading { font-size: 15px; margin: 0; display: inline; }
+details.card.help[open] > summary { margin-bottom: 8px; }
+
+.candidate-card .candidate-sim { margin: -4px 0 10px; }
+.candidate-card .candidate-grade-line { font-size: 17px; margin: 0 0 4px; }
+.candidate-card .candidate-rationale { font-size: 15px; }
+
+.conf-row { list-style: none; margin: 0 0 6px; padding: 0; display: grid; gap: 6px; }
+.conf-row li { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; font-size: 14px; }
+
+.status-pill {
+  display: inline-flex; align-items: center; gap: 2px; font-size: 13px; font-weight: 600;
+  border: 1px dashed var(--gold-line); color: var(--gold-text); background: var(--gold-bg);
+  border-radius: 14px; padding: 3px 10px; white-space: nowrap;
+}
+.status-pill.saved { border: 1px solid var(--navy-line); color: var(--navy-text); background: var(--navy-soft); }
+
+.grade-vs-ng { margin: 8px 0 0; }
+
+.unresolved-list { list-style: none; margin: 6px 0 0; padding: 0; }
+.unresolved-list li {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 8px 0; border-top: 1px solid var(--line-soft);
+}
+.unresolved-list li:first-child { border-top: none; }
+.unresolved-list button { flex: none; }
+
+@media (max-width: 960px) {
+  .review-grid { grid-template-columns: minmax(0, 1fr); }
+  .review-context .review-nav { margin-left: 0; width: 100%; }
+}

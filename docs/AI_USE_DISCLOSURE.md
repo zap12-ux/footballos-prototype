@@ -32,6 +32,19 @@ before it was published. The student reviewed the landing-page copy against the 
 rationale, decided which GitHub repository to publish from and made it public, authorised
 the deployment, and is responsible for the submitted description.
 
+## Third session (October 24, 2026): review findings
+
+A third session with the same assistant worked from a written set of review findings:
+it corrected the practice-focus fallback (four distinct states; the Grade 1 / "AI misread"
+case now yields "Clarify the coaching issue"), separated the research entry path from the
+landing page and removed numeric anchors from the baseline form, made demo sessions carry
+no baseline at all, replaced latest-visit review timing with accumulated review intervals,
+gated the timing comparison, reordered the play-review screen with expandable help, added
+regression tests, and updated these documents. It ran the type check, the test suite and
+the production build and drove the application in a browser; what it could and could not
+verify is listed in the verification summary. The student reviewed and is responsible for
+the result.
+
 ## What AI was not used for
 
 - **The application contains no AI.** Every "candidate grade", confidence label, rationale,

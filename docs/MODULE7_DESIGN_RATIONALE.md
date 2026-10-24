@@ -70,11 +70,14 @@ from coach-reviewed evidence), and OR-607 (states must not rely on colour alone)
 - The storyboard diagram (pre-snap, first step, contact, result) is a reasonable stand-in
   for footage in a usability study. It is labelled as illustrative wherever it appears.
 - "AI misread the assignment" and "Other" are logged but never drive a practice focus,
-  because they describe the review rather than the player.
+  because they describe the review rather than the player. When such a reason is the only
+  thing recorded on a Grade 1 or 2, the result is "Clarify the coaching issue," not a
+  recommendation (§3.5).
 - A correction to Grade 3 is "standard met"; the reason given explains the overrule and is
   shown under "logged, not treated as a deficiency."
-- Measured review time counts only time spent on an open play up to its latest saved
-  decision. The definitions are printed on the results screen and in the export.
+- Review time accumulates across every visit to a play while the tab is visible; saving does
+  not start or end an interval. The definitions are printed on the results screen and in
+  the export (§3.6).
 
 ## 3. Design rationale, with sources
 
@@ -211,9 +214,9 @@ leaves the browser — sits directly under the calls to action, in the same regi
 global banner, and the accuracy statement stays in the header.
 
 Demo mode (`#/demo`) exists so a visitor can reach the interactive workflow in one click.
-It records a placeholder baseline flagged `demo: true` so the baseline-gating logic is
-satisfied without asking for an estimate, marks the session `mode: 'demo'`, and opens the
-review queue with the film check visible. From there every trust mechanic is identical to
+It collects no baseline and fabricates none (`baseline: null`; the results screen says "No
+baseline collected in demo mode"), marks the session `mode: 'demo'`, and opens the review
+queue with the film check visible. From there every trust mechanic is identical to
 research mode: evidence navigation, the two-interaction correction with a required reason,
 reasons for every final No Grade, the Play 4 blind-first probe, the stale practice focus,
 feedback and export. The header and the results screen say "Demo session — not research
@@ -229,6 +232,30 @@ first impression. For the same reason the landing page shows no percentage, no a
 figure, no time-saved claim, no testimonial and no user count — nothing that a trustworthy
 appearance could be mistaken for evidence of performance (§5, §7).
 
+#### 3.3.2 The research entry path and what a baseline can claim (October 24 revision)
+
+The landing page is right for a first-time visitor and wrong for a research participant: it
+shows candidate grades, confidence labels, evidence examples, a demonstration of the loop
+and a suggested demo length before any baseline could be taken, and the earlier intake form
+offered time chips (5 to 45 minutes) that anchor the very estimate being collected. The
+research entry (`#/research`) now collects the baseline first on a screen that is neutral
+about the product: no example output, no description of grades or confidence, an empty time
+field with no suggested values, an "I'm not sure" option that records a missing estimate
+rather than forcing a number, and a prior-exposure question. The expected task length is
+shown only afterwards, on the team-context screen. The usability protocol sends participants
+to this link, not to the landing page.
+
+The baseline record was also made honest about what it can claim. `capturedBeforeReviewTask`
+says that the baseline preceded the review task in this session, which the application
+enforces. It does not say the participant had never seen the prototype, which no browser
+can establish. The `exposure` record therefore distinguishes four things: how the form was
+reached (research link or landing page), whether the landing page rendered in this visit,
+whether a demo start or landing view was recorded earlier in this browser (a separate
+storage key that survives a session being replaced), and the participant's own answer. The
+record carries a fixed caveat that "false" means "none recorded." This is the same
+transparency-about-limitations principle (Zieglmeier & Lehene, 2022, §5) applied to the
+research instrument rather than to the AI.
+
 ### 3.4 Using AI in UX work while keeping human judgment (Moran & Nielsen, 2023)
 
 Moran and Nielsen (2023) recommend using generative AI as a "sidekick" that speeds up UX
@@ -242,6 +269,66 @@ this submission:
   a convincing hallucination to hide behind.
 - The usability study is a proposal with no invented participants, quotations or results.
   Real coaches are the only valid source of findings.
+
+### 3.5 Four practice-focus states, and why "maintain" was wrong
+
+The earlier practice focus had three outcomes: insufficient evidence, a focus, and a
+"maintain" fallback used whenever graded plays existed but no teachable finding did. The
+fallback was reached in a case it should not have covered: a coach recorded Grade 1 on Play
+5 with the reason "AI misread the assignment," and the screen recommended reinforcing the
+standard with Play 5 listed among the examples. The grade said there was a problem; the
+reason, by design, described the review rather than the player; and the fallback read the
+absence of a technique reason as the absence of a problem.
+
+The revised logic decides in order. If no reviewed play has a coach grade, the result is
+insufficient evidence with a film next step (abstention as a feature, Weisz et al., 2024).
+If every graded play is Grade 3, the result is a reinforcement limited to those plays. If
+any final grade is 1 or 2 but no usable technique finding exists, the result is "Clarify
+the coaching issue": the plays and grades are named, the reason is stated not to identify
+what to coach, and each play gets a working Reopen control. Only when coach-approved
+technique findings exist is a focus built, and even then two limits are stated: a finding
+supported by one play is labelled a single finding rather than a recurring issue, and
+below-standard plays without a technique reason are listed as not accounted for. This
+follows the predictability measure in Zieglmeier and Lehene (2022, §5): observable state
+maps to a named outcome, and the system tells the user what is and is not covered rather
+than smoothing a gap into a recommendation.
+
+### 3.6 Review time that survives revision
+
+Per-play review time previously restarted whenever a play was reopened, so a coach who
+revisited a play to revise it lost the earlier time, and the summary summed only the latest
+visits. Time is now recorded as intervals: one opens when the play-review screen shows a
+play with the tab visible, and it closes on navigation, when the tab is hidden, or when
+the page goes away, with a five-second heartbeat so a reload closes the interval at a
+known moment instead of guessing. Intervals never overlap, reopening adds a new one, and
+saving a decision neither starts nor ends one, so repeated saves cannot double-count.
+Accumulated review time is the sum of those intervals; session elapsed time is kept
+separate and includes everything. Sessions saved before this change have no intervals, so
+they are marked legacy, their latest-visit seconds are shown labelled as such, and no
+cumulative time or comparison is derived for them.
+
+The comparison with the baseline is shown only in a research session with a numeric
+baseline, accumulated timing, and six final decisions. It is labelled exploratory and is
+accompanied by scope notes: the baseline describes the coach's own film, own method and
+full grading from memory; the measured time covers only the play-review screen with
+candidates already prepared. Nothing on the screen or in the export claims a demonstrated
+productivity improvement.
+
+### 3.7 Scan-first review screen
+
+The play-review screen was reordered so a coach can take it in at a glance: a sticky
+toolbar (Play N of 6, coverage, practice-focus status, previous and next play); the film or
+diagram and the evidence list first; then the candidate badge with a one-line rationale,
+the two confidence readings as compact tags with a short meaning each, and the missing or
+uncertain evidence; then the decision controls with a Saved / Not saved pill that carries
+a glyph as well as colour. Extended confidence definitions, the simulation statement for
+the screen, and the full Grade 1 versus No Grade text moved into native `<details>`
+elements, which are keyboard operable and announced as expandable. The global banner was
+shortened to one line with the same expandable detail, so the same disclaimer no longer
+appears in full in the header, the banner and every card (reduced clutter and consistency
+as credibility measures, Zieglmeier & Lehene, 2022, §5). The blind-first behaviour on Play
+4 is unchanged: candidate, rationale, confidence and candidate evidence stay hidden until
+the coach submits an independent grade.
 
 ## 4. Confidence, accuracy and coverage — kept distinct
 

@@ -6,6 +6,7 @@ import type {
   CoachDecision,
   FocusFinding,
   PracticeFocus,
+  UnresolvedPlay,
 } from '../types';
 
 const CHANGE_CODES: ChangeReasonCode[] = [
@@ -32,19 +33,35 @@ function playList(numbers: number[]): string {
   return numbers.map((n) => `Play ${n}`).join(', ');
 }
 
+/** Fixed wording so the UI, the export and the tests agree on what each state is called. */
+export const FOCUS_TITLES = {
+  insufficient: 'Insufficient evidence for a practice focus',
+  reinforce: 'Reinforce the standard on the graded snaps',
+  clarify: 'Clarify the coaching issue before setting a focus',
+} as const;
+
 /**
  * Deterministic practice focus built ONLY from coach-approved results.
  *
- * Rules:
- * - No Grade decisions and unreviewed plays are excluded from the logic and the
- *   exclusion is stated.
- * - A finding only exists on a play whose FINAL grade is 1 or 2. A correction to
- *   Grade 3 is "standard met": the reason the coach gave explains the overrule
+ * Four distinct outcomes, decided in this order:
+ *
+ *  A. insufficient — no reviewed play has a coach grade. Nothing about performance is
+ *     inferred; the next step is better film.
+ *  B. reinforce    — every coach-graded play is Grade 3. Limited to those plays.
+ *  C. clarify      — at least one final grade is 1 or 2, but no usable technique finding
+ *     exists (the reason was "AI misread the assignment", "Other", or none). The grade says
+ *     there is a problem; the recorded reason does not say what to coach. Never presented
+ *     as the standard being met.
+ *  D. focus        — coach-approved technique findings exist. Below-standard plays without
+ *     a technique reason are listed as a limitation, and a finding supported by one play is
+ *     never called recurring.
+ *
+ * Throughout:
+ * - No Grade decisions and unreviewed plays are excluded and the exclusion is stated.
+ * - A correction to Grade 3 is "standard met": the recorded reason explains the overrule
  *   and is never converted into a player deficiency.
- * - "AI misread the assignment" and "Other" describe the review, not the
- *   player. They are logged but never drive a teaching point.
- * - If no reviewed play has a coach grade, the result is an insufficient-evidence
- *   state, not a recommendation to maintain or change anything.
+ * - "AI misread the assignment" and "Other" describe the review, not the player. They are
+ *   logged but never drive a teaching point.
  */
 export function buildPracticeFocus(
   decisions: Record<string, CoachDecision>,
@@ -56,13 +73,15 @@ export function buildPracticeFocus(
 
   const findings: FocusFinding[] = [];
   const nonTeachingNotes: string[] = [];
+  const unresolvedPlays: UnresolvedPlay[] = [];
 
   for (const play of graded) {
     const decision = decisions[play.id];
     const final = decision.finalGrade;
+    const codes = decision.reasonCodes.filter(isChangeCode);
+    const before = findings.length;
 
     if (decision.action === 'changed') {
-      const codes = decision.reasonCodes.filter(isChangeCode);
       if (final === 3) {
         nonTeachingNotes.push(
           `Play ${play.playNumber} was corrected to Grade 3 (standard met). The recorded reason, ` +
@@ -81,8 +100,7 @@ export function buildPracticeFocus(
         } else {
           nonTeachingNotes.push(
             `Play ${play.playNumber} was changed to ${gradeShort(final)} with the reason “${reasonLabel(code)}”. ` +
-              'That reason describes the review, not the player, so it does not drive the focus. ' +
-              'Add a technique reason if you want this play to count.',
+              'That reason describes the review, not the player, so it does not drive the focus.',
           );
         }
       }
@@ -97,18 +115,33 @@ export function buildPracticeFocus(
         });
       }
     }
+
+    // A below-standard grade with nothing teachable behind it is a gap, not a pass.
+    if ((final === 1 || final === 2) && findings.length === before) {
+      const labels = codes.map(reasonLabel);
+      unresolvedPlays.push({
+        playNumber: play.playNumber,
+        playId: play.id,
+        finalGrade: final,
+        recordedReasonLabels: labels,
+        why:
+          labels.length > 0
+            ? `${gradeShort(final)} indicates a problem, but “${labels.join(', ')}” describes the review, not what to coach.`
+            : `${gradeShort(final)} indicates a problem, but no technique reason was recorded.`,
+      });
+    }
   }
 
   const counts = new Map<ChangeReasonCode, number>();
   const playsByCode = new Map<ChangeReasonCode, number[]>();
   for (const f of findings) {
-    counts.set(f.reasonCode, (counts.get(f.reasonCode) ?? 0) + 1);
     const list = playsByCode.get(f.reasonCode) ?? [];
     if (!list.includes(f.playNumber)) list.push(f.playNumber);
     playsByCode.set(f.reasonCode, list);
+    counts.set(f.reasonCode, list.length);
   }
 
-  // Most frequent code wins; ties break toward the earliest supporting play.
+  // Most plays wins; ties break toward the earliest supporting play.
   let driver: ChangeReasonCode | null = null;
   let best = 0;
   let bestFirstPlay = Number.MAX_SAFE_INTEGER;
@@ -135,6 +168,16 @@ export function buildPracticeFocus(
         `${unreviewedNumbers.length === 1 ? 'is' : 'are'} not included.`
       : '');
 
+  const limitations: string[] = [];
+  if (excludedNumbers.length) {
+    limitations.push(
+      `${playList(excludedNumbers)} ${excludedNumbers.length === 1 ? 'is' : 'are'} No Grade: insufficient evidence, not a performance result.`,
+    );
+  }
+  if (unreviewedNumbers.length) {
+    limitations.push(`${playList(unreviewedNumbers)} ${unreviewedNumbers.length === 1 ? 'has' : 'have'} no decision yet.`);
+  }
+
   const common = {
     findings,
     nonTeachingNotes,
@@ -143,48 +186,106 @@ export function buildPracticeFocus(
     reviewedCount: reviewed.length,
     excludedPlayNumbers: excludedNumbers,
     unreviewedPlayNumbers: unreviewedNumbers,
+    unresolvedPlays,
   };
 
+  // A. No graded evidence.
   if (graded.length === 0) {
     return {
       kind: 'insufficient',
-      focusTitle: 'Insufficient evidence for a practice focus',
+      focusTitle: FOCUS_TITLES.insufficient,
       teachingCue:
         'No reviewed play has a coach grade, so there is no basis to recommend keeping or changing anything. This is a coverage result, not a performance result.',
       supportingPoints: [
-        'Get a gradable angle for the excluded snaps — an end-zone copy or a fixed sideline angle.',
+        'Get a gradable angle for the excluded snaps: an end-zone copy or a fixed sideline angle.',
         'Review the remaining plays in the queue, or grade from another film source.',
       ],
       supportingPlayNumbers: [],
       driverReasonCode: null,
+      driverSupport: 'none',
+      limitations: [
+        'Nothing here says the player met or missed the standard. No Grade means the film could not be assessed.',
+        ...limitations,
+      ],
       ...common,
     };
   }
 
-  if (!driver) {
+  const belowStandard = graded.filter((p) => decisions[p.id].finalGrade !== 3);
+
+  // B. Every graded play meets the standard.
+  if (belowStandard.length === 0) {
+    const gradedNumbers = graded.map((p) => p.playNumber);
     return {
-      kind: 'maintain',
-      focusTitle: 'No recurring correction surfaced',
-      teachingCue:
-        'Coach-approved grades on these snaps did not record a recurring, teachable issue. Reinforce the standard already being met.',
+      kind: 'reinforce',
+      focusTitle: FOCUS_TITLES.reinforce,
+      teachingCue: `Every coach-graded snap (${playList(gradedNumbers)}) was Grade 3. Reinforce what these snaps show; no correction was recorded on them.`,
       supportingPoints: [
-        'Use the graded snaps as teaching examples of the standard.',
+        'Use these graded snaps as teaching examples of the standard.',
         'Re-check the emphasis after the next film review.',
       ],
-      supportingPlayNumbers: graded.map((p) => p.playNumber),
+      supportingPlayNumbers: gradedNumbers,
       driverReasonCode: null,
+      driverSupport: 'none',
+      limitations: [
+        `This conclusion covers only the ${graded.length} coach-graded ${graded.length === 1 ? 'play' : 'plays'}.`,
+        ...limitations,
+      ],
       ...common,
     };
   }
 
+  // C. Below-standard grades, but nothing actionable to coach.
+  if (!driver) {
+    const list = unresolvedPlays
+      .map((u) => `Play ${u.playNumber} (${gradeShort(u.finalGrade)})`)
+      .join(', ');
+    return {
+      kind: 'clarify',
+      focusTitle: FOCUS_TITLES.clarify,
+      teachingCue:
+        `${list} ${unresolvedPlays.length === 1 ? 'is' : 'are'} below the standard, but the recorded ` +
+        `${unresolvedPlays.length === 1 ? 'reason does' : 'reasons do'} not identify what to coach. ` +
+        'The grade says there is a problem; a technique reason is needed to turn it into a practice focus.',
+      supportingPoints: [
+        'Reopen each play below and add a technique reason (for example hand placement or first step) if the film supports one.',
+        'If the grade itself was a misread, revise the grade rather than the focus.',
+      ],
+      supportingPlayNumbers: [],
+      driverReasonCode: null,
+      driverSupport: 'none',
+      limitations: [
+        'No practice focus is recommended and no "standard met" conclusion is drawn from these plays.',
+        ...limitations,
+      ],
+      ...common,
+    };
+  }
+
+  // D. Actionable technique findings exist.
+  const supporting = (playsByCode.get(driver) ?? []).slice().sort((a, b) => a - b);
+  const driverSupport = supporting.length > 1 ? 'recurring' : 'single';
   const coaching = REASON_COACHING[driver];
+  if (unresolvedPlays.length) {
+    limitations.unshift(
+      `${playList(unresolvedPlays.map((u) => u.playNumber))} ${unresolvedPlays.length === 1 ? 'is' : 'are'} below the standard ` +
+        'but carry no technique reason, so the focus does not account for them.',
+    );
+  }
+  if (driverSupport === 'single') {
+    limitations.unshift(
+      `“${reasonLabel(driver)}” is supported by one play (Play ${supporting[0]}). It is a single finding, not a recurring issue.`,
+    );
+  }
   return {
     kind: 'focus',
     focusTitle: coaching.focusTitle,
     teachingCue: coaching.teachingCue,
     supportingPoints: coaching.supportingPoints.slice(0, 2),
-    supportingPlayNumbers: (playsByCode.get(driver) ?? []).sort((a, b) => a - b),
+    supportingPlayNumbers: supporting,
     driverReasonCode: driver,
+    driverSupport,
+    limitations,
     ...common,
   };
 }

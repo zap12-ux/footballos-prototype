@@ -21,8 +21,9 @@ async function toResearchIntro(user: User) {
 
 async function beginSession(user: User) {
   await toResearchIntro(user);
-  await user.type(screen.getByLabelText(/Minutes \(approximate\)/i), '20');
+  await user.type(screen.getByLabelText(/^Minutes$/i), '20');
   await user.click(screen.getByRole('button', { name: /Film plus paper or a spreadsheet/i }));
+  await user.click(screen.getByRole('radio', { name: /^No$/ }));
   await user.click(screen.getByRole('button', { name: /Begin Review/i }));
 }
 
@@ -89,7 +90,9 @@ describe('FootballOS prototype workflow', () => {
     await beginSession(user);
 
     const state = stored();
-    expect(state.baseline?.capturedBeforeTask).toBe(true);
+    expect(state.baseline?.capturedBeforeReviewTask).toBe(true);
+    expect(state.baseline?.estimateStatus).toBe('provided');
+    expect(state.baseline?.exposure?.enteredVia).toBe('landing_page');
     expect(state.baseline?.minutesForSixSnaps).toBe(20);
     expect(state.startedAtMs).toBeTruthy();
 
@@ -104,7 +107,7 @@ describe('FootballOS prototype workflow', () => {
     await user.click(screen.getByRole('button', { name: /Begin Review/i }));
     expect(screen.getAllByRole('alert').length).toBeGreaterThan(0);
     expect(stored().baseline ?? null).toBeNull();
-    expect(screen.getByRole('heading', { name: /^FootballOS$/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /^Research session$/ })).toBeInTheDocument();
   });
 
   it('runs simulated processing from demo film to the review queue', async () => {
@@ -441,7 +444,7 @@ describe('FootballOS prototype workflow', () => {
 
     // All six plays are decided, so the illustrative comparison is computed and labelled.
     expect(screen.getByTestId('timing-comparison')).toHaveTextContent(/minutes difference/);
-    expect(screen.getByTestId('timing-comparison')).toHaveTextContent(/Illustrative comparison/);
+    expect(screen.getByTestId('timing-comparison')).toHaveTextContent(/Exploratory comparison/);
 
     await user.click(screen.getAllByRole('radio', { name: 'Yes' })[0]);
     await user.click(screen.getByRole('radio', { name: '4' }));
@@ -471,7 +474,7 @@ describe('FootballOS prototype workflow', () => {
         'feedback_submitted',
       ]),
     );
-  }, 30000);
+  }, 90000);
 
   it('does not compute the timing comparison for a partial session', async () => {
     const user = userEvent.setup();

@@ -272,3 +272,140 @@ URLs.
 - `verification/e2e.mjs` was updated but not executed (Playwright not installed).
 - The prototype folder is also tracked inside the student's separate, private course
   repository; that repository is not part of the submission and was not scanned.
+
+---
+
+# October 24, 2026 (third session) — review findings: practice focus, baseline, timing, scan-first review
+
+**Base:** the deployed version above plus two later commits in this repository (the dark
+control-panel restyle and the real demo footage) · **Changes made locally; nothing was
+committed, pushed or deployed in this session.**
+
+## What changed
+
+### Priority 1 — practice-focus fallback (`src/utils/recommendation.ts`)
+- Reproduced the reported case (Play 1 Grade 3; Play 2 corrected to Grade 3; Plays 3, 4, 6
+  No Grade; Play 5 Grade 1 with "AI misread the assignment"): the old `maintain` branch
+  recommended reinforcing the standard and listed Play 5 among the graded examples.
+- `PracticeFocusKind` is now `insufficient | reinforce | clarify | focus`, decided in that
+  order (see README "Practice-focus states"). The reported case yields **"Clarify the
+  coaching issue before setting a focus"**, names Play 5 (Grade 1) with its recorded reason,
+  explains that the reason does not say what to coach, and offers a working **Reopen Play 5**
+  button. No Accept control is shown for `insufficient` or `clarify`.
+- `focus` results carry `driverSupport` (`single` / `recurring`), `unresolvedPlays`
+  (below-standard plays without a technique reason, each with a Reopen button) and
+  `limitations`. A single-play finding is labelled "Single finding (one play)".
+- Grade 3 corrections, "AI misread" and "Other" behave as before (logged, never a finding).
+  Invalidation after accept / edit / dismiss is unchanged and now covered for all three.
+
+### Priority 2 — research entry, baseline, exposure, demo (`IntroScreen.tsx`, `SessionContext.tsx`, `storage.ts`, `exposure.ts`, `LandingScreen.tsx`, `App.tsx`, `TeamContextScreen.tsx`, `ResearchSummaryScreen.tsx`, `summary.ts`)
+- `#/research` opens a neutral research entry screen: no grade badges, no confidence or
+  evidence wording, no suggested completion time, an empty minutes field, no time chips,
+  an **I'm not sure** control (`estimateStatus: 'not_sure'`, `minutesForSixSnaps: null`),
+  the method question, and a prior-exposure question. The global banner on that screen is a
+  single neutral line. The task brief with "About 10 minutes" moved to the team-context
+  screen, after the baseline.
+- `BaselineCapture.capturedBeforeTask` → `capturedBeforeReviewTask`, plus an `exposure`
+  record (`enteredVia`, `landingPageSeenThisVisit`, `priorDemoRecordedInThisBrowser`,
+  `priorLandingViewRecordedInThisBrowser`, `selfReportedPriorExposure`, fixed caveat).
+  Landing-page views and demo starts are recorded under a separate key
+  (`footballos.prototype.exposure.v1`). The export's `modeNote` no longer says "before any
+  exposure".
+- The original baseline is never overwritten; `reviseBaseline` appends to
+  `baselineRevisions` (a list). A second `captureBaseline` is ignored.
+- Demo mode: `baseline` is `null` (no placeholder). The results screen shows "No baseline
+  collected in demo mode" with no timestamp, exposure list or revision control; the export
+  carries `baseline: null`, `baselineRevisions: []`, `baselineNote`, and the comparison
+  reason "No baseline collected in demo mode." The JSON filename includes the mode.
+
+### Priority 3 — accumulated review time (`reviewTime.ts`, `SessionContext.tsx`, `PlayReviewScreen.tsx`, `storage.ts`, `summary.ts`)
+- `reviewIntervals` (closed) and `openReview` (current) in session state. An interval
+  opens when the review screen shows a play with the tab visible and closes on navigation,
+  `visibilitychange` to hidden, or `pagehide`; a 5-second heartbeat (`reviewTick`) lets a
+  reload close an open interval at the last known tick (`closedBy: 'recovered_on_load'`).
+  Intervals never overlap; reopening appends; saving neither opens nor closes.
+- `CoachDecision.reviewSeconds` is now the accumulated seconds for that play at the moment
+  of the save. Every decision version stays in `events` with `previousFinalGrade`.
+- Summary: `timing.accumulatedReviewMinutes`, per-play seconds and visit counts, session
+  elapsed kept separate; `comparison` only in research mode with a numeric baseline,
+  accumulated timing and six decisions, labelled exploratory, with `scopeNotes`
+  (`COMPARISON_SCOPE_NOTES`) shown in an expandable "Two different tasks are being compared".
+- Legacy sessions (no intervals) load as `timingSchema: 'legacy_latest_visit'`: latest-visit
+  seconds are shown labelled as such, accumulated time is "Not available", no comparison.
+
+### Priority 4 — scan-first review screen (`PlayReviewScreen.tsx`, `EvidencePanel.tsx`, `App.tsx`, `styles.css`)
+- Order: sticky toolbar (Play N of 6 · coverage · practice-focus status · Prev/Next play);
+  film stage and evidence; candidate badge with a one-line "Simulated" label, grade line,
+  rationale; two compact confidence tags with short meanings; missing or uncertain evidence
+  with its count; decision controls with a **Saved / Not saved** pill (glyph plus text); a
+  one-line Grade 1 vs No Grade distinction. The play/player table, confidence definitions,
+  "what is simulated on this screen" and the full Grade 1 / No Grade text are native
+  `<details>`. The global simulated-AI banner is one line with an expandable detail list.
+  Play 4's blind-first withholding is unchanged. New CSS uses the dark theme's tokens only.
+
+### Storage migration (`src/utils/storage.ts`)
+- Key unchanged. Old v2 records migrate: single `baselineRevision` → `baselineRevisions`;
+  demo placeholder baseline → `null`; research baseline without exposure → `exposure: null`
+  (results screen says "Not recorded"); no intervals → legacy timing schema; an interval
+  left open → closed at its last tick.
+
+### Tests
+- `src/tests/regressions.test.tsx` (new, 17 tests): the exact Grade 1 / "AI misread"
+  case (unit and driven through the UI with the Reopen action), all-No-Grade, all Grade 3,
+  actionable + unresolved, Grade 3 correction excluded and recurring vs single, invalidation
+  after accepted / edited / dismissed, `#/research` before any example or duration, landing
+  entry recorded as exposure, revisions kept separately, demo results and export with no
+  baseline, accumulation across reopen without double counting (reducer), reload recovery,
+  legacy migration, review intervals through the UI, comparison gating.
+- Existing tests updated for the renamed field, the `reinforce` / `clarify` kinds, the new
+  baseline shape and the exposure radio. `vite.config.ts` `testTimeout` raised to 60 s (the
+  machine was under heavy load from other processes during this session; see below).
+- `verification/e2e.mjs` updated for the new form and field names; still **not executed**
+  (Playwright is not installed).
+
+## Checks run
+
+| Check | Command | Result |
+| --- | --- | --- |
+| Type check | `npm run typecheck` | Passed (0 errors) |
+| Tests | `npm test` | **58 passed, 0 failed, 4 files** (40 before this session + 17 new + 1 added by the footage commit) in 20.5 s once the machine was idle. An earlier run under a load average above 250 (another session's processes) timed out on three long UI tests; the same tests pass unchanged with the machine idle. |
+| Production build | `npm run build` | Built: `dist/index.html`, one CSS (25.7 kB) and one JS asset (325.5 kB, 96.5 kB gzipped) |
+| Pages build | `GITHUB_PAGES=true npx vite build` | Built; asset paths under `/footballos-prototype/` |
+| Node / npm | — | Node 25.9.0, npm 11.12.1 |
+
+## Browser verification (built-in browser, Vite dev server on http://localhost:5174)
+
+| Behaviour | Observed |
+| --- | --- |
+| `#/research` (storage cleared, hard reload) | Research entry screen; `.grade-badge` count 0; no "confidence", "candidate", "rationale" or "evidence" text on the page; no "about N minutes"; no `N min` chips; minutes field value `""`; 0 px overflow |
+| Submit 20 min, "Film plus paper or a spreadsheet", prior exposure "No", Begin Review | Stored `baseline.capturedBeforeReviewTask: true`, `estimateStatus: "provided"`, `exposure.enteredVia: "research_link"`, `landingPageSeenThisVisit: false`, self-report `no`; events `research_entry_selected → baseline_captured → session_started`; team-context screen shows the task brief with "About 10 minutes" only now |
+| Film → Use Demo Film → queue → Review Play 1 | Review screen with the toolbar "Play 1 of 6 · 0 reviewed · 0 graded · 0 No Grade · Practice focus: not yet built" and Prev/Next play; heading order: stage, Evidence, Play and player (collapsed), Simulated AI candidate, Confidence, Missing or uncertain evidence (1), Your decision; status pill "○ Not saved yet"; `openReview` set for play-1; all four `<details>` closed by default |
+| Accept candidate | Pill "✓ Saved · Grade 3"; `reviewSeconds: 42` from the open interval |
+| Keyboard | Tab moves to "Mark No Grade" with a visible 2 px focus outline (`:focus-visible` true) |
+| Layout | 0 px horizontal overflow at 1280×860, 768×1024 (tablet) and 375×812 (phone); single column below 960 px; toolbar wraps with the nav buttons on their own row at phone width |
+| Reported scenario (seeded decisions + intervals, resumed on Practice focus) | `focus-kind-clarify`; title "Clarify the coaching issue before setting a focus"; "Play 5 · Grade 1 · reason recorded: AI misread the assignment"; no Accept / Edit / Dismiss; no "maintain", "reinforce" or "standard already being met" text; coverage "Based on 3 coach-graded plays of 6 reviewed. Play 3, Play 4, Play 6 were No Grade…"; Play 2's Grade 3 correction under "Logged, not treated as a deficiency" |
+| Reopen Play 5 from the clarify list | Review screen for Play 5 ("Play 5 of 6 · 6 reviewed · 3 graded · 3 No Grade"), pill "✓ Saved · Grade 1"; `play_opened` event carries `previousVisits: 2` |
+| Change to Grade 1 → Hand placement | Decision revision 2, `reviewSeconds: 69` (accumulated across the seeded visits plus this one), event `grade_changed` with `previousFinalGrade: "1"` |
+| Practice focus afterwards | `focus-kind-focus`, "Hand placement during initial engagement", "Single finding (one play): Hand placement", limitations list names the single-play support and the three No Grade plays; Accept / Edit / Dismiss shown |
+| Results (research) | Baseline 20 minutes, method, "Captured … before this review task started. This is not a claim that you had never seen the prototype"; Known prior exposure list with the caveat; "My earlier estimate was off" present; accumulated review time "6.3 minutes across 6 reviewed plays" with per-play seconds and visit counts (Play 5: 76 s across 3 visits); comparison "13.7 minutes difference…", labelled exploratory, with the "Two different tasks are being compared" detail |
+| Results (same session re-seeded as `mode: "demo"`) | Header "Demo session — not research data."; baseline card "No baseline collected in demo mode." with no timestamp, exposure or revision control; timing baseline and comparison both "No baseline collected in demo mode." |
+| Console | No errors |
+
+## Not verified / remaining limitations
+
+- **No human usability testing has been done.** This walkthrough by the implementer is an
+  engineering check, not a usability study. The protocol remains a plan; no participants,
+  findings, task-success rates, accuracy or time savings exist or are claimed.
+- `visibilitychange` and `pagehide` closing of intervals, and the reload recovery, are
+  covered by reducer / storage tests; they were not exercised by hiding or reloading the
+  tab in the browser.
+- The heartbeat means up to 5 s of review time is lost on a reload or closed tab, and time
+  with the tab hidden is deliberately excluded.
+- Exposure is only knowable where this browser saw it or the participant reports it.
+- Baseline revisions were exercised by tests, not clicked in the browser; Download Session
+  JSON was not clicked (the on-screen log renders the same JSON).
+- Screen-reader behaviour was not tested with assistive technology; only roles, names,
+  native `<details>` semantics, live regions and focus order were checked.
+- `verification/e2e.mjs` was updated but not executed (Playwright not installed).
+- Everything the "AI" does remains simulated: no model, no video analysis, no backend, no
+  network calls, no accuracy metric.

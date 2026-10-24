@@ -149,8 +149,11 @@ export interface CoachDecision {
   reasonCodes: ReasonCode[];
   note?: string;
   /**
-   * Seconds from the most recent opening of this play to this decision. Reopening
-   * a play restarts the clock; only the latest decision's time is kept.
+   * Review seconds accumulated for this play across every visit (closed review
+   * intervals plus the open one) at the moment this decision was saved. Reopening a
+   * play never resets it. In sessions saved before accumulated timing existed
+   * (`timingSchema: 'legacy_latest_visit'`) this is the seconds from the most recent
+   * opening of the play to the decision, and is labelled as such.
    */
   reviewSeconds: number;
   timestamp: string;
@@ -160,29 +163,84 @@ export interface CoachDecision {
   movedTowardCandidate?: boolean;
 }
 
+/**
+ * What is known about the participant's exposure to the prototype before the baseline
+ * was submitted. Browser records can show that something WAS seen in this browser; they
+ * can never prove that nothing was seen elsewhere, so "false" means "none recorded".
+ */
+export interface ExposureRecord {
+  /** How the research entry screen was reached. */
+  enteredVia: 'research_link' | 'landing_page';
+  /** The landing page (example candidates, confidence labels, evidence) rendered in this browser visit before the baseline was submitted. */
+  landingPageSeenThisVisit: boolean;
+  /** A demo session was started in this browser at some earlier time (separate storage key). */
+  priorDemoRecordedInThisBrowser: boolean;
+  /** The landing page was viewed in this browser at some earlier time (separate storage key). */
+  priorLandingViewRecordedInThisBrowser: boolean;
+  /** The participant's own answer to "Have you seen this prototype or a demonstration of it before today?" */
+  selfReportedPriorExposure: 'no' | 'yes' | 'not_sure';
+  /** Fixed caveat written into the record so a reader never over-interprets the flags. */
+  note: string;
+}
+
 export interface BaselineCapture {
-  /** Self-reported minutes to grade six comparable offensive-line snaps today. Null in a demo session. */
+  /** Self-reported minutes to grade six comparable offensive-line snaps. Null when the coach chose "I'm not sure". */
   minutesForSixSnaps: number | null;
+  /** 'not_sure' records a missing estimate rather than an invented number. */
+  estimateStatus: 'provided' | 'not_sure';
   method: string;
   timestamp: string;
-  /** Always true — the prototype only captures the baseline on the introduction screen (or as a demo placeholder before the queue). */
-  capturedBeforeTask: true;
-  /** Set only in demo mode: a placeholder that satisfies baseline gating. Never research data. */
-  demo?: true;
+  /**
+   * Always true: the research entry screen is the only place a baseline is captured, and the
+   * review task (team context, film, queue, plays) cannot start before it. This says nothing
+   * about exposure before this visit; see `exposure`.
+   */
+  capturedBeforeReviewTask: true;
+  /** Null only for sessions saved before exposure tracking existed. */
+  exposure: ExposureRecord | null;
 }
 
 /**
- * research — the instrumented flow (Screens 1–7) with a real baseline captured first.
- * demo     — grader/visitor walkthrough with a placeholder baseline. Exports carry the mode
- *            so demo sessions can never be mixed with research sessions.
+ * research — the instrumented flow with a baseline captured on the research entry screen
+ *            before the review task.
+ * demo     — grader/visitor walkthrough. No baseline is collected (`baseline` stays null).
+ *            Exports carry the mode so demo sessions can never be mixed with research sessions.
  */
 export type SessionMode = 'research' | 'demo';
 
+/** A later revision of the estimate. The original submission is never overwritten. */
 export interface BaselineRevision {
   minutesForSixSnaps: number;
   timestamp: string;
   note: 'Revised on summary screen; original estimate retained.';
 }
+
+/**
+ * One stretch of time during which the play-review screen was open for a play and the
+ * tab was visible. Intervals never overlap: at most one is open at a time, and reopening
+ * a play adds a new interval rather than replacing earlier ones.
+ */
+export interface ReviewInterval {
+  playId: string;
+  startMs: number;
+  endMs: number;
+  /** Why the interval ended. `recovered_on_load` means the page was closed or reloaded with the interval open; it was closed at the last recorded tick. */
+  closedBy: 'navigation' | 'tab_hidden' | 'page_hidden' | 'recovered_on_load';
+}
+
+export interface OpenReview {
+  playId: string;
+  startMs: number;
+  /** Advanced every few seconds while the screen is open and visible; the fallback end time if the page goes away without closing the interval. */
+  lastTickMs: number;
+}
+
+/**
+ * accumulated_v1      — review time is the sum of `reviewIntervals` per play.
+ * legacy_latest_visit — a session saved before intervals existed; only each decision's
+ *                       latest-visit `reviewSeconds` survives, and no cumulative time is derived.
+ */
+export type TimingSchema = 'accumulated_v1' | 'legacy_latest_visit';
 
 export interface ResearchEvent {
   event: string;
@@ -215,7 +273,25 @@ export interface Feedback {
  */
 export type RecommendationState = 'pending' | 'accepted' | 'edited' | 'dismissed' | 'stale';
 
-export type PracticeFocusKind = 'focus' | 'maintain' | 'insufficient';
+/**
+ * insufficient — no reviewed play has a coach grade (all No Grade or nothing reviewed).
+ * reinforce    — every coach-graded play is Grade 3; reinforce, limited to those plays.
+ * clarify      — at least one final grade is 1 or 2 but no usable technique finding exists;
+ *                the grade says there is a problem, the recorded reason does not say what to coach.
+ * focus        — coach-approved technique findings exist and drive a focus.
+ */
+export type PracticeFocusKind = 'focus' | 'reinforce' | 'clarify' | 'insufficient';
+
+/** A graded play whose final grade is below the standard but that carries no technique finding. */
+export interface UnresolvedPlay {
+  playNumber: number;
+  playId: string;
+  finalGrade: 1 | 2;
+  /** The reasons actually recorded (review reasons such as "AI misread the assignment", or none). */
+  recordedReasonLabels: string[];
+  /** Why it could not feed the focus. */
+  why: string;
+}
 
 export interface FocusFinding {
   playNumber: number;
@@ -240,6 +316,12 @@ export interface PracticeFocus {
   excludedPlayNumbers: number[];
   unreviewedPlayNumbers: number[];
   driverReasonCode: ChangeReasonCode | null;
+  /** How many distinct plays support the driver finding. 'single' must never be described as recurring. */
+  driverSupport: 'none' | 'single' | 'recurring';
+  /** Below-standard plays (final 1 or 2) that carry no technique finding. Shown as a limitation, never as the standard being met. */
+  unresolvedPlays: UnresolvedPlay[];
+  /** Plain statements of what this result does and does not cover. */
+  limitations: string[];
 }
 
 export interface SessionState {
@@ -256,8 +338,19 @@ export interface SessionState {
   /** epoch ms when the coach pressed Begin Review. */
   startedAtMs: number | null;
   screen: ScreenId;
+  /** Null in demo mode and before the research entry form is submitted. */
   baseline: BaselineCapture | null;
-  baselineRevision: BaselineRevision | null;
+  /** Every later revision, oldest first. The original `baseline` is never changed. */
+  baselineRevisions: BaselineRevision[];
+  /** ISO time the landing page (which shows example AI output) first rendered in this session; null if it never did. */
+  landingViewedAtIso: string | null;
+  /** How the research flow was entered. Null until a research entry is chosen. */
+  researchEntry: 'research_link' | 'landing_page' | null;
+  timingSchema: TimingSchema;
+  /** Closed review intervals, in order. Empty for legacy sessions. */
+  reviewIntervals: ReviewInterval[];
+  /** The interval currently open on the play-review screen, if any. */
+  openReview: OpenReview | null;
   filmSource: 'demo' | 'local' | null;
   filmLabel: string | null;
   /** Host of a pasted video link. Recorded as an intake-preference signal only; the URL itself is not kept. */

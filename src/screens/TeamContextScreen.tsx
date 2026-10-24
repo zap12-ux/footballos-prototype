@@ -8,15 +8,50 @@ import {
   TEAM,
 } from '../data/team';
 import { ConfidenceTag } from '../components/Indicators';
+import { PLAYS } from '../data/plays';
 
 export function TeamContextScreen() {
-  const { dispatch } = useSession();
+  const { state, dispatch } = useSession();
 
   return (
     <>
+      <section className="card" data-testid="task-brief">
+        <h1>The task</h1>
+        <table>
+          <tbody>
+            <tr>
+              <th scope="row">Workflow</th>
+              <td>
+                Select film &rarr; inspect a proposed evaluation &rarr; review evidence and
+                uncertainty &rarr; accept or correct it &rarr; create a practice focus from
+                your reviewed findings.
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">Expected length</th>
+              <td>About 10 minutes for {PLAYS.length} snaps, plus a short feedback form.</td>
+            </tr>
+            <tr>
+              <th scope="row">Who decides</th>
+              <td>
+                You do. Accept, change, or mark No Grade. The practice focus is built only from
+                your decisions. Every grade, confidence label and evidence note is authored mock
+                data; no video is analyzed and no model is called.
+              </td>
+            </tr>
+            {state.mode === 'research' && (
+              <tr>
+                <th scope="row">Your baseline</th>
+                <td className="small muted">Recorded. It is not asked again.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </section>
+
       <section className="card">
         <div className="card-head">
-          <h1>Team context</h1>
+          <h2>Team context</h2>
           <span className="tag">Preconfigured for this session</span>
         </div>
         <div className="two-col">

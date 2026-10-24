@@ -86,11 +86,14 @@ describe('practice focus', () => {
       }),
     });
 
-    expect(focus.kind).toBe('maintain');
+    // Both plays are Grade 1 with review-only reasons: a problem exists but nothing says what to coach.
+    expect(focus.kind).toBe('clarify');
     expect(focus.driverReasonCode).toBeNull();
     expect(focus.findings).toHaveLength(0);
     expect(focus.nonTeachingNotes).toHaveLength(2);
-    expect(focus.focusTitle).toMatch(/No recurring correction surfaced/i);
+    expect(focus.unresolvedPlays.map((u) => u.playNumber)).toEqual([2, 5]);
+    expect(focus.focusTitle).toMatch(/Clarify the coaching issue/i);
+    expect(focus.teachingCue).not.toMatch(/standard (already )?being met|reinforce/i);
   });
 
   it('uses the coach-supplied reason, not the original candidate, when a grade was changed', () => {
@@ -107,12 +110,14 @@ describe('practice focus', () => {
     expect(focus.findings[0].source).toBe('coach_changed');
   });
 
-  it('falls back cleanly when gradable evidence exists but no correctable finding was approved', () => {
+  it('reinforces, limited to the graded plays, when every coach grade is 3', () => {
     const focus = buildPracticeFocus({
       'play-1': decision({ playId: 'play-1', playNumber: 1, candidateGrade: 3, finalGrade: 3 }),
     });
-    expect(focus.kind).toBe('maintain');
+    expect(focus.kind).toBe('reinforce');
     expect(focus.driverReasonCode).toBeNull();
+    expect(focus.supportingPlayNumbers).toEqual([1]);
+    expect(focus.limitations[0]).toMatch(/covers only the 1 coach-graded play/);
     expect(focus.coverageStatement).toContain('No reviewed plays were excluded.');
   });
 
@@ -205,19 +210,27 @@ describe('session summary and export', () => {
         minutesForSixSnaps: 25,
         method: 'Film only, no separate notes',
         timestamp: new Date().toISOString(),
-        capturedBeforeTask: true,
+        estimateStatus: 'provided',
+        capturedBeforeReviewTask: true,
+        exposure: null,
       },
+      reviewIntervals: [
+        { playId: 'play-1', startMs: 0, endMs: 60000, closedBy: 'navigation' },
+        { playId: 'play-2', startMs: 60000, endMs: 90000, closedBy: 'navigation' },
+      ],
     };
     const partial = buildSummary({ ...base, decisions: { 'play-2': decision({ playId: 'play-2', playNumber: 2 }) } });
     expect(partial.comparison.comparable).toBe(false);
-    expect(partial.comparison.illustrativeDifferenceMinutes).toBeNull();
+    expect(partial.comparison.exploratoryDifferenceMinutes).toBeNull();
     expect(partial.comparison.reason).toMatch(/1 of 6/);
 
     const full = buildSummary({ ...base, decisions: sixDecisions() });
     expect(full.comparison.comparable).toBe(true);
-    expect(full.comparison.illustrativeDifferenceMinutes).toBeCloseTo(25 - full.measuredReviewMinutes, 5);
-    expect(full.comparison.reason).toMatch(/Illustrative/);
-    expect(full.sessionElapsedMinutes).toBeGreaterThan(0);
+    expect(full.timing.accumulatedReviewMinutes).toBe(1.5);
+    expect(full.comparison.exploratoryDifferenceMinutes).toBeCloseTo(25 - 1.5, 5);
+    expect(full.comparison.reason).toMatch(/Exploratory/);
+    expect(full.comparison.scopeNotes.length).toBeGreaterThan(0);
+    expect(full.timing.sessionElapsedMinutes).toBeGreaterThan(0);
   });
 
   it('serializes to JSON with the summary, decisions, definitions and events', () => {
@@ -227,7 +240,9 @@ describe('session summary and export', () => {
         minutesForSixSnaps: 25,
         method: 'Film only, no separate notes',
         timestamp: new Date().toISOString(),
-        capturedBeforeTask: true,
+        estimateStatus: 'provided',
+        capturedBeforeReviewTask: true,
+        exposure: null,
       },
       decisions: {
         'play-2': decision({ playId: 'play-2', playNumber: 2 }),
@@ -261,13 +276,13 @@ describe('session summary and export', () => {
       finalGrade: 2,
       movedTowardCandidate: false,
     });
-    expect(summary.baselineMinutes).toBe(25);
+    expect(summary.baseline.minutes).toBe(25);
 
     const exported = buildSessionExport(state);
     const json = JSON.stringify(exported);
     expect(exported.summary.playsGraded).toBe(2);
     expect(exported.accuracy).toMatch(/not evaluated/);
-    expect(exported.timingDefinitions.measuredReviewMinutes).toMatch(/most recent opening/);
+    expect(exported.timingDefinitions.accumulatedReviewMinutes).toMatch(/across every visit/);
     expect(exported.filmLinkHost).toBe('www.youtube.com');
     expect(json).not.toMatch(/filmLinkUrl/);
     expect(json).not.toMatch(/api[_-]?key/i);

@@ -6,6 +6,13 @@ import { gradeShort } from '../data/team';
 import { reasonLabel } from '../data/reasons';
 import { AccuracyNote } from '../components/Indicators';
 
+const KIND_TAG: Record<string, string> = {
+  focus: 'Practice focus',
+  reinforce: 'Reinforce · no correction recorded',
+  clarify: 'Needs a technique reason',
+  insufficient: 'Insufficient evidence',
+};
+
 export function PracticeFocusScreen() {
   const { state, dispatch } = useSession();
   const focus = useMemo(() => buildPracticeFocus(state.decisions), [state.decisions]);
@@ -19,11 +26,17 @@ export function PracticeFocusScreen() {
   const stale = state.recommendationState === 'stale';
   const showEdited = state.recommendationState === 'edited' && state.recommendationEdit;
   const title = showEdited ? state.recommendationEdit : focus.focusTitle;
-  const insufficient = focus.kind === 'insufficient';
+  // Only an actual recommendation (reinforce or focus) can be accepted, edited or dismissed.
+  // "Insufficient" and "clarify" are prompts to act, not recommendations.
+  const respondable = focus.kind === 'focus' || focus.kind === 'reinforce';
+
+  function reopen(playId: string) {
+    dispatch({ type: 'openPlay', playId });
+  }
 
   return (
     <>
-      <section className="card" aria-labelledby="focus-heading">
+      <section className="card" aria-labelledby="focus-heading" data-testid={`focus-kind-${focus.kind}`}>
         <div className="card-head">
           <h1 id="focus-heading">Practice focus</h1>
           <span className="tag gold">Simulated · built from your decisions only</span>
@@ -37,7 +50,13 @@ export function PracticeFocusScreen() {
           </div>
         )}
 
-        {insufficient ? (
+        <p className="small" style={{ marginBottom: 6 }}>
+          <span className={`tag ${focus.kind === 'insufficient' || focus.kind === 'clarify' ? 'low' : 'high'}`}>
+            {KIND_TAG[focus.kind]}
+          </span>
+        </p>
+
+        {focus.kind === 'insufficient' && (
           <div className="callout warn" data-testid="focus-insufficient">
             <h2 data-testid="focus-title" style={{ color: 'inherit' }}>
               {focus.focusTitle}
@@ -50,11 +69,45 @@ export function PracticeFocusScreen() {
               ))}
             </ul>
           </div>
-        ) : (
+        )}
+
+        {focus.kind === 'clarify' && (
+          <div className="callout warn" data-testid="focus-clarify">
+            <h2 data-testid="focus-title" style={{ color: 'inherit' }}>
+              {focus.focusTitle}
+            </h2>
+            <p>{focus.teachingCue}</p>
+            <h4 style={{ color: 'inherit' }}>Plays to clarify</h4>
+            <ul className="unresolved-list" data-testid="focus-unresolved">
+              {focus.unresolvedPlays.map((u) => (
+                <li key={u.playNumber}>
+                  <div>
+                    <strong>
+                      Play {u.playNumber} · {gradeShort(u.finalGrade)}
+                    </strong>
+                    {' · '}
+                    reason recorded:{' '}
+                    {u.recordedReasonLabels.length ? u.recordedReasonLabels.join(', ') : 'none'}
+                    <br />
+                    <span className="small">{u.why}</span>
+                  </div>
+                  <button type="button" onClick={() => reopen(u.playId)}>
+                    Reopen Play {u.playNumber}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <h4 style={{ color: 'inherit' }}>What would help</h4>
+            <ul style={{ marginBottom: 0 }}>
+              {focus.supportingPoints.map((p) => (
+                <li key={p}>{p}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {respondable && (
           <>
-            {focus.kind === 'maintain' && (
-              <p className="small muted">No change recommended.</p>
-            )}
             <h2 data-testid="focus-title">{title}</h2>
             {showEdited && (
               <p className="small muted">
@@ -89,17 +142,45 @@ export function PracticeFocusScreen() {
                 ))}
               </ul>
             ) : (
-              <p className="small">
-                No coach-graded play contributed a correctable finding.
-                {focus.supportingPlayNumbers.length > 0 &&
-                  ` Graded plays: ${focus.supportingPlayNumbers.map((n) => `Play ${n}`).join(', ')}.`}
+              <p className="small" data-testid="focus-graded-plays">
+                Graded plays: {focus.supportingPlayNumbers.map((n) => `Play ${n}`).join(', ')}. No
+                correction was recorded on them.
               </p>
             )}
             {focus.driverReasonCode && (
-              <p className="small">
-                Most frequent recorded finding:{' '}
-                <strong>{reasonLabel(focus.driverReasonCode)}</strong>
+              <p className="small" data-testid="focus-driver">
+                {focus.driverSupport === 'recurring' ? (
+                  <>
+                    Recurring finding ({focus.supportingPlayNumbers.length} plays):{' '}
+                    <strong>{reasonLabel(focus.driverReasonCode)}</strong>
+                  </>
+                ) : (
+                  <>
+                    Single finding (one play): <strong>{reasonLabel(focus.driverReasonCode)}</strong>
+                  </>
+                )}
               </p>
+            )}
+
+            {focus.unresolvedPlays.length > 0 && (
+              <div className="callout warn" data-testid="focus-unresolved">
+                <strong>Not accounted for by this focus:</strong>
+                <ul className="unresolved-list" style={{ margin: '6px 0 0' }}>
+                  {focus.unresolvedPlays.map((u) => (
+                    <li key={u.playNumber}>
+                      <div className="small">
+                        <strong>
+                          Play {u.playNumber} · {gradeShort(u.finalGrade)}
+                        </strong>{' '}
+                        · {u.why}
+                      </div>
+                      <button type="button" onClick={() => reopen(u.playId)}>
+                        Reopen Play {u.playNumber}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
           </>
         )}
@@ -126,12 +207,23 @@ export function PracticeFocusScreen() {
           </span>
         </div>
 
+        {focus.limitations.length > 0 && (
+          <details className="help" data-testid="focus-limitations">
+            <summary>What this result does and does not cover ({focus.limitations.length})</summary>
+            <ul className="small" style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+              {focus.limitations.map((l) => (
+                <li key={l}>{l}</li>
+              ))}
+            </ul>
+          </details>
+        )}
+
         <p className="small muted">
-          This practice focus is composed deterministically from the decisions you recorded. It
-          is not coaching guidance from any outside source and it is not a model output.
+          Composed deterministically from the decisions you recorded. Not coaching guidance from
+          any outside source and not a model output.
         </p>
 
-        {!insufficient && (
+        {respondable && (
           <div className="btn-row" role="group" aria-label="Practice focus response">
             <button
               type="button"
@@ -159,7 +251,7 @@ export function PracticeFocusScreen() {
           </div>
         )}
 
-        {editing && !insufficient && (
+        {editing && respondable && (
           <div style={{ marginTop: 12 }}>
             <label htmlFor="focus-edit">Revised practice focus (no names)</label>
             <textarea
@@ -197,17 +289,22 @@ export function PracticeFocusScreen() {
                 <th scope="col">Your decision</th>
                 <th scope="col">Reason recorded</th>
                 <th scope="col">Used in the focus</th>
+                <th scope="col">
+                  <span className="sr-only">Action</span>
+                </th>
               </tr>
             </thead>
             <tbody>
               {PLAYS.map((play) => {
                 const d = state.decisions[play.id];
                 const finding = focus.findings.find((f) => f.playNumber === play.playNumber);
+                const unresolved = focus.unresolvedPlays.find((u) => u.playNumber === play.playNumber);
                 let used: string;
                 if (!d) used = 'No — not reviewed';
                 else if (d.finalGrade === 'NG') used = 'No — No Grade (insufficient evidence)';
                 else if (finding) used = `Yes — ${finding.label}`;
                 else if (d.finalGrade === 3) used = 'No — standard met';
+                else if (unresolved) used = 'No — below standard, no technique reason recorded';
                 else used = 'No — no teachable finding recorded';
                 return (
                   <tr key={play.id}>
@@ -216,6 +313,11 @@ export function PracticeFocusScreen() {
                     <td>{d ? gradeShort(d.finalGrade) : 'Not reviewed'}</td>
                     <td>{d && d.reasonCodes.length ? d.reasonCodes.map(reasonLabel).join(', ') : '—'}</td>
                     <td>{used}</td>
+                    <td>
+                      <button type="button" onClick={() => reopen(play.id)} aria-label={`${d ? 'Reopen' : 'Review'} Play ${play.playNumber}`}>
+                        {d ? 'Reopen' : 'Review'}
+                      </button>
+                    </td>
                   </tr>
                 );
               })}

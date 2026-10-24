@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSession } from '../state/SessionContext';
 import { PLAYS } from '../data/plays';
 import {
@@ -43,13 +43,19 @@ const REAL: string[] = [
   'Frame selection: picking an evidence item changes the diagram and the caption.',
   'The blind-first probe on Play 4: the candidate stays hidden until you record your own grade, and both are stored separately.',
   'The practice focus is composed deterministically from your decisions only, and it is marked stale if you change a decision afterwards.',
-  'The research instrumentation: baseline before exposure (research mode), per-play timing, structured reasons, feedback questions, and a JSON export that stays in this browser.',
+  'The research instrumentation: a baseline captured before the review task (research entry), accumulated per-play review timing, structured reasons, feedback questions, and a JSON export that stays in this browser.',
 ];
 
 export function LandingScreen() {
   const { state, dispatch } = useSession();
   const resumable = state.resumeScreen !== null;
   const [confirm, setConfirm] = useState<'demo' | 'research' | null>(null);
+
+  // The landing page shows example candidates, confidence labels and evidence. Record that
+  // it was seen so a research baseline captured afterwards carries that exposure.
+  useEffect(() => {
+    dispatch({ type: 'markLandingViewed' });
+  }, [dispatch]);
 
   // Live examples: one Grade 2 snap for the candidate, confidence and evidence cards; one
   // abstention for the No Grade card. Both are the real seeded plays from `plays.ts`.
@@ -65,7 +71,8 @@ export function LandingScreen() {
       return;
     }
     setConfirm(null);
-    dispatch({ type: kind === 'demo' ? 'startDemo' : 'startResearch' });
+    if (kind === 'demo') dispatch({ type: 'startDemo' });
+    else dispatch({ type: 'startResearch', via: 'landing_page' });
   }
 
   return (
@@ -375,11 +382,13 @@ export function LandingScreen() {
       <section className="card" aria-labelledby="testing-heading">
         <h2 id="testing-heading">Usability testing</h2>
         <p>
-          The prototype is instrumented for a formative study: a baseline estimate captured before
-          exposure to the workflow (research mode), per-play review timing, structured correction
-          and No Grade reasons, feedback questions, and a JSON export that stays in the browser.
-          A protocol for a first round with three to five high-school coaches is written. No
-          study has been run yet, and no findings are claimed.
+          The prototype is instrumented for a formative study: a baseline estimate captured on
+          the research entry page before the review task (with known prior exposure recorded
+          next to it), accumulated per-play review timing, structured correction and No Grade
+          reasons, feedback questions, and a JSON export that stays in the browser. Research
+          participants are sent straight to the research entry link, not to this page. A
+          protocol for a first round with three to five high-school coaches is written. No study
+          has been run yet, and no findings are claimed.
         </p>
         <p className="small" style={{ marginBottom: 0 }}>
           <a href={DOC_URLS.protocol} target="_blank" rel="noreferrer">

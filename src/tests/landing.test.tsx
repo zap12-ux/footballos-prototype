@@ -32,7 +32,7 @@ describe('landing page and entry routes', () => {
     // The accuracy statement stays in the header on every route, including the landing page.
     expect(screen.getAllByText(/Model accuracy: not evaluated in this prototype/).length).toBeGreaterThan(0);
     // No research-intake form before the visitor has chosen a path.
-    expect(screen.queryByLabelText(/Minutes \(approximate\)/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Minutes$/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Begin Review/i })).not.toBeInTheDocument();
     // Nothing quantitative: no percentage anywhere on the landing page.
     expect(document.body.textContent).not.toMatch(/\d+\s?%/);
@@ -70,15 +70,15 @@ describe('landing page and entry routes', () => {
     await user.click(screen.getByRole('button', { name: /Try the demo/i }));
 
     expect(await screen.findByRole('heading', { name: /Review queue/i })).toBeInTheDocument();
-    expect(screen.queryByLabelText(/Minutes \(approximate\)/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Minutes$/i)).not.toBeInTheDocument();
     expect(screen.getByTestId('film-check-banner')).toHaveTextContent(/4 of 6 snaps look gradable/);
     expect(screen.getByTestId('coverage-progress')).toHaveTextContent('0 of 6 reviewed · 0 graded · 0 No Grade');
     expect(screen.getByTestId('header-demo-note')).toHaveTextContent('Demo session — not research data.');
 
     const state = stored();
     expect(state.mode).toBe('demo');
-    expect(state.baseline?.demo).toBe(true);
-    expect(state.baseline?.minutesForSixSnaps).toBeNull();
+    // No baseline is fabricated for a demo.
+    expect(state.baseline).toBeNull();
     expect(state.filmSource).toBe('demo');
     expect(state.events.map((e) => e.event)).toContain('demo_started');
     expect(window.location.hash).toBe('#/demo');
@@ -88,7 +88,7 @@ describe('landing page and entry routes', () => {
     setHash('#/demo');
     render(<App />);
     expect(await screen.findByRole('heading', { name: /Review queue/i })).toBeInTheDocument();
-    expect(screen.queryByLabelText(/Minutes \(approximate\)/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Minutes$/i)).not.toBeInTheDocument();
     expect(stored().mode).toBe('demo');
     expect(stored().screen).toBe('queue');
   });
@@ -97,7 +97,7 @@ describe('landing page and entry routes', () => {
     const user = userEvent.setup();
     setHash('#/research');
     render(<App />);
-    expect(screen.getByLabelText(/Minutes \(approximate\)/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Minutes$/i)).toBeInTheDocument();
     expect(stored().mode).toBe('research');
     expect(window.location.hash).toBe('#/research');
 
@@ -133,9 +133,10 @@ describe('landing page and entry routes', () => {
     const exported = buildSessionExport(seeded);
     expect(exported.mode).toBe('demo');
     expect(exported.modeNote).toMatch(/not research data/);
-    expect(exported.baseline?.demo).toBe(true);
+    expect(exported.baseline).toBeNull();
+    expect(exported.baselineRevisions).toEqual([]);
     expect(exported.summary.comparison.comparable).toBe(false);
-    expect(exported.summary.comparison.reason).toMatch(/No baseline was captured/);
+    expect(exported.summary.comparison.reason).toMatch(/No baseline collected in demo mode/);
     expect(JSON.stringify(exported)).not.toMatch(/\d+\s?%/);
   });
 
@@ -189,7 +190,7 @@ describe('landing page and entry routes', () => {
     // #/research must not replace the saved demo session; the hash is put back.
     window.location.hash = '#/research';
     await new Promise((r) => setTimeout(r, 20));
-    expect(screen.queryByLabelText(/Minutes \(approximate\)/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Minutes$/i)).not.toBeInTheDocument();
     expect(stored().sessionId).toBe(sessionId);
     expect(window.location.hash).toBe('#/');
 
@@ -222,7 +223,7 @@ describe('landing page and entry routes', () => {
 
     await user.click(screen.getByRole('button', { name: /Start a research session/i }));
     await user.click(screen.getByRole('button', { name: /Yes, start a new research session/i }));
-    expect(screen.getByLabelText(/Minutes \(approximate\)/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Minutes$/i)).toBeInTheDocument();
     expect(stored().sessionId).not.toBe(before);
     expect(stored().mode).toBe('research');
     expect(stored().decisions).toEqual({});
@@ -271,9 +272,10 @@ describe('route helpers and reducer', () => {
     expect(resumed.resumeScreen).toBeNull();
   });
 
-  it('demo baseline satisfies gating but is flagged and never research data', () => {
+  it('a demo session starts without any baseline and is never research data', () => {
     const demo = reducer(initialState(), { type: 'startDemo' });
-    expect(demo.baseline).toMatchObject({ demo: true, capturedBeforeTask: true, minutesForSixSnaps: null });
+    expect(demo.baseline).toBeNull();
+    expect(demo.mode).toBe('demo');
     expect(demo.startedAtMs).toBeTruthy();
     expect(demo.filmSource).toBe('demo');
     expect(demo.events[0].event).toBe('demo_started');

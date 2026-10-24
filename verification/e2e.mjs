@@ -35,12 +35,14 @@ const state = () =>
 await page.goto(`${BASE_URL}#/research`);
 
 // --- Screen 1: baseline before the task -------------------------------------
-await page.getByLabel('Minutes (approximate)').fill('20');
+await page.getByLabel('Minutes', { exact: true }).fill('20');
 await page.getByRole('button', { name: 'Film plus paper or a spreadsheet' }).click();
+await page.getByRole('radio', { name: 'No', exact: true }).click();
 await page.getByRole('button', { name: 'Begin Review' }).click();
 await page.getByRole('heading', { name: 'Team context' }).waitFor();
 let s = await state();
-assert.equal(s.baseline.capturedBeforeTask, true);
+assert.equal(s.baseline.capturedBeforeReviewTask, true);
+assert.equal(s.baseline.exposure.enteredVia, 'research_link');
 assert.equal(s.baseline.minutesForSixSnaps, 20);
 const evNames = s.events.map((e) => e.event);
 assert.ok(evNames.indexOf('baseline_captured') < evNames.indexOf('session_started'));
@@ -232,7 +234,7 @@ await page.waitForFunction(
 );
 assert.match(await page.getByTestId('summary-coverage').innerText(), /4 graded · 2 No Grade/);
 assert.match(await page.getByTestId('summary-changed').innerText(), /Hand placement × 2/);
-assert.match(await page.getByTestId('timing-comparison').innerText(), /Illustrative comparison/);
+assert.match(await page.getByTestId('timing-comparison').innerText(), /Exploratory comparison/);
 assert.match(
   await page.getByTestId('blind-comparison').innerText(),
   /Coach first: Grade 2 · System candidate: Grade 1 · Final: Grade 2/,
@@ -251,7 +253,8 @@ assert.equal(json.summary.playsNoGrade, 2);
 assert.equal(json.filmLinkHost, 'www.youtube.com');
 assert.ok(!JSON.stringify(json).includes('v=example'));
 assert.match(json.accuracy, /not evaluated/);
-assert.equal(json.baseline.capturedBeforeTask, true);
+assert.equal(json.baseline.capturedBeforeReviewTask, true);
+assert.equal(json.timingSchema, 'accumulated_v1');
 assert.ok(Array.isArray(json.events) && json.events.length > 10);
 ok('session results serialize to JSON');
 await page.screenshot({ path: `${OUT}/07-summary.png`, fullPage: true });

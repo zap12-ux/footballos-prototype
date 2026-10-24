@@ -32,8 +32,16 @@ effectiveness, and it will not be reported as if it did.
   (Cagan, 2017). Debrief together immediately afterwards.
 - In person at the coach's office or a quiet table, or remote over screen share. A
   landscape tablet or laptop with a current browser.
-- The prototype running locally (`npm run dev`, http://localhost:5173), reset before each
-  participant.
+- The prototype running locally (`npm run dev`), opened at the **research entry link**
+  `http://localhost:5173/#/research` (or the live `…/#/research`) before each participant,
+  with the session reset. Do not open the landing page or the demo in front of the
+  participant before the baseline: the landing page shows example grades, confidence labels
+  and evidence, and the demo shows the whole loop. The research entry screen shows none of
+  that, offers no suggested time values, and asks for the baseline first.
+- If a participant has already seen the landing page or a demo (for example during
+  recruitment), do not pretend otherwise: let them answer the prior-exposure question
+  honestly, and note it in the session notes. The export records how the form was reached
+  and what this browser has shown; it cannot detect exposure elsewhere.
 - The session export (Download Session JSON) is saved with the notes for that participant.
 - 35–45 minutes per session.
 
@@ -55,13 +63,14 @@ Record the completion code for each task (see *Measures*).
 
 | # | Facilitator prompt | Success looks like | Watch for |
 | --- | --- | --- | --- |
-| 1 | *(Before anything else, on the start screen)* "Just from this page, what do you expect FootballOS to do? What would it do for you?" | The coach describes AI-proposed grades that they review and correct, built into a practice focus, with simulated AI. | Expectation of automatic grading with no review; belief that real film analysis will happen; belief that this is a finished product. |
-| 2 | "Begin reviewing the demo the way you would if this were your film this week." | Enters a baseline estimate and method, continues through team context, uses the demo film, reaches the queue, and opens a play. | Hesitation at the baseline; skipping the grade definitions; trying to upload a file first; reaction to the film check forecast and to the simulated processing. |
+| 1 | *(On the research entry screen, before the form)* "From what is on this page, what do you expect to be doing in the next ten minutes, and what do you expect the tool to do?" | The coach expects to review snaps with a tool that proposes something they check; is not sure yet how. | Expectation of automatic grading with no review; belief that real film analysis will happen. (The landing-page comprehension check from Cagan moves to Task 8, after the baseline, so that it cannot anchor the estimate.) |
+| 2 | "Answer the two questions, then begin." | Enters an estimate or chooses "I'm not sure," picks a method, answers the prior-exposure question, continues through the task brief and team context, uses the demo film, reaches the queue, and opens a play. | Hesitation at the estimate; whether "I'm not sure" is used and why; skipping the grade definitions; trying to upload a file first; reaction to the film check forecast and to the simulated processing. |
 | 3 | *(On Play 2 or Play 5)* "Tell me what this screen is telling you about this snap. What do the two confidence labels mean? What would you look at before deciding?" | Distinguishes the candidate grade from the evidence; explains ID confidence and grade confidence as different; uses the frames or evidence list; does not equate High with correct. | **Priority:** confidence read as accuracy; the two confidence readings treated as one; the diagram taken for real footage or tracking; ignoring the "missing or uncertain" list. |
 | 4 | *(On Play 4, blind-first)* "Grade this one yourself first. Then do whatever you would normally do with the system's read." | Records an independent grade; after the reveal, inspects the evidence and uncertainty; keeps or changes the grade deliberately; completes a change in two interactions with a reason that fits. | Deferring to the candidate without looking; frustration at being asked to grade first; reason options that do not match how the coach describes the mistake; not noticing that the decision is saved. |
 | 5 | *(On Play 3 or Play 6)* "This snap came back No Grade. What does that mean here, and what would you do with it?" | Explains No Grade as insufficient evidence, not a bad grade; uses "what would make this gradable"; accepts No Grade with a reason or overrides it knowingly. | **Priority:** No Grade read as a 1 or as the player's fault; No Grade read as the product being broken; irritation at having to give a reason to accept an abstention. |
-| 6 | *(After all six plays)* "Look at the practice focus. Is it useful? Is it right? Change it if you would." | Reads the plays and findings behind the focus and the coverage line; accepts, edits or dismisses with a stated reason; understands what was excluded. | Not noticing which plays were excluded; expecting a full practice plan; confusion when going back to change a play and seeing the focus marked stale. |
-| 7 | "Finish by completing the feedback questions, then export the session." | Completes the form; downloads the JSON; understands the timing section is illustrative. | Reading the illustrative time difference as proven savings; missing the export; concern about what was recorded. |
+| 6 | *(After all six plays)* "Look at the practice focus. Is it useful? Is it right? Change it if you would." | Reads the plays and findings behind the focus and the coverage line; accepts, edits or dismisses with a stated reason; understands what was excluded. If the result is "Clarify the coaching issue," understands why and uses Reopen. | Not noticing which plays were excluded; expecting a full practice plan; reading "clarify" as the tool being broken; confusion when going back to change a play and seeing the focus marked stale. |
+| 7 | "Finish by completing the feedback questions, then export the session." | Completes the form; downloads the JSON; understands the timing section is exploratory and compares two different tasks. | Reading the exploratory time difference as proven savings; missing the export; concern about what was recorded. |
+| 8 | *(Optional, after the export)* Open the landing page: "Just from this page, what would you say FootballOS does?" | The coach describes AI-proposed grades that they review and correct, built into a practice focus, with simulated AI. | Belief that this is a finished product; mismatch between the landing page and what they just used. Note that this coach has now used the prototype, so this is a weaker check than a cold first visit; a cold check needs people who are not baseline participants. |
 
 Optional probes if time allows: "If this covered six of every ten snaps, would you still
 use it? Where is your cut-off?" and "What would stop you from trusting or using this?"
@@ -86,8 +95,10 @@ Always record, with the task number:
 - which reason labels were picked, and any label the coach wanted but could not find;
 - relevant comments in the coach's own words (paraphrase is acceptable; do not record names).
 
-From the session export, also note the per-play review times and the blind-first record.
-These are context for the qualitative notes, not outcomes to report on their own.
+From the session export, also note the accumulated per-play review times (across all
+visits), the baseline and its exposure record, and the blind-first record. These are
+context for the qualitative notes, not outcomes to report on their own. Demo sessions
+(`mode: "demo"`) carry no baseline and must not be pooled with participant sessions.
 
 ## After each session
 

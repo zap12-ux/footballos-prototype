@@ -12,8 +12,8 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: './src/tests/setup.ts',
     css: false,
-    // Full-workflow integration tests drive six plays through the UI; with three test files
-    // running in parallel they can exceed Vitest's 5 s default.
-    testTimeout: 20000,
+    // Full-workflow integration tests drive six plays through the UI; with four test files
+    // running in parallel on a busy machine they can take well over Vitest's 5 s default.
+    testTimeout: 60000,
   },
 });
