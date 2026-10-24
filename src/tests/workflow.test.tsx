@@ -3,6 +3,8 @@ import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from '../App';
 import { STORAGE_KEY } from '../utils/storage';
+import { SessionProvider } from '../state/SessionContext';
+import { FilmScreen } from '../screens/FilmScreen';
 import type { SessionState } from '../types';
 
 type User = ReturnType<typeof userEvent.setup>;
@@ -112,6 +114,47 @@ describe('FootballOS prototype workflow', () => {
       '0 of 6 reviewed · 0 graded · 0 No Grade',
     );
     expect(stored().filmSource).toBe('demo');
+  });
+
+  it('plays the credited demo footage on the review screen with the diagram one toggle away', async () => {
+    // Demo entry from the landing page: no intake form, so this test does not depend on it.
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByRole('button', { name: /Try the demo/i }));
+    await screen.findByRole('heading', { name: /Review queue/i }, { timeout: 3000 });
+    await openPlay(user, 1);
+
+    // Real footage by default, labelled as illustration and credited.
+    const video = screen.getByTestId('film-video') as HTMLVideoElement;
+    expect(video.getAttribute('src')).toMatch(/demo-film\/swosu-2010-11-06-endzone-run\.mp4$/);
+    expect(screen.getByTestId('stage-label')).toHaveTextContent(/Real game film, shown as illustration/);
+    expect(screen.getByTestId('stage-label')).toHaveTextContent(/not this footage/);
+    expect(screen.getByTestId('stage-label')).toHaveTextContent(/CC BY-NC 4\.0/);
+    expect(screen.getByRole('link', { name: /Southwestern Oklahoma State University/ })).toHaveAttribute(
+      'href',
+      'https://dc.swosu.edu/football_vid/71',
+    );
+
+    // The authored diagram is still available.
+    await user.click(screen.getByRole('button', { name: /^Play diagram$/ }));
+    expect(screen.queryByTestId('film-video')).not.toBeInTheDocument();
+    expect(screen.getByTestId('stage-label')).toHaveTextContent(/Illustrative play diagram/);
+    await user.click(screen.getByRole('button', { name: /^Footage$/ }));
+    expect(screen.getByTestId('film-video')).toBeInTheDocument();
+  });
+
+  it('credits the demo footage where the film is chosen', () => {
+    render(
+      <SessionProvider>
+        <FilmScreen />
+      </SessionProvider>,
+    );
+    expect(screen.getByTestId('demo-film-credit')).toHaveTextContent(/SWOSU vs UCO \(endzone angle\)/);
+    expect(screen.getByTestId('demo-film-credit')).toHaveTextContent(/CC BY-NC 4\.0/);
+    expect(screen.getByRole('link', { name: /CC BY-NC 4\.0/ })).toHaveAttribute(
+      'href',
+      'https://creativecommons.org/licenses/by-nc/4.0/',
+    );
   });
 
   it('forecasts coverage before the coach starts reviewing', async () => {

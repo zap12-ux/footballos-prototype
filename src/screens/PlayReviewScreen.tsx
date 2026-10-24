@@ -11,8 +11,9 @@ import {
 } from '../data/team';
 import { AccuracyNote, ConfidenceTag, GradeBadge } from '../components/Indicators';
 import { EvidencePanel } from '../components/EvidencePanel';
-import { FilmStage } from '../components/FilmStage';
+import { FilmStage, type FilmVideo } from '../components/FilmStage';
 import { getLocalFilmUrl } from '../utils/localFilm';
+import { DEMO_FILM_SRC } from '../data/demoFilm';
 import type {
   ChangeReasonCode,
   CoachDecision,
@@ -63,7 +64,14 @@ export function PlayReviewScreen() {
     setFrame(revealed ? (play.observedEvidence[0]?.frame ?? 0) : 0);
   }, [play.id, revealed, play.observedEvidence]);
 
-  const localUrl = useMemo(() => getLocalFilmUrl(), []);
+  const video = useMemo<FilmVideo | null>(() => {
+    if (state.filmSource === 'demo') return { url: DEMO_FILM_SRC, kind: 'demo' };
+    if (state.filmSource === 'local') {
+      const url = getLocalFilmUrl();
+      return url ? { url, kind: 'local' } : null;
+    }
+    return null;
+  }, [state.filmSource]);
   const nextUnreviewed = PLAYS.find((p) => p.id !== play.id && !state.decisions[p.id]);
 
   function elapsedSeconds() {
@@ -178,7 +186,7 @@ export function PlayReviewScreen() {
       <div>
         <FilmStage
           play={play}
-          localVideoUrl={localUrl}
+          video={video}
           revealed={revealed}
           frame={frame}
           onFrameChange={setFrame}

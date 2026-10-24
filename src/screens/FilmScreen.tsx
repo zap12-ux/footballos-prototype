@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSession } from '../state/SessionContext';
 import { DEMO_FILM_LABEL, PROCESSING_STEPS } from '../data/plays';
 import { setLocalFilmUrl } from '../utils/localFilm';
+import { DEMO_FILM_CREDIT } from '../data/demoFilm';
 import { buildFilmCheck } from '../utils/filmCheck';
 
 const STEP_MS = import.meta.env.MODE === 'test' ? 15 : 750;
@@ -111,6 +112,18 @@ export function FilmScreen() {
               <button type="button" className="primary" onClick={startDemo} disabled={processing}>
                 Use Demo Film
               </button>
+              <p className="small muted film-credit" data-testid="demo-film-credit" style={{ marginTop: 10, marginBottom: 0 }}>
+                Footage: one real end-zone run from {DEMO_FILM_CREDIT.title},{' '}
+                <a href={DEMO_FILM_CREDIT.sourceUrl} target="_blank" rel="noreferrer">
+                  {DEMO_FILM_CREDIT.holder}
+                </a>
+                , licensed{' '}
+                <a href={DEMO_FILM_CREDIT.licenseUrl} target="_blank" rel="noreferrer">
+                  {DEMO_FILM_CREDIT.license}
+                </a>
+                ; {DEMO_FILM_CREDIT.changes}. It is shown as illustration on every play and is
+                not analyzed.
+              </p>
             </div>
 
             <div className="card tight" style={{ margin: 0 }}>

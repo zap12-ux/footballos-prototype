@@ -73,7 +73,7 @@ new demo or research session over a saved one asks for confirmation first.
 | 2. Team context | Reads the program, concept, grade definitions, and how to read confidence. | Grade 1 vs No Grade distinction; confidence bands explained as authored, illustrative labels; "Model accuracy: not evaluated in this prototype." |
 | 3. Film | Uses the demo film (recommended), tries a local file, or pastes a link. Sees a film-quality forecast and staged, labelled simulated processing. | Loading, invalid-input and recovery states; privacy: nothing leaves the browser; a link is reduced to its host. |
 | 4. Review queue | Scans six plays with candidate grade, separate ID and grade confidence, film tier, status; reviewed / graded / No Grade counts. | Coverage shown together; Play 4's candidate withheld until the coach grades first. |
-| 5. Play review | Steps through an illustrative play diagram frame by frame, reads the candidate, its rationale, time-stamped evidence and uncertainties, and decides: accept, change (two taps), or No Grade. | Evidence navigation that does something; separate confidence readings; structured reasons for every change and every final No Grade; obvious saved state; decisions can be revised. |
+| 5. Play review | Steps through real end-zone footage (or the illustrative play diagram) frame by frame, reads the candidate, its rationale, time-stamped evidence and uncertainties, and decides: accept, change (two taps), or No Grade. | Evidence navigation that does something; separate confidence readings; structured reasons for every change and every final No Grade; obvious saved state; decisions can be revised. |
 | 6. Practice focus | Reviews a deterministic focus built only from coach-graded plays; accepts, edits, or dismisses it. | Exclusion of No Grade and unreviewed plays; insufficient-evidence state; a correction to Grade 3 never becomes a deficiency; a later decision change marks the focus stale. |
 | 7. Feedback & results | Answers feedback questions, reviews the session summary and timing definitions, exports JSON, resets. | Research instrumentation; timing measures defined exactly; illustrative comparison only when all six plays are decided. |
 
@@ -92,6 +92,12 @@ backend, no API key, and no network request of any kind at runtime.
   `src/utils/filmCheck.ts`. No file is inspected.
 - "Checking film / Identifying plays / Preparing review candidates" is a staged delay,
   labelled *simulated processing*, with a Cancel control.
+- The demo film is real footage: one end-zone run from openly licensed college game film
+  (see [Film credit](#film-credit)), bundled in `public/demo-film/` and shown for every
+  demo play as an illustration of what a coach would be looking at. Selecting a frame
+  seeks the clip to the matching moment of the run. The evaluation shown describes the
+  authored demo play, not this footage, and nothing in the clip is analyzed. The
+  authored play diagram stays one toggle away on the film stage.
 - If you pick a local video, it plays in your browser through an object URL and is never
   uploaded, transmitted, or analyzed. Selecting an evidence frame seeks the video to the
   same clip time, but the evaluation shown describes the authored demo play, not your file.
@@ -157,7 +163,8 @@ src/
   App.tsx             Header, simulated-AI banner, stepper, screen routing, hash sync
   components/         Stepper, play diagram, film stage, evidence panel, indicators
   screens/            Landing page plus one file per screen in the seven-step flow
-  data/               Seeded plays and storyboards, team context and grade definitions, reasons, public links
+  data/               Seeded plays and storyboards, team context and grade definitions, reasons, public links, demo-film credit
+public/demo-film/     The credited demo clip (real footage, CC BY-NC 4.0; see Film credit)
   state/              Session reducer + context (also the research event log; demo / research / resume)
   types/              Shared types
   utils/              localStorage, hash routes, film check, practice-focus logic, summary and JSON export
@@ -174,6 +181,17 @@ Stack: React 19, TypeScript 5, Vite 6, Vitest 2. No other runtime dependencies w
 installs with `npm ci`, runs `npm run typecheck` and `npm test`, builds with
 `GITHUB_PAGES=true` (which sets Vite's `base` to `/footballos-prototype/`), and publishes `dist/` to
 GitHub Pages. Tests gate the deploy. Hash routing means no 404 fallback is needed.
+
+## Film credit
+
+The demo clip in `public/demo-film/swosu-2010-11-06-endzone-run.mp4` is taken from
+*11/06/2010 SWOSU vs UCO (endzone angle)*, Southwestern Oklahoma State University,
+SWOSU Football Videos, <https://dc.swosu.edu/football_vid/71>, licensed
+[CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/). Changes: one run play
+trimmed to about six seconds, re-encoded for the web, audio removed. The credit is also
+shown in the prototype on the film-selection screen and on the film stage. Other
+openly licensed footage that was considered is listed in
+[`docs/DEMO_FOOTAGE_SOURCES.md`](docs/DEMO_FOOTAGE_SOURCES.md).
 
 ## Known limitations
 
