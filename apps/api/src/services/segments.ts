@@ -6,7 +6,7 @@ import type { Db } from '../db/db.js';
 import { labels as labelsTable, playSegments } from '../db/schema.js';
 import { errors } from '../errors.js';
 import { ensureDefaultLabels } from './labels.js';
-import type { AssetRow } from './media.js';
+import { filmGameId, type AssetRow } from './media.js';
 
 export type SegmentRow = typeof playSegments.$inferSelect;
 
@@ -75,7 +75,7 @@ export function storeProposedSegments(tx: Db, asset: AssetRow, proposals: PlaySe
   for (const p of proposals) {
     const overlapsKept = listLiveSegments(tx, asset.id).some((s) => p.startSec < s.endSec && s.startSec < p.endSec);
     if (overlapsKept) continue;
-    insertSegment(tx, { id: p.id, teamId: asset.teamId, assetId: asset.id, gameId: asset.gameId, index: p.index, startSec: p.startSec, endSec: p.endSec, origin: 'proposed', reviewStatus: 'proposed', supersededBy: [], version: 1, createdAt: nowIso, updatedAt: nowIso });
+    insertSegment(tx, { id: p.id, teamId: asset.teamId, assetId: asset.id, gameId: filmGameId(asset), index: p.index, startSec: p.startSec, endSec: p.endSec, origin: 'proposed', reviewStatus: 'proposed', supersededBy: [], version: 1, createdAt: nowIso, updatedAt: nowIso });
     stored += 1;
   }
   renumberLive(tx, asset.id, nowIso);
@@ -87,7 +87,7 @@ export function createSegment(ctx: AppContext, asset: AssetRow, body: CreateSegm
   if (asset.durationSec !== null && body.endSec > asset.durationSec + 0.5) throw errors.validation(`endSec ${body.endSec} is past the end of the film (${asset.durationSec} s)`);
   return ctx.db.transaction((tx) => {
     assertNoOverlap(tx, asset.id, { id: null, startSec: body.startSec, endSec: body.endSec });
-    const row: SegmentRow = { id: crypto.randomUUID(), teamId: asset.teamId, assetId: asset.id, gameId: asset.gameId, index: 0, startSec: body.startSec, endSec: body.endSec, origin: 'coach_created', reviewStatus: 'accepted', supersededBy: [], version: 1, createdAt: nowIso, updatedAt: nowIso };
+    const row: SegmentRow = { id: crypto.randomUUID(), teamId: asset.teamId, assetId: asset.id, gameId: filmGameId(asset), index: 0, startSec: body.startSec, endSec: body.endSec, origin: 'coach_created', reviewStatus: 'accepted', supersededBy: [], version: 1, createdAt: nowIso, updatedAt: nowIso };
     insertSegment(tx, row);
     renumberLive(tx, asset.id, nowIso);
     return tx.select().from(playSegments).where(eq(playSegments.id, row.id)).get()!;

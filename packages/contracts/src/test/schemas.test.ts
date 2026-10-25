@@ -38,6 +38,8 @@ const cases: Record<string, Case> = {
   GamePlan: { schema: schemas.GamePlanSchema, valid: fixtures.GamePlan, invalid: { ...fixtures.GamePlan, unit: 'kicking' }, why: 'unknown unit' },
   GamePlanVersion: { schema: schemas.GamePlanVersionSchema, valid: fixtures.GamePlanVersion, invalid: { ...fixtures.GamePlanVersion, sections: [{ key: 'trick_plays', title: 'x', items: [] }] }, why: 'unknown section key' },
   PlanComment: { schema: schemas.PlanCommentSchema, valid: fixtures.PlanComment, invalid: { ...fixtures.PlanComment, body: '' }, why: 'empty body' },
+  ReviewFlag: { schema: schemas.ReviewFlagSchema, valid: { kind: 'stale_recommendation', message: 'Recommendation inputs changed', versionId: ID.planVersion, itemId: ID.item, since: NOW }, invalid: { kind: 'weather', message: 'x', versionId: ID.planVersion, itemId: null, since: NOW }, why: 'unknown flag kind' },
+  RosterImportRow: { schema: schemas.RosterImportRowSchema, valid: { row: 1, jersey: '7', firstName: 'Demo', lastName: 'Player', positions: ['QB'], classYear: 'JR', status: 'active', notes: '', matchesPlayerId: null }, invalid: { row: 1, jersey: '7', firstName: '', lastName: 'Player', positions: [], classYear: '', status: 'active', notes: '', matchesPlayerId: null }, why: 'empty first name' },
   ShareLink: { schema: schemas.ShareLinkSchema, valid: fixtures.ShareLink, invalid: { ...fixtures.ShareLink, targetType: 'asset' }, why: 'unknown target type' },
 };
 
@@ -98,6 +100,27 @@ describe('request schemas', () => {
   });
   it('create season rejects inverted dates', () => {
     expect(schemas.CreateSeasonRequestSchema.safeParse({ label: '2026', startsOn: '2026-12-01', endsOn: '2026-08-01' }).success).toBe(false);
+  });
+  it('share links are capped at 72 hours and default to 72 (owner decision 2026-10-25)', () => {
+    expect(schemas.SHARE_LINK_MAX_HOURS).toBe(72);
+    expect(schemas.CreateShareLinkRequestSchema.parse({})).toEqual({ expiresInHours: 72 });
+    expect(schemas.CreateShareLinkRequestSchema.safeParse({ expiresInHours: 73 }).success).toBe(false);
+    expect(schemas.CreateShareLinkRequestSchema.safeParse({ expiresInHours: 168 }).success).toBe(false);
+    expect(schemas.CreateShareLinkRequestSchema.parse({ expiresInHours: 1 })).toEqual({ expiresInHours: 1 });
+  });
+  it('document uploads need a unit and no context; film uploads need a context (§15.1)', () => {
+    const base = { filename: 'install.pdf', byteSize: 10, mimeType: 'application/pdf' };
+    expect(schemas.CreateUploadRequestSchema.safeParse({ ...base, kind: 'document' }).success).toBe(false);
+    expect(schemas.CreateUploadRequestSchema.safeParse({ ...base, kind: 'document', unit: 'offense' }).success).toBe(true);
+    expect(schemas.CreateUploadRequestSchema.safeParse({ ...base }).success).toBe(false);
+  });
+  it('an edit decision needs editedStatement (§15.3)', () => {
+    expect(schemas.RecommendationDecisionRequestSchema.safeParse({ decision: 'edit' }).success).toBe(false);
+    expect(schemas.RecommendationDecisionRequestSchema.safeParse({ decision: 'edit', editedStatement: 'Run it from 12' }).success).toBe(true);
+    expect(schemas.RecommendationDecisionRequestSchema.safeParse({ decision: 'accept' }).success).toBe(true);
+  });
+  it('error status map includes gone → 410', () => {
+    expect(schemas.ERROR_STATUS.gone).toBe(410);
   });
   it('upload filename is sanitized on intake (§14.10, QA D-7)', () => {
     const { sanitizeFilename, UploadFilenameSchema } = schemas;

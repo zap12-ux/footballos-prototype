@@ -10,7 +10,9 @@ import {
 import type { AppContext } from '../context.js';
 import type { Db } from '../db/db.js';
 import { labels, mediaAssets, modelProvenance } from '../db/schema.js';
-import { applyRetention, gcExpiredUploads, CHAIN_KINDS, type AssetRow } from '../services/media.js';
+import { applyRetention, gcExpiredUploads, CHAIN_KINDS, DOCUMENT_EXTRACT_KIND, type AssetRow, type DocumentJobInput } from '../services/media.js';
+import { markExtractionFailed, persistExtraction, type ExtractionJobResult } from '../services/playbook.js';
+import { AnthropicPageLabeler, createDocumentHandlers, proposeFromPages, type PageLabeler, type ProposalPage } from '../libs/index.js';
 import { keyFor, tightenPermissions } from '../services/storage.js';
 import { storeProposedSegments } from '../services/segments.js';
 import { listLabelsForSegments, serializeLabel } from '../services/labels.js';
@@ -91,9 +93,34 @@ export function registerJobHandlers(ctx: AppContext): void {
       }
     });
 
+  // §15.1 extract_document: C's extractor, then D's proposals over the extracted pages. A page
+  // image goes to a model only when a provider with a key is configured; otherwise pages without
+  // text produce nothing and the document says so.
+  const documents = createDocumentHandlers({ dataDir: ctx.config.dataDir, renderDpi: ctx.config.limits.documentRenderDpi, ocr: ctx.config.limits.documentOcr });
+  ctx.runner.register<DocumentJobInput, ExtractionJobResult>(DOCUMENT_EXTRACT_KIND, async (h: HandlerContext<DocumentJobInput>) => {
+    requireLiveAsset(h.input);
+    const extraction = await documents.extract_document(
+      { id: h.job.id, input: h.input, teamId: h.job.teamId },
+      { signal: h.signal, progress: (done, total, message) => h.progress({ done, total, message }) },
+    );
+    const pages: ProposalPage[] = extraction.pages.map((p) => ({
+      pageNumber: p.pageNumber, text: p.text, textSource: p.textSource, imagePath: p.imagePath, width: p.width, height: p.height, ocrConfidence: p.ocrConfidence,
+    }));
+    let labeler: PageLabeler | null = null;
+    if (ctx.config.modelProvider === 'anthropic' && ctx.config.modelKeyConfigured) {
+      const cap = ctx.config.limits.monthlyCostCapUsd;
+      const spent = monthlyCostUsd(ctx, h.job.teamId, ctx.now());
+      if (spent < cap) labeler = new AnthropicPageLabeler({ config: ctx.config.ai, now: ctx.now });
+    }
+    await h.progress({ done: extraction.pageCount, total: extraction.pageCount, message: 'proposing concepts and terms' });
+    const proposals = await proposeFromPages(pages, labeler ? { labeler } : {});
+    return { extraction, proposals };
+  });
+
   ctx.jobStore.hooks = {
     onSucceeded: (job, result, tx) => persistResult(ctx, tx, job, result),
-    onFailed: (job, _error, tx) => {
+    onFailed: (job, error, tx) => {
+      if (job.kind === DOCUMENT_EXTRACT_KIND) { markExtractionFailed(ctx, tx, job, `${error.code}: ${error.message}`); return; }
       if (!(CHAIN_KINDS as readonly string[]).includes(job.kind) || !job.assetId) return;
       const a = tx.select().from(mediaAssets).where(eq(mediaAssets.id, job.assetId)).get();
       if (a && !['rejected', 'deleted'].includes(a.status)) tx.update(mediaAssets).set({ status: 'failed', updatedAt: ctx.now().toISOString() }).where(eq(mediaAssets.id, a.id)).run();
@@ -169,6 +196,10 @@ function persistResult(ctx: AppContext, tx: Db, job: Job, result: unknown): void
             .run();
         }
       }
+      return;
+    }
+    case DOCUMENT_EXTRACT_KIND: {
+      persistExtraction(ctx, tx, job, result as ExtractionJobResult);
       return;
     }
     default:
