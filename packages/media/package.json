@@ -15,11 +15,16 @@
     "footballos-media": "bin/media.mjs"
   },
   "scripts": {
+    "contracts:build": "npm run build --prefix ../../packages/contracts",
+    "pretypecheck": "npm run contracts:build",
+    "pretest": "npm run contracts:build",
+    "prebuild": "npm run contracts:build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@footballos/contracts": "0.1.0",
     "ffmpeg-static": "^5.2.0",
     "ffprobe-static": "^3.1.0",
     "zod": "^4.6.7"
