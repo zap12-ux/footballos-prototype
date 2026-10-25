@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { AnalyzedUnit, EvidenceRef, FindingKind, Label, LabelKey, ReviewBasis, ScoutingFinding } from "../types.js";
+import type { EvidenceRef, FindingKind, Label, LabelKey, ReviewBasis, ScoutingFinding, Unit } from "../types.js";
 import { indexLabels, resolveLabelValue, segmentExclusion, type ExclusionReason, type StatSegment } from "./resolve.js";
 
 export const COMPUTE_VERSION = "stats-0.1.0";
@@ -7,7 +7,8 @@ export const COMPUTE_VERSION = "stats-0.1.0";
 export interface StatsOptions {
   teamId: string;
   opponentId: string;
-  unit: AnalyzedUnit;
+  /** Findings are per unit; a `mixed` asset contributes segments only through a per-segment unit. */
+  unit: Unit;
   reviewBasis: ReviewBasis;
   /** Injected for deterministic tests. */
   now?: () => Date;
