@@ -1,0 +1,56 @@
+{
+  "name": "@footballos/api",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "FootballOS API: Hono on @hono/node-server, SQLite via better-sqlite3 + Drizzle ORM. Invite-only auth with TOTP MFA, team scoping, schedule services, audit log.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "types": "./src/app.ts",
+  "exports": {
+    ".": {
+      "types": "./src/app.ts",
+      "import": "./dist/app.js",
+      "default": "./dist/app.js"
+    }
+  },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "migrate": "tsx src/scripts/migrate.ts",
+    "seed:demo": "tsx src/scripts/seed-demo.ts",
+    "bootstrap": "tsx src/scripts/bootstrap.ts",
+    "db:generate": "drizzle-kit generate",
+    "contracts:build": "npm run build --prefix ../../packages/contracts",
+    "predev": "npm run contracts:build",
+    "prebuild": "npm run contracts:build",
+    "pretypecheck": "npm run contracts:build",
+    "pretest": "npm run contracts:build",
+    "premigrate": "npm run contracts:build",
+    "preseed:demo": "npm run contracts:build",
+    "prebootstrap": "npm run contracts:build"
+  },
+  "dependencies": {
+    "@footballos/contracts": "0.1.0",
+    "@hono/node-server": "^1.19.17",
+    "better-sqlite3": "^13.0.3",
+    "drizzle-orm": "^0.45.4",
+    "hono": "^4.13.14",
+    "otplib": "^12.0.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^22.15.0",
+    "drizzle-kit": "^0.31.11",
+    "tsx": "^4.23.15",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  }
+}
