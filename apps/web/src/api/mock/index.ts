@@ -415,7 +415,7 @@ export function createMockApi(options: MockApiOptions = {}): Api {
         if (rest.retentionDays !== undefined && rest.retentionDays !== null && (!Number.isInteger(rest.retentionDays) || rest.retentionDays < 30)) {
           fail('validation_error', 'Retention must be blank (keep until deleted) or at least 30 days.', 400);
         }
-        const next: TeamSettings = { ...db.settings, ...rest, uploadLimits: { ...db.settings.uploadLimits, ...(rest.uploadLimits ?? {}) }, version: db.settings.version + 1 };
+        const next: TeamSettings = { ...db.settings, ...rest, version: db.settings.version + 1 };
         db.settings = next;
         return delay(next);
       },
@@ -539,7 +539,7 @@ export function createMockApi(options: MockApiOptions = {}): Api {
         };
         db.assets.unshift(asset);
         const upload: Upload = {
-          id: newId('upload'), assetId: asset.id, teamId: game.teamId, chunkSizeBytes: db.settings.uploadLimits.chunkBytes, receivedBytes: 0, totalBytes: input.byteSize,
+          id: newId('upload'), assetId: asset.id, teamId: game.teamId, chunkSizeBytes: db.settings.uploadLimits.uploadChunkBytes, receivedBytes: 0, totalBytes: input.byteSize,
           expiresAt: new Date(Date.now() + 24 * 3_600_000).toISOString(), completedAt: null,
         };
         db.uploads.push(upload);

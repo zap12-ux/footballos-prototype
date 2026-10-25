@@ -29,6 +29,7 @@ import type {
   Season,
   StaffMembership,
   Team,
+  TeamSettings,
   Unit,
   Upload,
   UploadContext,
@@ -67,21 +68,8 @@ export interface Paginated<T> {
   nextCursor: string | null;
 }
 
-/** CONTRACTS §14.7: `GET/PATCH /teams/:teamId/settings` → `{ settings }`. */
-export interface UploadLimits {
-  /** `MAX_UPLOAD_BYTES`; the client refuses larger files before creating an upload. */
-  maxUploadBytes: number;
-  /** `UPLOAD_CHUNK_BYTES`; the resumable client never sends a larger range. */
-  chunkBytes: number;
-  /** `ALLOWED_VIDEO_CONTAINERS`, e.g. `['mp4', 'mov']`. */
-  allowedVideoContainers: string[];
-}
-
-export interface TeamSettings {
-  retentionDays: number | null;
-  uploadLimits: UploadLimits;
-  version: number;
-}
+/** CONTRACTS §14.7: `GET/PATCH /teams/:teamId/settings` → `{ settings }`; limits are read-only server configuration. */
+export type { TeamSettings, UploadLimits } from './contracts';
 
 export interface GamePlanBundle {
   plan: GamePlan;
@@ -164,7 +152,7 @@ export interface Api {
       patch: Partial<Pick<StaffMembership, 'role' | 'units' | 'active' | 'title'>>,
     ): Promise<StaffMembership>;
     settings(teamId: string): Promise<TeamSettings>;
-    updateSettings(teamId: string, patch: Partial<Omit<TeamSettings, 'version'>> & { expectedVersion: number }): Promise<TeamSettings>;
+    updateSettings(teamId: string, patch: { retentionDays?: number | null; expectedVersion: number }): Promise<TeamSettings>;
   };
   seasons: {
     list(teamId: string): Promise<Season[]>;

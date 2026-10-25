@@ -41,11 +41,13 @@ against `/api/v1` (Vite proxies `/api` and `/media` to `http://localhost:8789`, 
 with `VITE_API_PROXY_TARGET`).
 
 `src/api/http.ts` is `hc<AppType>` from `hono/client`, typed by the API's own route table
-(`import type { AppType } from '@footballos/api'`, type-only). Routes that exist in `AppType`
-(auth, teams, staff, invites, seasons, opponents, games, schedule imports) are called through
-the typed client; the CONTRACTS §14 routes that Backend is building in parallel (uploads,
-jobs, grants, segments, labels, scouting, settings) go through a small `raw()` helper with
-the same error-envelope handling and move to the typed client as each lands in `AppType`.
+(`import type { AppType } from '@footballos/api'`, type-only). Every route the API implements
+(auth, teams, staff, invites, seasons, opponents, games, schedule imports, and the CONTRACTS
+§14 uploads, jobs, grants, segments, labels, scouting and settings) is called through the
+typed client, so a server-side change to a path, parameter or response shape fails
+`npm run typecheck -w apps/web`. Routes the API has not implemented yet (plans, playbook,
+personnel) go through a small `raw()` helper with the same error-envelope handling and move
+to the typed client as each lands in `AppType`.
 `src/api/contracts.ts` re-exports every type from `@footballos/contracts` (aliased to the
 package source in `vite.config.ts` and `tsconfig.json`) and adds only coach-facing constants
 (`UNIT_LABELS`, `LABEL_KEY_LABELS`, plan section templates) and pure helpers.
@@ -106,8 +108,8 @@ worker that advances a job one step per poll.
    each finding's numerator, denominator, percentage and excluded plays with reasons, and the
    evidence timestamps as links into the asset view. Uncertain findings are listed apart.
    *Save snapshot* posts `…/scouting/snapshots`; saved snapshots are listed below.
-7. **Settings** (`/app/settings`, §14.7): retention days and upload limits with
-   `expectedVersion`; head coach only.
+7. **Settings** (`/app/settings`, §14.7): retention days with `expectedVersion` (head coach
+   only); the server's upload limits are shown, not edited.
 
 #### Keyboard interactions on the timeline
 
@@ -144,10 +146,6 @@ The play list is one tab stop (`role="listbox"` with `aria-activedescendant`).
 - Label rows for every inferable key should exist as soon as a segment exists (status
   `unknown`, `inferred: null`), or a `POST /segments/:id/labels` route is needed; otherwise
   manual labeling of plays the model never saw has nothing to `PATCH`.
-- `PATCH /labels/:id` is sent in the §14.5 nested shape `{ accepted: { value, status }, reason?,
-  expectedVersion }`, which differs from the package's flat `LabelCorrectionRequestSchema`.
-- `POST …/scouting/snapshots` is sent `{ title, unit, reviewBasis }` so the snapshot records
-  the basis it was computed on.
 
 ### Landing hero montage — asset pending
 

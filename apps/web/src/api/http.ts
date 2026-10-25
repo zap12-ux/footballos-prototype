@@ -7,14 +7,14 @@
  * server package). Routes that exist in `AppType` are called through it, so a server-side
  * change to a path, parameter or response shape fails the web typecheck.
  *
- * CONTRACTS §14 routes (uploads, jobs, media grants, segments, labels, scouting, settings)
- * are being built by Backend in parallel and are not in `AppType` yet. They go through
- * `raw()`, typed by the §14 request/response shapes in `./api.ts` and `@footballos/contracts`.
- * When each route lands in `AppType`, its `raw()` call moves to `v1.…` (one line each).
+ * Every CONTRACTS §12/§14 route the API implements today (auth, teams, schedule, uploads,
+ * jobs, media grants, segments, labels, scouting, settings) goes through the typed client.
+ * Routes the API has not implemented yet (plans, playbook, personnel) go through `raw()`,
+ * typed by the shapes in `./api.ts`, and move to `v1.…` as each lands in `AppType`.
  */
 import { hc } from 'hono/client';
 import type { AppType } from '@footballos/api';
-import type { Api, Me, SignInResult, TeamSettings } from './api';
+import type { Api, Me, SignInResult } from './api';
 import { ApiError } from './api';
 import type { ErrorEnvelope, ScheduledGame } from './contracts';
 
@@ -169,9 +169,10 @@ export function createHttpApi(options: HttpApiOptions = {}): Api {
       },
       invite: (teamId, input) => json(v1.teams[':teamId'].invites.$post({ param: { teamId }, json: input })),
       updateMembership: (teamId, membershipId, patch) => json(v1.teams[':teamId'].staff[':membershipId'].$patch({ param: { teamId, membershipId }, json: patch })),
-      // §14.7 (proposed route adopted): `{ settings: { retentionDays, uploadLimits, version } }`.
-      settings: async (teamId) => (await raw<{ settings: TeamSettings }>('GET', `/teams/${teamId}/settings`)).settings,
-      updateSettings: async (teamId, patch) => (await raw<{ settings: TeamSettings }>('PATCH', `/teams/${teamId}/settings`, patch)).settings,
+      // §14.7: upload limits are server configuration; only `retentionDays` is writable.
+      settings: async (teamId) => (await json(v1.teams[':teamId'].settings.$get({ param: { teamId } }))).settings,
+      updateSettings: async (teamId, patch) =>
+        (await json(v1.teams[':teamId'].settings.$patch({ param: { teamId }, json: { expectedVersion: patch.expectedVersion, ...(patch.retentionDays !== undefined ? { retentionDays: patch.retentionDays } : {}) } }))).settings,
     },
     seasons: {
       list: async (teamId) => (await json(v1.teams[':teamId'].seasons.$get({ param: { teamId } }))).items,
@@ -189,42 +190,54 @@ export function createHttpApi(options: HttpApiOptions = {}): Api {
       },
     },
     media: {
-      assets: (gameId) => rawList(`/games/${gameId}/assets`),
-      asset: async (assetId) => (await raw<{ asset: Awaited<ReturnType<Api['media']['asset']>> }>('GET', `/assets/${assetId}`)).asset,
-      createUpload: (gameId, input) => raw('POST', `/games/${gameId}/uploads`, input),
+      assets: async (gameId) => (await json(v1.games[':gameId'].assets.$get({ param: { gameId } }))).items,
+      asset: async (assetId) => (await json(v1.assets[':assetId'].$get({ param: { assetId } }))).asset,
+      createUpload: (gameId, input) => json(v1.games[':gameId'].uploads.$post({ param: { gameId }, json: input })),
+      // Raw body: hono/client sets `body` from `json`/`form` only, so the Blob goes through `init`.
       putChunk: (uploadId, range, body) =>
-        raw('PUT', `/uploads/${uploadId}`, body, {
-          headers: { 'Content-Range': `bytes ${range.start}-${range.end}/${range.total}`, 'Content-Type': 'application/octet-stream' },
-        }),
-      getUpload: async (uploadId) => (await raw<{ upload: Awaited<ReturnType<Api['media']['getUpload']>> }>('GET', `/uploads/${uploadId}`)).upload,
-      completeUpload: (uploadId) => raw('POST', `/uploads/${uploadId}/complete`),
-      deleteAsset: (assetId) => raw<void>('DELETE', `/assets/${assetId}`),
-      grant: (assetId) => raw('GET', `/assets/${assetId}/grant`),
-      jobs: (teamId, query = {}) => rawList(`/teams/${teamId}/jobs${q({ assetId: query.assetId, status: query.status, limit: '200' })}`),
-      job: async (jobId) => (await raw<{ job: Awaited<ReturnType<Api['media']['job']>> }>('GET', `/jobs/${jobId}`)).job,
-      cancelJob: async (jobId) => (await raw<{ job: Awaited<ReturnType<Api['media']['job']>> }>('POST', `/jobs/${jobId}/cancel`)).job,
-      retryJob: async (jobId) => (await raw<{ job: Awaited<ReturnType<Api['media']['job']>> }>('POST', `/jobs/${jobId}/retry`)).job,
-      segments: (assetId) => rawList(`/assets/${assetId}/segments`),
-      splitSegment: (segmentId, input) => raw('POST', `/segments/${segmentId}/split`, input),
-      mergeSegments: (input) => raw('POST', '/segments/merge', input),
-      updateSegment: async (segmentId, patch) => (await raw<{ segment: Awaited<ReturnType<Api['media']['updateSegment']>> }>('PATCH', `/segments/${segmentId}`, patch)).segment,
-      createSegment: async (assetId, input) => (await raw<{ segment: Awaited<ReturnType<Api['media']['createSegment']>> }>('POST', `/assets/${assetId}/segments`, input)).segment,
+        json(
+          v1.uploads[':uploadId'].$put(
+            { param: { uploadId } },
+            { headers: { 'Content-Range': `bytes ${range.start}-${range.end}/${range.total}`, 'Content-Type': 'application/octet-stream' }, init: { body } },
+          ),
+        ),
+      getUpload: async (uploadId) => (await json(v1.uploads[':uploadId'].$get({ param: { uploadId } }))).upload,
+      completeUpload: (uploadId) => json(v1.uploads[':uploadId'].complete.$post({ param: { uploadId }, json: {} })),
+      deleteAsset: async (assetId) => {
+        await ok(v1.assets[':assetId'].$delete({ param: { assetId } }));
+      },
+      grant: (assetId) => json(v1.assets[':assetId'].grant.$get({ param: { assetId } })),
+      jobs: async (teamId, query = {}) =>
+        (await json(v1.teams[':teamId'].jobs.$get({ param: { teamId }, query: { ...(query.assetId ? { assetId: query.assetId } : {}), ...(query.status ? { status: query.status } : {}), limit: '200' } }))).items,
+      job: async (jobId) => (await json(v1.jobs[':jobId'].$get({ param: { jobId } }))).job,
+      cancelJob: async (jobId) => (await json(v1.jobs[':jobId'].cancel.$post({ param: { jobId } }))).job,
+      retryJob: async (jobId) => (await json(v1.jobs[':jobId'].retry.$post({ param: { jobId } }))).job,
+      segments: async (assetId) => (await json(v1.assets[':assetId'].segments.$get({ param: { assetId } }))).items,
+      splitSegment: (segmentId, input) => json(v1.segments[':segmentId'].split.$post({ param: { segmentId }, json: input })),
+      mergeSegments: (input) => json(v1.segments.merge.$post({ json: input })),
+      updateSegment: async (segmentId, patch) => (await json(v1.segments[':segmentId'].$patch({ param: { segmentId }, json: patch }))).segment,
+      createSegment: async (assetId, input) => (await json(v1.assets[':assetId'].segments.$post({ param: { assetId }, json: input }))).segment,
     },
     labels: {
-      forAsset: (assetId) => rawList(`/assets/${assetId}/labels`),
-      forSegment: (segmentId) => rawList(`/segments/${segmentId}/labels`),
-      correct: async (labelId, input) => (await raw<{ label: Awaited<ReturnType<Api['labels']['correct']>> }>('PATCH', `/labels/${labelId}`, input)).label,
-      revisions: (labelId) => rawList(`/labels/${labelId}/revisions`),
-      bulkAccept: (assetId, input) => raw('POST', `/assets/${assetId}/labels/bulk-accept`, input),
-      provenance: (assetId) => rawList(`/assets/${assetId}/provenance`),
-      infer: async (assetId, input = {}) => (await raw<{ jobs: Awaited<ReturnType<Api['labels']['infer']>> }>('POST', `/assets/${assetId}/infer`, input)).jobs,
+      forAsset: async (assetId) => (await json(v1.assets[':assetId'].labels.$get({ param: { assetId } }))).items,
+      forSegment: async (segmentId) => (await json(v1.segments[':segmentId'].labels.$get({ param: { segmentId } }))).items,
+      correct: async (labelId, input) => (await json(v1.labels[':labelId'].$patch({ param: { labelId }, json: input }))).label,
+      revisions: async (labelId) => (await json(v1.labels[':labelId'].revisions.$get({ param: { labelId } }))).items,
+      bulkAccept: (assetId, input) => json(v1.assets[':assetId'].labels['bulk-accept'].$post({ param: { assetId }, json: input })),
+      provenance: async (assetId) => (await json(v1.assets[':assetId'].provenance.$get({ param: { assetId } }))).items,
+      infer: async (assetId, input = {}) => (await json(v1.assets[':assetId'].infer.$post({ param: { assetId }, json: input }))).jobs,
     },
     scouting: {
       report: (teamId, opponentId, query) =>
-        raw('GET', `/teams/${teamId}/opponents/${opponentId}/scouting${q({ unit: query.unit, reviewBasis: query.reviewBasis, gameIds: query.gameIds?.join(',') })}`),
-      snapshots: (teamId, opponentId) => rawList(`/teams/${teamId}/opponents/${opponentId}/scouting/snapshots`),
+        json(
+          v1.teams[':teamId'].opponents[':opponentId'].scouting.$get({
+            param: { teamId, opponentId },
+            query: { unit: query.unit, reviewBasis: query.reviewBasis, ...(query.gameIds?.length ? { gameIds: query.gameIds.join(',') } : {}) },
+          }),
+        ),
+      snapshots: async (teamId, opponentId) => (await json(v1.teams[':teamId'].opponents[':opponentId'].scouting.snapshots.$get({ param: { teamId, opponentId } }))).items,
       saveSnapshot: async (teamId, opponentId, input) =>
-        (await raw<{ snapshot: Awaited<ReturnType<Api['scouting']['saveSnapshot']>> }>('POST', `/teams/${teamId}/opponents/${opponentId}/scouting/snapshots`, input)).snapshot,
+        (await json(v1.teams[':teamId'].opponents[':opponentId'].scouting.snapshots.$post({ param: { teamId, opponentId }, json: input }))).snapshot,
     },
     plans: {
       get: (gameId, unit) => raw('GET', `/games/${gameId}/plans/${unit}`),

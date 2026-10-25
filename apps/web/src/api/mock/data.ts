@@ -452,7 +452,7 @@ export const packages: PersonnelPackage[] = [
 
 export const settings: TeamSettings = {
   retentionDays: 365,
-  uploadLimits: { maxUploadBytes: 8 * 1024 ** 3, chunkBytes: 8 * 1024 ** 2, allowedVideoContainers: ['mp4', 'mov'] },
+  uploadLimits: { maxUploadBytes: 8 * 1024 ** 3, uploadChunkBytes: 8 * 1024 ** 2, allowedVideoContainers: ['mp4', 'mov'], uploadTtlHours: 24 },
   version: 1,
 };
 

@@ -133,7 +133,7 @@ describe('workspace screens on the mock API', () => {
     await user.type(field, '180');
     // Someone else saves first: the next write must report a conflict, not overwrite.
     await api.teams.updateSettings('team-winchester-demo', { retentionDays: 90, expectedVersion: 1 });
-    await user.click(screen.getByRole('button', { name: /Save settings/ }));
+    await user.click(screen.getByRole('button', { name: /Save retention/ }));
     expect(await screen.findByRole('alert')).toHaveTextContent(/version 1 expected, current is 2/);
   });
 });
