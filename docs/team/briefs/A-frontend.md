@@ -1,6 +1,6 @@
 # Brief A — Product Designer / Frontend Engineer (task A2)
 
-Read `COMMON.md` first. Worktree: `/Users/zachariahparkhill/Desktop/Developing AI Solutions/FootballOS/.worktrees/a-frontend`, branch `wt/a-frontend`.
+Read `COMMON.md` first. Worktree: `/Users/zachariahparkhill/Projects/FootballOS/.worktrees/a-frontend`, branch `wt/a-frontend`.
 Allowed paths: `apps/web/**` only. Ports: web dev 5174 (`--port 5174`), API proxy target
 `http://localhost:8789` (B's API, may not be running; the app must work in mock mode).
 

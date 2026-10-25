@@ -130,3 +130,13 @@ removes the CC BY-NC question for the public site.
 **Consequences.** The montage requirement stays **open** until the generated asset exists,
 its generation terms permit this use, and playback is verified (brief §4). Generation route
 and any cost need the owner's authorization (D-004 rule on paid provisioning applies).
+
+## D-012 · 2026-10-25 · Repository moved off the iCloud-synced Desktop
+**Decision.** The outer course repo, the nested `footballos-prototype` repo and `.worktrees/`
+now live at `~/Projects/FootballOS` (owner-approved). Worktree pointers repaired with
+`git worktree repair`; launch configs and briefs re-pointed.
+**Why.** iCloud Drive evicted tracked files repeatedly (about 10 GB free disk), which made the
+typechecker, Vite and ffprobe read empty files and blanked the web app mid-verification.
+**Consequences.** Historical documents (QA report, change summary) keep the old absolute paths
+as written at the time. Recovery trick kept in WORKFLOW knowledge: for an evicted tracked
+file, `rm` it and `git checkout -- <file>`.

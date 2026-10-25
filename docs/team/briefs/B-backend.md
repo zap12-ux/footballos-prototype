@@ -1,6 +1,6 @@
 # Brief B — Backend / Team Platform Engineer (task A1)
 
-Read `COMMON.md` first. Worktree: `/Users/zachariahparkhill/Desktop/Developing AI Solutions/FootballOS/.worktrees/b-backend`, branch `wt/b-backend`.
+Read `COMMON.md` first. Worktree: `/Users/zachariahparkhill/Projects/FootballOS/.worktrees/b-backend`, branch `wt/b-backend`.
 Allowed paths: `packages/contracts/**`, `apps/api/**` except `apps/api/src/media/**` and
 `apps/api/src/ai/**` (reserved for C and D). Ports/data: API 8789, `FOOTBALLOS_DATA_DIR=.data/wt-b`.
 

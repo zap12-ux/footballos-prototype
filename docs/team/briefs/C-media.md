@@ -1,6 +1,6 @@
 # Brief C — Media / Document Processing Engineer (task A3)
 
-Read `COMMON.md` first. Worktree: `/Users/zachariahparkhill/Desktop/Developing AI Solutions/FootballOS/.worktrees/c-media`, branch `wt/c-media`.
+Read `COMMON.md` first. Worktree: `/Users/zachariahparkhill/Projects/FootballOS/.worktrees/c-media`, branch `wt/c-media`.
 Allowed paths: `packages/media/**`, `fixtures/media/**`. Data dir for scratch output:
 `.data/wt-c` (gitignored).
 

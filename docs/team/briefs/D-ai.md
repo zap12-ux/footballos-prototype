@@ -1,6 +1,6 @@
 # Brief D — Applied AI / Scouting Engineer (task A4)
 
-Read `COMMON.md` first. Worktree: `/Users/zachariahparkhill/Desktop/Developing AI Solutions/FootballOS/.worktrees/d-ai`, branch `wt/d-ai`.
+Read `COMMON.md` first. Worktree: `/Users/zachariahparkhill/Projects/FootballOS/.worktrees/d-ai`, branch `wt/d-ai`.
 Allowed paths: `packages/ai/**`, `docs/ai/**`. No API keys exist in this environment and
 **no paid call may be made**; everything is tested through fake transports.
 
