@@ -100,3 +100,9 @@ chosen; F documents two or three options with dated official pricing. Nothing is
 or paid for without the owner's explicit authorization in the lead's session.
 **Why.** The owner indicated a simple cloud hosting location (relayed from session
 footballos-11; to be confirmed directly with the lead).
+
+**Update 2026-10-25 (D-009).** Provider chosen: DigitalOcean (Basic Droplet 2 vCPU / 4 GiB,
+Block Storage volume, Spaces for off-host backups; about $39/month at the reference size per
+`deploy/README.md`). Relayed from the owner by session footballos-11. This chooses the
+provider only; creating an account, provisioning, payment, deployment and moving any film
+each need separate explicit approval from the owner in the lead's session.
