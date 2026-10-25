@@ -1,4 +1,87 @@
-# FootballOS — AI product UI prototype (Module 7)
+# FootballOS web app
+
+`apps/web` is the FootballOS product shell: a public landing page, sign-in and the
+authenticated team workspace, built against `docs/team/CONTRACTS.md`. The graded Module 7
+usability prototype is preserved inside it, unchanged, as the film-review demo flow under
+`/prototype/` (its own documentation follows below under **Module 7 prototype**).
+
+## Product shell (A2)
+
+### Routes (react-router 7, path-based, refresh-safe)
+
+| Path | Screen |
+| --- | --- |
+| `/` | Public landing page: product explanation, hero montage (see below), **Sign in** and **Try the demo** (→ `/prototype/#/demo`). |
+| `/sign-in` | Email + password, then the MFA code step, with account recovery. Invite-only: there is no self-registration (the first head coach is created by the API's CLI). |
+| `/app` | Dashboard: this week's game, open tasks, recent film, plan statuses. |
+| `/app/schedule` | Season table, record from final games only, manual add/edit, CSV import preview → apply. |
+| `/app/film` | Our Team Film: upload context form, processing progress, rejection reasons, proposed play list. |
+| `/app/scouting` | Opponent Scouting: opponent/unit selector, findings with denominators and review-basis flags, uncertain findings apart. |
+| `/app/plans` | Weekly Game Plans: unit tabs, CONTRACTS §11 section templates, draft / in review / approved versions, comments. |
+| `/app/playbook` | Documents, versions, proposed vs approved concepts with sources. |
+| `/app/personnel` | Roster, depth chart, packages with availability. |
+| `/app/staff` | Members, roles, invitations. |
+| `/app/settings` | Team details, media retention, your account. |
+| `/prototype/*` | The Module 7 prototype with its hash routes `#/`, `#/demo`, `#/research`. `/demo/film-review` redirects here. |
+| anything else | 404 page. |
+
+Unauthenticated visits to `/app/*` redirect to `/sign-in?next=…` and return afterwards.
+The workspace context (`?team=&season=&game=&unit=`) lives in the URL and is mirrored in a
+small store (`src/workspace/store.ts`), so every page agrees on team, season, game and unit
+and links between pages carry it. The router `basename` comes from Vite's `BASE_URL`; the
+production build copies `index.html` to `404.html` so GitHub Pages serves deep links.
+
+### API modes
+
+`VITE_API_MODE=mock` (default) serves the fictional **Winchester Hawks (demo)** team from
+`src/api/mock/`; the team's `environmentKind` is `demo` and every screen shows the label.
+Demo sign-in: any listed demo account, password `demo`, verification code `246810` (shown
+on the sign-in screen in mock mode only). `VITE_API_MODE=http` uses `src/api/http.ts`
+against `/api/v1` (Vite proxies `/api` and `/media` to `http://localhost:8789`, override
+with `VITE_API_PROXY_TARGET`). Contract types in `src/api/contracts.ts` are transcribed
+from CONTRACTS.md and will be replaced by `@footballos/contracts`; the HTTP client will be
+replaced by `hc<AppType>` from `hono/client` once `@footballos/api` exports `AppType`.
+
+### Landing hero montage — asset pending
+
+The hero montage is source-agnostic. It reads `public/montage/manifest.json`:
+
+```json
+{ "poster": "montage/poster.svg", "clips": [{ "src": "montage/clip-1.mp4", "poster": "…", "credit": "…" }] }
+```
+
+Paths are relative to the app's base URL. Clips play muted and inline, chained in order and
+looped, with a visible pause/play control; with `prefers-reduced-motion` only the poster
+shows and nothing autoplays. **The owner decided (2026-10-25) that the montage must not use
+the SWOSU demo clips or any evaluation footage; it will use AI-generated clips of football
+players that do not exist yet.** Until they are provided the manifest ships with an empty
+`clips` list and the designed poster `public/montage/poster.svg`, so the hero shows the
+poster alone. The credited demo clips in `public/demo-film/` are used only inside the
+prototype demo flow.
+
+### Design tokens
+
+`src/styles/tokens.css` holds the semantic tokens (surface, line, ink, navy, crimson, gold,
+status, focus, radius, type scale, spacing). `src/styles.css` (the prototype stylesheet)
+aliases its historical variable names onto them; `src/styles/shell.css` styles the shell.
+
+### Tests
+
+`npm test` runs the prototype's 58 tests unchanged plus the shell suite in
+`src/tests/shell/` (routing, auth gating, montage, context query, screens on the mock API,
+axe-core on landing and dashboard). `src/tests/setup.shell.ts` works around a jsdom/undici
+`AbortSignal` mismatch that react-router's data routers hit under vitest; it is test-only.
+
+```bash
+npm run dev          # http://localhost:5174
+npm test
+npm run typecheck
+npm run build        # dist/ with 404.html
+```
+
+---
+
+# Module 7 prototype (preserved under `/prototype/`)
 
 **Live prototype:** <https://zap12-ux.github.io/footballos-prototype/> ·
 **Demo (no baseline collected):** <https://zap12-ux.github.io/footballos-prototype/#/demo> ·
@@ -34,14 +117,14 @@ npm install
 npm run dev
 ```
 
-Then open **http://localhost:5173** in a current browser (Chrome, Edge, Safari or
+Then open **http://localhost:5174/prototype/** in a current browser (Chrome, Edge, Safari or
 Firefox). A landscape tablet or desktop window is the intended layout; the page also
 works on narrower screens.
 
 Other commands:
 
 ```bash
-npm test           # Vitest + React Testing Library suite (58 tests)
+npm test           # Vitest + React Testing Library suite (58 prototype tests + the shell suite)
 npm run typecheck  # tsc --noEmit
 npm run build      # production build to dist/
 npm run preview    # serve the production build at http://localhost:4173

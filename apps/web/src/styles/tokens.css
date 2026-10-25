@@ -1,0 +1,112 @@
+/* FootballOS design tokens (owned by Frontend, DECISIONS D-006).
+
+   Semantic tokens extracted from the Module 7 prototype palette: dark navy surfaces,
+   crimson for selective emphasis, restrained burnt gold accents. Every new screen uses
+   these; the prototype stylesheet (`src/styles.css`) aliases its historical variable
+   names onto them so its screens render exactly as before.
+
+   Meaning is never carried by colour alone: every state also has text or a glyph. */
+
+:root {
+  color-scheme: dark;
+
+  /* ---- surfaces, darkest to lightest ---- */
+  --surface-0: #090d12;              /* page */
+  --surface-1: #0f151d;              /* panel */
+  --surface-2: #151d27;              /* inset / alt panel */
+  --surface-3: #1b2531;              /* hover */
+  --surface-overlay: rgba(9, 13, 18, 0.9);
+
+  /* ---- lines ---- */
+  --line: #233040;
+  --line-strong: #34455a;
+  --line-soft: #1b2531;
+
+  /* ---- ink ---- */
+  --ink: #e3e9f0;
+  --ink-strong: #ffffff;
+  --ink-soft: #aab6c4;
+  --ink-faint: #7c8896;
+  --ink-on-accent: #0b0e13;          /* text on gold / light surfaces */
+
+  /* ---- navy: primary role on a dark base ---- */
+  --navy: #1e3d66;
+  --navy-deep: #142a47;
+  --navy-hover: #26508a;
+  --navy-soft: rgba(58, 108, 176, 0.16);
+  --navy-line: #3f6ba8;
+  --navy-line-hover: #5a8bd0;
+  --navy-text: #8db6ee;
+
+  /* ---- crimson: selective emphasis (errors, below-standard, destructive) ---- */
+  --crimson: #e45a68;
+  --crimson-bg: rgba(228, 90, 104, 0.12);
+  --crimson-line: #8f2a39;
+  --crimson-text: #f3c7cc;
+
+  /* ---- gold: restrained accent and the "live" signal colour ---- */
+  --gold: #e2b457;
+  --gold-hover: #f0c66c;
+  --gold-bg: rgba(226, 180, 87, 0.10);
+  --gold-line: #a3813a;
+  --gold-text: #f0cf80;
+
+  /* ---- status (always paired with a word) ---- */
+  --ok: #5fb281;
+  --ok-bg: rgba(95, 178, 129, 0.12);
+  --ok-line: #2f6b47;
+
+  /* ---- focus ---- */
+  --focus: #76b6ff;
+  --focus-ring: 0 0 0 2px var(--surface-0), 0 0 0 4px var(--focus);
+
+  /* ---- shape ---- */
+  --radius: 4px;
+  --radius-sm: 3px;
+  --radius-lg: 8px;
+  --radius-pill: 18px;
+
+  /* ---- type ---- */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --text-2xs: 10.5px;
+  --text-xs: 11.5px;
+  --text-sm: 13px;
+  --text-base: 15px;
+  --text-md: 17px;
+  --text-lg: 22px;
+  --text-xl: 28px;
+  --text-2xl: 36px;
+  --text-3xl: 44px;
+  --leading-tight: 1.25;
+  --leading-body: 1.55;
+  --tracking-caps: 0.08em;
+
+  /* ---- spacing ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 28px;
+  --space-7: 40px;
+  --space-8: 64px;
+
+  /* ---- layout ---- */
+  --sidebar-width: 232px;
+  --content-max: 1280px;
+  --page-gutter: 16px;
+  --shadow-panel: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-header: 0 1px 0 rgba(226, 180, 87, 0.35), 0 6px 18px rgba(0, 0, 0, 0.45);
+
+  /* ---- motion ---- */
+  --motion-fast: 120ms;
+  --motion-base: 200ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion-base: 0ms;
+  }
+}
