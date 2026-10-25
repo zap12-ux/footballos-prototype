@@ -19,6 +19,14 @@
     "thirty-two": {
       "license": "UNKNOWN",
       "reason": "package.json has no license field; the shipped LICENSE.txt is the MIT license text. Transitive dependency of otplib (@otplib/plugin-thirty-two) used for TOTP base32 encoding."
+    },
+    "pako": {
+      "license": "(MIT AND Zlib)",
+      "reason": "Compound SPDX expression: MIT plus the permissive Zlib license (OSI-approved, attribution-style). Transitive dependency of jszip via mammoth (.docx text extraction)."
+    },
+    "duck": {
+      "license": "BSD",
+      "reason": "Declares the bare string 'BSD'; shipped license evidence: BSD-style text. Transitive dependency of mammoth (.docx text extraction)."
     }
   }
 }

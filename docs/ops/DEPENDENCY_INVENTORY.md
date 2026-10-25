@@ -36,8 +36,8 @@ Installed third-party packages: 389.
 - **@csstools/color-helpers@5.1.0** (MIT-0): allowlisted. MIT No Attribution: more permissive than MIT. Dev only (jsdom CSS parsing in tests).
 - **ffmpeg-static@5.3.0** (GPL-3.0-or-later): allowlisted. Ships prebuilt GPL ffmpeg binaries that FootballOS runs as a separate process (spawned tool, not linked into application code). Not redistributed to end users; the app runs on the staff's own host. Revisit before any binary redistribution.
 - **parse-cache-control@1.0.1** (BSD): allowlisted. Transitive dependency of ffmpeg-static's installer (@derhuerst/http-basic), used only at npm install time to download the ffmpeg binary. Declares the bare string 'BSD' (BSD-style permissive license, clause count unspecified in package.json). Not loaded by application code.
-- **pako@1.0.11** ((MIT AND Zlib)): **not allowed and not allowlisted.**
-- **duck@0.1.12** (BSD): **not allowed and not allowlisted.**
+- **pako@1.0.11** ((MIT AND Zlib)): allowlisted. Compound SPDX expression: MIT plus the permissive Zlib license (OSI-approved, attribution-style). Transitive dependency of jszip via mammoth (.docx text extraction).
+- **duck@0.1.12** (BSD): allowlisted. Declares the bare string 'BSD'; shipped license evidence: BSD-style text. Transitive dependency of mammoth (.docx text extraction).
 
 ## Packages
 
