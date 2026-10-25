@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
+import { loadAiConfig, type AiConfig } from '@footballos/ai';
 
 export const FOOTBALLOS_ENVS = ['development', 'demo', 'research', 'production'] as const;
 export type FootballOsEnv = (typeof FOOTBALLOS_ENVS)[number];
@@ -26,14 +27,18 @@ const EnvSchema = z.object({
   MODEL_PROVIDER: z.enum(['anthropic', 'openai', 'none']).default('none'),
   ANTHROPIC_API_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
-  MODEL_ID: z.string().optional(),
   MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(21474836480),
   UPLOAD_CHUNK_BYTES: z.coerce.number().int().positive().default(16777216),
   ALLOWED_VIDEO_CONTAINERS: z.string().default('mp4,mov,mkv'),
+  UPLOAD_TTL_HOURS: z.coerce.number().positive().default(24),
+  MEDIA_GRANT_TTL_MIN: z.coerce.number().positive().max(15).default(15),
   WORKER_CONCURRENCY: z.coerce.number().int().min(0).default(1),
+  WORKER_INLINE: boolString.default(false),
+  WORKER_POLL_MS: z.coerce.number().int().positive().default(1000),
   JOB_MAX_ATTEMPTS: z.coerce.number().int().positive().default(3),
   JOB_LEASE_SECONDS: z.coerce.number().int().positive().default(300),
-  MAX_FRAMES_PER_SEGMENT: z.coerce.number().int().positive().default(12),
+  PROXY_HEIGHT: z.coerce.number().int().min(144).max(2160).default(720),
+  THUMBNAIL_EVERY_SEC: z.coerce.number().positive().default(10),
   MONTHLY_COST_CAP_USD: z.coerce.number().nonnegative().default(0),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error', 'silent']).default('info'),
   SIGN_IN_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
@@ -58,15 +63,25 @@ export type AppConfig = {
   modelProvider: 'anthropic' | 'openai' | 'none';
   /** Presence only; the key value is never copied out of process.env. */
   modelKeyConfigured: boolean;
-  modelId: string | null;
+  /**
+   * Model settings read once through `@footballos/ai` `loadAiConfig` (FOOTBALLOS_AI_*), so the
+   * model recorded in provenance is the model actually called. Replaces the former MODEL_ID and
+   * MAX_FRAMES_PER_SEGMENT readers.
+   */
+  ai: AiConfig;
   limits: {
     maxUploadBytes: number;
     uploadChunkBytes: number;
     allowedVideoContainers: string[];
+    uploadTtlHours: number;
+    mediaGrantTtlMin: number;
     workerConcurrency: number;
+    workerInline: boolean;
+    workerPollMs: number;
     jobMaxAttempts: number;
     jobLeaseSeconds: number;
-    maxFramesPerSegment: number;
+    proxyHeight: number;
+    thumbnailEverySec: number;
     monthlyCostCapUsd: number;
   };
   logLevel: 'debug' | 'info' | 'warn' | 'error' | 'silent';
@@ -118,15 +133,20 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     cookieSecure: e.COOKIE_SECURE,
     modelProvider: e.MODEL_PROVIDER,
     modelKeyConfigured: Boolean(providerKey && providerKey.length > 0),
-    modelId: e.MODEL_ID && e.MODEL_ID.length > 0 ? e.MODEL_ID : null,
+    ai: loadAiConfig(env),
     limits: {
       maxUploadBytes: e.MAX_UPLOAD_BYTES,
       uploadChunkBytes: e.UPLOAD_CHUNK_BYTES,
-      allowedVideoContainers: e.ALLOWED_VIDEO_CONTAINERS.split(',').map((s) => s.trim()).filter(Boolean),
+      allowedVideoContainers: e.ALLOWED_VIDEO_CONTAINERS.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
+      uploadTtlHours: e.UPLOAD_TTL_HOURS,
+      mediaGrantTtlMin: e.MEDIA_GRANT_TTL_MIN,
       workerConcurrency: e.WORKER_CONCURRENCY,
+      workerInline: e.WORKER_INLINE,
+      workerPollMs: e.WORKER_POLL_MS,
       jobMaxAttempts: e.JOB_MAX_ATTEMPTS,
       jobLeaseSeconds: e.JOB_LEASE_SECONDS,
-      maxFramesPerSegment: e.MAX_FRAMES_PER_SEGMENT,
+      proxyHeight: e.PROXY_HEIGHT,
+      thumbnailEverySec: e.THUMBNAIL_EVERY_SEC,
       monthlyCostCapUsd: e.MONTHLY_COST_CAP_USD,
     },
     logLevel: e.LOG_LEVEL,
