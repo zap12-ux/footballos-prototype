@@ -15,6 +15,10 @@
     "parse-cache-control": {
       "license": "BSD",
       "reason": "Transitive dependency of ffmpeg-static's installer (@derhuerst/http-basic), used only at npm install time to download the ffmpeg binary. Declares the bare string 'BSD' (BSD-style permissive license, clause count unspecified in package.json). Not loaded by application code."
+    },
+    "thirty-two": {
+      "license": "UNKNOWN",
+      "reason": "package.json has no license field; the shipped LICENSE.txt is the MIT license text. Transitive dependency of otplib (@otplib/plugin-thirty-two) used for TOTP base32 encoding."
     }
   }
 }

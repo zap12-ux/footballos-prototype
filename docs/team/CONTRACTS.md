@@ -250,3 +250,21 @@ Client types: `apps/api` exports `type AppType` (the typed Hono app) and `apps/w
 imports it **type-only** (`import type { AppType } from '@footballos/api'`) to build a
 `hono/client` client. `packages/contracts` holds only zod schemas and inferred types so it
 never depends on the API package. No hand-written fetch types in `apps/web`.
+
+## 13. Additions made by the contracts package (v0.2, 2026-10-25, owner B)
+
+The package now also defines: `ImportRowError { row, column | null, message }`,
+`ScheduleImportRow`, `ScheduleImport.rows`, `ScheduleImportPreviewRequest.seasonId`,
+`SeasonRecord.played`, a `GameResult` outcome/score consistency refinement,
+`AuditEvent.actorUserId` nullable, an `AuditAction` enum, `Invite.createdAt`, `User`
+without `passwordHash`, `StaffMember` (membership + user), `AuthState`, `Usage`, `Health`.
+Routes beyond §12: `GET/DELETE /teams/:teamId/invites[/:inviteId]`,
+`GET /teams/:teamId/audit`, `GET/POST /teams/:teamId/opponents`, `GET /games/:gameId`,
+`GET /schedule-imports/:id`, `POST /schedule-imports/:id/discard`. Season, opponent, game
+creation and schedule imports are allowed for `head_coach` and `coordinator` (lead decision,
+pending owner objection). Password hashing: scrypt (`node:crypto`). MFA gate: `401` with
+`details.mfaRequired`, plus `details.mfaEnrollmentRequired` for head coaches and
+coordinators without MFA. Media (`packages/media`) and AI (`packages/ai`) currently carry
+structural copies of §5–§7/§10 types; swapping them for package imports is a Milestone B
+chore. Proposed job-table fields from C: `input`, `result`, `notBeforeAt`,
+`cancelRequestedAt` (store-internal until adopted here).
