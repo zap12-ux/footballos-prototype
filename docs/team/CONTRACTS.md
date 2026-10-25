@@ -394,3 +394,116 @@ Implemented by B in `apps/api`; consumed by A in `apps/web`; library pieces from
   error names the real cause (QA D-4). `retentionDays` minimum stays 1 (QA O-1).
 - `originalFilename` is sanitized on intake: control characters removed, a stem is required,
   length capped at 255 (QA D-7).
+
+## 15. Milestone C addendum (v0.4, 2026-10-25) — playbook, personnel, recommendations, unit plans
+
+Implemented by B in `apps/api` (schema `0002_coaching`), consumed by A in `apps/web`; library
+pieces from C (`packages/media`: document extraction) and D (`packages/ai`: concept proposals,
+recommendation grounding). Records are §8–§11; this section fixes routes and rules.
+
+### 15.1 Playbook intake and review
+- Upload a document through §14.1 with `kind: 'document'` (PDF; `.docx`/`.txt` accepted as
+  "text documents" where `extractDocument` supports them) and `context` omitted; completion
+  enqueues `extract_document` (idempotent per sha256 + `configVersion`).
+- `extract_document` result → `PlaybookDocument { pageCount, status: 'extracted' }`,
+  `PlaybookPage` rows (`imageKey` = rendered page PNG under the asset dir, `ocrText` or
+  `text` from the PDF text layer, `ocrConfidence` or `null`, `textSource:
+  'pdf_text'|'ocr'|'none'`), and **proposed** `Concept` and `Term` rows (`status:'proposed'`)
+  each with `sources: SourceRef[]` pointing at page numbers (and `bbox` when known). Without an
+  OCR engine or model, scanned pages produce `textSource:'none'` and no proposals; the UI says
+  so. A diagram is never "understood" from text: proposals carry `basis: 'text'|'model'` and a
+  `note` string.
+- Routes: `GET /teams/:teamId/playbook/documents?unit=` → `{ items }`; `GET …/documents/:id`
+  → `{ document, pages: PlaybookPage[] }`; `GET /playbook/pages/:pageId/image?token=` via a
+  media grant (`GET /playbook/documents/:id/grant`); `DELETE …/documents/:id` (head coach).
+- Versions: `GET/POST /teams/:teamId/playbook/versions?unit=` (POST `{ unit, seasonId, label }`
+  → draft); `GET /playbook/versions/:id/concepts` and `/terms` → `{ items }` (proposed +
+  approved + rejected, filter `status=`); `PATCH /concepts/:id` and `PATCH /terms/:id`
+  `{ status: 'approved'|'rejected', name?, kind?, description?, installed?, expectedVersion }`
+  (coordinator of the unit or head coach); `POST /playbook/versions/:id/concepts` (coach-created,
+  `status:'approved'`, `sources: []`); `POST /playbook/versions/:id/approve` → `approved`,
+  previous approved version → `superseded` (coordinator/head coach; audit `playbook.approved`).
+  Only concepts in the **approved** version with `installed: true` ground recommendations.
+
+### 15.2 Personnel
+- `GET/POST /teams/:teamId/seasons/:seasonId/players`, `PATCH /players/:id`
+  (`expectedVersion`), `DELETE /players/:id` (head coach; soft, `status:'inactive'`).
+- Roster import: `POST /teams/:teamId/seasons/:seasonId/roster-imports` (CSV, same preview
+  machinery as schedule imports: header auto-mapping for jersey, first, last, positions, class)
+  → preview; `POST /roster-imports/:id/apply` (`skipInvalidRows`) → `{ createdPlayerIds,
+  updatedPlayerIds }` (match on jersey + last name).
+- `GET/PUT /teams/:teamId/seasons/:seasonId/depth-chart?unit=` (`PUT { slots, expectedVersion }`),
+  `GET/POST /teams/:teamId/seasons/:seasonId/packages`, `PATCH /packages/:id`.
+- Availability: `Player.status` plus `Player.availability: { week: number, status:
+  'available'|'limited'|'out', note }[]` (season-specific). Packages whose players are `out`
+  for the selected game are `unavailable` in recommendations.
+- Permissions: edit by head coach and coordinators; view by any member.
+
+### 15.3 Recommendations (computed, stored, never auto-approved)
+- `POST /games/:gameId/recommendations/generate { unit }` (coordinator/head coach) →
+  `201 { items: Recommendation[] }` built by `buildRecommendations` from the current scouting
+  report for that opponent/unit (reviewed-only basis), the approved playbook version's
+  installed concepts, and current personnel/availability for the game week. Each carries
+  `inputsHash` over those inputs. Re-generating supersedes undecided recommendations
+  (`status:'rejected'`, `staleReason:'regenerated'`) and leaves decided ones.
+- `GET /games/:gameId/recommendations?unit=` → `{ items }` where each item's `status` is
+  reported as `stale` (with `staleReason`) when its `inputsHash` no longer matches the current
+  inputs, without rewriting the stored decision. `POST /recommendations/:id/decide
+  { decision: 'accept'|'edit'|'reject'|'defer', editedStatement?, note? }` (coordinator/head
+  coach): `accept`/`edit` create a `PlanItem` in the unit's **current draft** plan version
+  (creating a draft if none, §15.4) with `sourceRecommendationId`; audit
+  `recommendation.decided`.
+- Grounding rules (D): a recommendation references only installed approved concepts and only
+  packages that are available; it lists supporting findings (ids), evidence refs with
+  timestamps, counts with context, limitations (sample size, review basis, missing situations)
+  and contrary evidence when a finding points the other way. With no approved playbook or no
+  personnel, generation returns `[]` plus `blockedReasons[]` rather than ungrounded items.
+
+### 15.4 Unit game plans, approval, sharing, export
+- `GET /games/:gameId/plans/:unit` → `{ plan, versions: GamePlanVersion[] (summaries),
+  current: GamePlanVersion (full), reviewFlags: ReviewFlag[] }`; first access creates
+  `GamePlan` with draft version 1 from the unit template (§11 section keys, empty items).
+- `PATCH /plan-versions/:id { sections, expectedVersion }` (draft only; editor = head coach or
+  assigned staff whose `units` contains the unit) → `{ version }`; `409` on mismatch with
+  `currentVersion` and the **server copy** so the client can merge; approved/superseded
+  versions are immutable (`409 conflict`, `details.reason:'not_draft'`).
+- `POST /plan-versions/:id/draft` → new draft `basedOn` an approved version (copy of
+  sections), `{ version }`; at most one draft per plan (`409` if one exists).
+- `POST /plan-versions/:id/submit` → `in_review`; `POST /plan-versions/:id/approve
+  { note? }` → `approved` (coordinator of the unit; head coach sets `override:true`),
+  previous approved → `superseded`; `POST /plan-versions/:id/reopen` → back to `draft`
+  (coordinator/head coach); every transition audited with actor and note.
+- `ReviewFlag { kind: 'stale_recommendation'|'playbook_changed'|'personnel_changed'|'labels_changed',
+  message, itemId?, since }` computed on read for the current approved and draft versions by
+  comparing stored `inputsHash` values against current inputs; never mutates versions.
+- Comments: `GET/POST /plan-versions/:id/comments` (`{ sectionKey?, itemId?, body }`, any member),
+  `POST /plan-comments/:id/resolve`.
+- Sharing: `POST /plan-versions/:id/share { expiresInHours ≤ 168 }` → `{ link: ShareLink,
+  url }` (token shown once); `GET /shared/:token` → read-only `{ version, team: { name },
+  game, unit, expiresAt }` for **approved** versions only, no session required, team-scoped
+  token, `410` after expiry or revoke; `DELETE /share-links/:id` (creator or head coach);
+  `GET /teams/:teamId/share-links` (head coach). Audit `plan.shared`, `plan.share_revoked`.
+- Export: `GET /plan-versions/:id/export.html` (print stylesheet, session or share token) and
+  `GET /plan-versions/:id/export.pdf` generated server-side with `pdf-lib` (MIT): title block
+  (team, opponent, week, unit, version, status, approved by/at), one section per template key,
+  items, and a footer "Generated by FootballOS <date> · version n". No analytics or external
+  fonts.
+
+### 15.5 Library interfaces owed by C and D
+- C: `extractDocument(path, outDir, { renderDpi = 110, ocr: 'auto'|'off' })` →
+  `{ pageCount, pages: { pageNumber, imagePath, width, height, text: string|null,
+  textSource: 'pdf_text'|'ocr'|'none', ocrConfidence: number|null }[], warnings[] }` using
+  `pdfjs-dist` (Apache-2.0) + `@napi-rs/canvas` (MIT); OCR via `tesseract.js`
+  (Apache-2.0) **only if** its language data can be installed from an npm package with an
+  allowed license — otherwise `ocr:'off'` with a warning; `.txt`/`.md` → one page per 60 lines
+  with `textSource:'pdf_text'`; `.docx` via `mammoth` (BSD-2-Clause) to text if trivial, else
+  rejected with a plain reason. `createDocumentHandlers({ dataDir })` → `{ extract_document }`
+  with the §14.8 handler shape, input `{ assetId, sourcePath, outDir }`.
+- D: `proposeFromPages(pages, { labeler? , vocabulary? })` → `{ concepts: ProposedConcept[],
+  terms: ProposedTerm[], basis: 'text'|'model'|'none', note }` where text heuristics find
+  headings/numbered play names and "Term — definition" lines; a model (image pages) is used
+  only when a labeler is available, with abstention and provenance;
+  `buildRecommendations({ report, playbook: { versionId, concepts }, personnel: { players,
+  packages, depthChart, week }, unit, gameId })` → `{ items: Recommendation[], blockedReasons[],
+  inputsHash }`; `recommendationInputsHash(inputs)`; `planReviewFlags({ version, recommendations,
+  currentHashes })` → `ReviewFlag[]`.
