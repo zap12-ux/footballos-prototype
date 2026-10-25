@@ -299,5 +299,11 @@ describe('lead inbox and redaction', () => {
     expect(r.body.error.code).toBe('validation_error');
     const nf = await h.owner('GET', '/api/git/agents/does-not-exist');
     expect(nf.status).toBe(404);
+    const unknownApi = await h.owner('GET', '/api/nope');
+    expect(unknownApi.status).toBe(404);
+    expect(unknownApi.body.error.code).toBe('not_found');
+    const root = await h.raw('GET', '/');
+    expect(root.status).toBe(200);
+    expect(await root.text()).toContain('UI is not built');
   });
 });

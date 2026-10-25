@@ -238,6 +238,9 @@ export function createApp(opts: AppOptions) {
   const uiDist = path.resolve(opts.uiDist);
   const indexHtml = path.join(uiDist, 'index.html');
   app.get('/*', async (c) => {
+    if (new URL(c.req.url).pathname.startsWith('/api/')) {
+      return c.json({ error: { code: 'not_found', message: 'not found' } }, 404);
+    }
     if (!fs.existsSync(indexHtml)) {
       return c.text(
         [
