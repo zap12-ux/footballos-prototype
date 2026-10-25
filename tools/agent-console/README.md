@@ -37,10 +37,10 @@ works regardless.
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `CONSOLE_PORT` | `4800` | Listening port on 127.0.0.1 (`0` picks a free port). |
-| `CONSOLE_DATA_DIR` | `<repo root>/.data/console` | Holds `console.db` (SQLite, WAL) and `owner-token`. Gitignored. (`DATA_DIR` is accepted as an alias.) |
+| `CONSOLE_DATA_DIR` | `<repo root>/.data/console` | Holds `console.db` (SQLite, WAL) and `owner-token`. Gitignored. (`DATA_DIR` is accepted as an alias.) A **relative** value is resolved against the repo root (the nearest `package.json` with `workspaces` above this package, or `CONSOLE_REPO_ROOT`), never against the cwd or the package dir, so `CONSOLE_DATA_DIR=.data/wt-x npm run start -w tools/agent-console` lands in `<repo root>/.data/wt-x`. The server prints the absolute path in its `CONSOLE_STATE=listening data_dir=…` line; `leadctl` reads `owner-token` from the same place. |
 | `STALE_AFTER_MIN` | `20` | Minutes without an agent/runtime update before a `working`/`reviewing`/`waiting_on_dependency` agent is shown as `disconnected`. |
 | `LEAD_PICKUP_AFTER_SEC` | `90` | Age of an unfetched `submitted` response before it appears in `GET /api/lead/inbox`. |
-| `CONSOLE_REPO_ROOT` | the repo containing this package | Where `git` runs for `GET /api/git/agents/:agentId`. |
+| `CONSOLE_REPO_ROOT` | nearest workspace root above this package | Where `git` runs for `GET /api/git/agents/:agentId`, and the base for a relative `CONSOLE_DATA_DIR`. |
 | `CONSOLE_URL` | `http://127.0.0.1:4800` | Used by the CLIs and the MCP server to reach the console. |
 | `CONSOLE_OWNER_TOKEN` | read from `<DATA_DIR>/owner-token` | Used by `leadctl` and the hook forwarder. |
 | `CONSOLE_AGENT_ID`, `CONSOLE_AGENT_TOKEN` | — | Per-agent credentials issued at registration; used by `agentctl` and the MCP server. |
