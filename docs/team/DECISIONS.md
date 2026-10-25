@@ -106,3 +106,16 @@ Block Storage volume, Spaces for off-host backups; about $39/month at the refere
 `deploy/README.md`). Relayed from the owner by session footballos-11. This chooses the
 provider only; creating an account, provisioning, payment, deployment and moving any film
 each need separate explicit approval from the owner in the lead's session.
+
+## D-010 · 2026-10-25 · Exactly one lead session; forks must not resume agents
+**Decision.** Only the original lead session resumes, messages or stops specialist agents.
+A fork of the lead session must not send messages to the agents, post to the console as
+lead, or edit worktrees; it may read the board and the console only.
+**Why.** At 12:52 a fork of the lead (opened because the owner believed the lead had
+stopped) resumed all four product agents by message, which created second copies writing
+into the same worktrees; the Media copy committed 7e6bcde and the AI copy overwrote
+`packages/ai/src`. The copies were stopped at 12:58. Agents now commit WIP after every
+module so any overwrite is recoverable with git.
+**Consequences.** The console shows the lead's own status; a long silence from the lead means
+it is waiting on agent notifications, not stopped. Four `agent.resumed` events posted by the
+fork at ~12:53 are annotated as disregarded.
