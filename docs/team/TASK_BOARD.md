@@ -47,7 +47,7 @@ Contract: `docs/team/CONTRACTS.md` §14. Briefs: `docs/team/briefs/*-milestone-b
 | B4 / B5 | Label routes, inference enqueue, scouting route and snapshots in the API | B (same agent) | In progress | B4-lib, B5-lib | `apps/api/**` |
 | B5-lib | `buildScoutingReport`, `snapshotFromReport` | D (same agent) | Verified | — | `packages/ai/**` |
 | B6 | QA: interrupted upload, worker restart, provider failure, correction persistence, counts, a11y of A2/B3 | E | Ready | B1–B5 integrated | `tests/e2e/**`, `docs/qa/**` |
-| K5 | Console defects D-1..D-4, `agentctl wait --poll-until-answered` | console-fix (subagent) | Verified (console 45/45, ui 41/41, fixture 52/52 on integration) | K4 | `tools/agent-console/**`, `tools/agent-console-ui/**` |
+| K5 | Console defects D-1..D-4, `agentctl wait --poll-until-answered` | console-fix (subagent) | Verified (console 45/45 on re-run after one load-related timing failure, ui 41/41, fixture 52/52 on integration) | K4 | `tools/agent-console/**`, `tools/agent-console-ui/**` |
 
 ## Milestones C–E
 
