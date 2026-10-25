@@ -1,32 +1,19 @@
 {
-  "name": "footballos-prototype",
+  "name": "footballos",
   "private": true,
-  "version": "0.1.0",
-  "type": "module",
-  "description": "Low-fidelity usability prototype for the FootballOS coach film-review loop. Simulated AI only.",
+  "version": "0.2.0",
+  "description": "FootballOS: private AI-assisted coaching workspace for one football staff. npm-workspaces monorepo.",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "typecheck": "tsc --noEmit",
-    "preview": "vite preview",
-    "test": "vitest run",
-    "test:watch": "vitest"
-  },
-  "dependencies": {
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
-  },
-  "devDependencies": {
-    "@testing-library/dom": "^10.4.0",
-    "@testing-library/jest-dom": "^6.6.3",
-    "@testing-library/react": "^16.1.0",
-    "@testing-library/user-event": "^14.5.2",
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
-    "@vitejs/plugin-react": "^4.3.4",
-    "jsdom": "^25.0.1",
-    "typescript": "^5.6.3",
-    "vite": "^6.0.0",
-    "vitest": "^2.1.8"
+    "dev:web": "npm run dev -w apps/web",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm test --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present"
   }
 }

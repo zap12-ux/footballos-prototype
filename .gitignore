@@ -16,3 +16,15 @@ Thumbs.db
 
 # local env
 *.local
+
+# per-developer data directories (SQLite databases, uploaded media, derived proxies)
+.data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# secrets
+.env
+.env.*
+!.env.example
