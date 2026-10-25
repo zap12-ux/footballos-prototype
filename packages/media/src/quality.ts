@@ -112,7 +112,8 @@ async function sampleWindow(src: string, w: SampleWindow, sampleFps: number, wid
 
 const BLACK_LUMA = 16;
 const QUIET_MOVING_AREA = 0.02;
-const UNSTABLE_MOVING_AREA_P90 = 0.7;
+// Calibrated on one fixed end-zone clip (p90 0.16 mid-play) and a synthetic violently shaken copy of it (p90 0.55).
+const UNSTABLE_MOVING_AREA_P90 = 0.45;
 
 /**
  * Assesses what ffmpeg statistics can honestly say about footage, and lists
