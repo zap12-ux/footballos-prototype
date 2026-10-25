@@ -1,0 +1,17 @@
+{"segmentId":"demo_g1_s1","gameId":"demo_game_1","key":"formation_family","value":"trips","abstained":false}
+{"segmentId":"demo_g1_s1","gameId":"demo_game_1","key":"play_type","value":"pass","abstained":false}
+{"segmentId":"demo_g1_s2","gameId":"demo_game_1","key":"formation_family","value":"trips","abstained":false}
+{"segmentId":"demo_g1_s2","gameId":"demo_game_1","key":"play_type","value":null,"abstained":true}
+{"segmentId":"demo_g1_s3","gameId":"demo_game_1","key":"formation_family","value":"trips","abstained":false}
+{"segmentId":"demo_g1_s3","gameId":"demo_game_1","key":"play_type","value":"run","abstained":false}
+{"segmentId":"demo_g1_s4","gameId":"demo_game_1","key":"formation_family","value":"doubles","abstained":false}
+{"segmentId":"demo_g1_s4","gameId":"demo_game_1","key":"play_type","value":"pass","abstained":false}
+{"segmentId":"demo_g2_s1","gameId":"demo_game_2","key":"formation_family","value":"Empty","abstained":false}
+{"segmentId":"demo_g2_s1","gameId":"demo_game_2","key":"play_type","value":"pass","abstained":false}
+{"segmentId":"demo_g2_s2","gameId":"demo_game_2","key":"formation_family","value":null,"abstained":true}
+{"segmentId":"demo_g2_s2","gameId":"demo_game_2","key":"play_type","value":"pass","abstained":false}
+{"segmentId":"demo_g2_s3","gameId":"demo_game_2","key":"formation_family","value":"trips","abstained":false}
+{"segmentId":"demo_g3_s1","gameId":"demo_game_3","key":"formation_family","value":"i-form","abstained":false}
+{"segmentId":"demo_g3_s1","gameId":"demo_game_3","key":"play_type","value":"run","abstained":false}
+{"segmentId":"demo_g3_s2","gameId":"demo_game_3","key":"formation_family","value":"doubles","abstained":false}
+{"segmentId":"demo_g3_s2","gameId":"demo_game_3","key":"play_type","value":"pass","abstained":false}
