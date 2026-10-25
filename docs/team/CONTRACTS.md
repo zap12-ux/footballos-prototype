@@ -404,6 +404,11 @@ pieces from C (`packages/media`: document extraction) and D (`packages/ai`: conc
 recommendation grounding). Records are §8–§11; this section fixes routes and rules.
 
 ### 15.1 Playbook intake and review
+- `MediaAsset.gameId` is nullable **for documents only** (film assets always carry a game).
+  Playbook documents are created by `POST /teams/:teamId/playbook/documents { filename,
+  byteSize, mimeType, sha256?, unit, title? }` (asset `gameId: null`) or, when game-bound, by
+  `POST /games/:gameId/uploads` with `kind:'document', unit`. Migration `0003_coaching`
+  rebuilds `media_assets` with a nullable `game_id` (accepted from B, 2026-10-25).
 - Upload a document through §14.1 with `kind: 'document'` (PDF; `.docx`/`.txt` accepted as
   "text documents" where `extractDocument` supports them) and `context` omitted; completion
   enqueues `extract_document` (idempotent per sha256 + `configVersion`).
