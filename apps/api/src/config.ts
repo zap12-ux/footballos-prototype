@@ -41,6 +41,11 @@ const EnvSchema = z.object({
   WORKER_MAINTENANCE_SEC: z.coerce.number().int().positive().default(60),
   PROXY_HEIGHT: z.coerce.number().int().min(144).max(2160).default(720),
   THUMBNAIL_EVERY_SEC: z.coerce.number().positive().default(10),
+  /** Playbook documents (§15.1): size cap, accepted extensions, page render DPI and OCR mode handed to extractDocument. */
+  MAX_DOCUMENT_BYTES: z.coerce.number().int().positive().default(104857600),
+  ALLOWED_DOCUMENT_TYPES: z.string().default('pdf,txt,md'),
+  DOCUMENT_RENDER_DPI: z.coerce.number().int().min(50).max(300).default(110),
+  DOCUMENT_OCR: z.enum(['auto', 'off']).default('auto'),
   MONTHLY_COST_CAP_USD: z.coerce.number().nonnegative().default(0),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error', 'silent']).default('info'),
   SIGN_IN_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
@@ -86,6 +91,10 @@ export type AppConfig = {
     proxyHeight: number;
     thumbnailEverySec: number;
     monthlyCostCapUsd: number;
+    maxDocumentBytes: number;
+    allowedDocumentTypes: string[];
+    documentRenderDpi: number;
+    documentOcr: 'auto' | 'off';
   };
   logLevel: 'debug' | 'info' | 'warn' | 'error' | 'silent';
   signInRateLimit: { max: number; windowSec: number };
@@ -152,6 +161,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       proxyHeight: e.PROXY_HEIGHT,
       thumbnailEverySec: e.THUMBNAIL_EVERY_SEC,
       monthlyCostCapUsd: e.MONTHLY_COST_CAP_USD,
+      maxDocumentBytes: e.MAX_DOCUMENT_BYTES,
+      allowedDocumentTypes: e.ALLOWED_DOCUMENT_TYPES.split(',').map((s) => s.trim().toLowerCase().replace(/^\./, '')).filter(Boolean),
+      documentRenderDpi: e.DOCUMENT_RENDER_DPI,
+      documentOcr: e.DOCUMENT_OCR,
     },
     logLevel: e.LOG_LEVEL,
     signInRateLimit: { max: e.SIGN_IN_RATE_LIMIT_MAX, windowSec: e.SIGN_IN_RATE_LIMIT_WINDOW_SEC },

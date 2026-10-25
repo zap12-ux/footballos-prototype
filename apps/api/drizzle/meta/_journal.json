@@ -22,6 +22,13 @@
       "when": 1792958550329,
       "tag": "0002_asset_container",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1792961181873,
+      "tag": "0003_coaching",
+      "breakpoints": true
     }
   ]
 }

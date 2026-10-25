@@ -123,3 +123,75 @@ export const ShareLinkSchema = z.object({
   revokedAt: TimestampSchema.nullable(),
 });
 export type ShareLink = z.infer<typeof ShareLinkSchema>;
+
+// §15.4 unit game plans: requests, responses, review flags, sharing (v0.4) ------------------------
+
+/** Longest lifetime of a share link in hours (owner decision 2026-10-25: 72 h, lowered from the 168 h draft cap). */
+export const SHARE_LINK_MAX_HOURS = 72;
+
+export const ReviewFlagKindSchema = z.enum(['stale_recommendation', 'playbook_changed', 'personnel_changed', 'labels_changed']);
+export type ReviewFlagKind = z.infer<typeof ReviewFlagKindSchema>;
+
+/** Computed on read by comparing stored `inputsHash` values with current inputs; never stored. */
+export const ReviewFlagSchema = z.object({
+  kind: ReviewFlagKindSchema,
+  message: z.string().min(1),
+  /** The version the flag is about. */
+  versionId: IdSchema,
+  itemId: IdSchema.nullable(),
+  /** Earliest time the stale input was known to differ (the version's or recommendation's creation time). */
+  since: TimestampSchema,
+});
+export type ReviewFlag = z.infer<typeof ReviewFlagSchema>;
+
+export const GamePlanVersionSummarySchema = GamePlanVersionSchema.omit({ sections: true }).extend({
+  itemCount: z.number().int().nonnegative(),
+});
+export type GamePlanVersionSummary = z.infer<typeof GamePlanVersionSummarySchema>;
+
+export const GamePlanResponseSchema = z.object({
+  plan: GamePlanSchema,
+  versions: z.array(GamePlanVersionSummarySchema),
+  current: GamePlanVersionSchema,
+  reviewFlags: z.array(ReviewFlagSchema),
+});
+export type GamePlanResponse = z.infer<typeof GamePlanResponseSchema>;
+
+export const PatchPlanVersionRequestSchema = z.object({
+  sections: z.array(PlanSectionSchema),
+  expectedVersion: VersionSchema,
+});
+export type PatchPlanVersionRequest = z.infer<typeof PatchPlanVersionRequestSchema>;
+
+export const PlanVersionResponseSchema = z.object({ version: GamePlanVersionSchema });
+export type PlanVersionResponse = z.infer<typeof PlanVersionResponseSchema>;
+
+export const PlanTransitionRequestSchema = z.object({ note: z.string().max(2000).optional() });
+export type PlanTransitionRequest = z.infer<typeof PlanTransitionRequestSchema>;
+
+export const CreatePlanCommentRequestSchema = z.object({
+  sectionKey: PlanSectionKeySchema.optional(),
+  itemId: IdSchema.optional(),
+  body: z.string().trim().min(1).max(4000),
+});
+export type CreatePlanCommentRequest = z.infer<typeof CreatePlanCommentRequestSchema>;
+
+export const CreateShareLinkRequestSchema = z.object({
+  /** Hours until expiry; at most `SHARE_LINK_MAX_HOURS` (72), default 72. Longer requests are a validation error. */
+  expiresInHours: z.number().positive().max(SHARE_LINK_MAX_HOURS).default(SHARE_LINK_MAX_HOURS),
+});
+export type CreateShareLinkRequest = z.infer<typeof CreateShareLinkRequestSchema>;
+
+/** The raw token appears only here, once. */
+export const CreateShareLinkResponseSchema = z.object({ link: ShareLinkSchema, url: z.string().min(1), token: z.string().min(1) });
+export type CreateShareLinkResponse = z.infer<typeof CreateShareLinkResponseSchema>;
+
+/** `GET /shared/:token`: read-only approved plan version, no session. */
+export const SharedPlanResponseSchema = z.object({
+  version: GamePlanVersionSchema,
+  team: z.object({ name: z.string(), shortName: z.string(), environmentKind: z.enum(['demo', 'research', 'production']) }),
+  game: z.object({ id: IdSchema, week: z.number().int().nullable(), scheduledAt: TimestampSchema.nullable(), opponentName: z.string().nullable(), location: z.string().nullable() }),
+  unit: UnitSchema,
+  expiresAt: TimestampSchema,
+});
+export type SharedPlanResponse = z.infer<typeof SharedPlanResponseSchema>;

@@ -87,6 +87,22 @@ export const AuditActionSchema = z.enum([
   'settings.changed',
   'labels.bulk_accepted',
   'upload.expired',
+  // Milestone C (v0.4, §15)
+  'playbook.document_deleted',
+  'playbook.extraction_decided',
+  'playbook.version_created',
+  'roster_import.applied',
+  'player.deleted',
+  'depth_chart.updated',
+  'package.changed',
+  'recommendation.generated',
+  'recommendation.decided',
+  'plan.draft_created',
+  'plan.submitted',
+  'plan.reopened',
+  'plan.shared',
+  'plan.share_revoked',
+  'plan.comment_resolved',
 ]);
 export type AuditAction = z.infer<typeof AuditActionSchema>;
 

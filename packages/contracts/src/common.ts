@@ -70,11 +70,12 @@ export const ErrorCodeSchema = z.enum([
   'payload_too_large',
   'rate_limited',
   'provider_unavailable',
+  'gone',
   'internal',
 ]);
 export type ErrorCode = z.infer<typeof ErrorCodeSchema>;
 
-export const ERROR_STATUS: Record<ErrorCode, 400 | 401 | 403 | 404 | 409 | 413 | 429 | 503 | 500> = {
+export const ERROR_STATUS: Record<ErrorCode, 400 | 401 | 403 | 404 | 409 | 410 | 413 | 429 | 503 | 500> = {
   validation_error: 400,
   unauthorized: 401,
   forbidden: 403,
@@ -83,6 +84,8 @@ export const ERROR_STATUS: Record<ErrorCode, 400 | 401 | 403 | 404 | 409 | 413 |
   payload_too_large: 413,
   rate_limited: 429,
   provider_unavailable: 503,
+  /** Share link expired or revoked (v0.4, §15.4). */
+  gone: 410,
   internal: 500,
 };
 

@@ -1,7 +1,8 @@
 import { index, integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import type {
-  AcceptedLabel, FootageQuality, GameResult, ImportRowError, InferredLabel, JobError, JobProgress, ModelProvenance, ScheduleImportField,
-  ScheduleImportRow, ScoutingFinding, Unit, UploadContext,
+  AcceptedLabel, EvidenceRef, ExtractionSummary, FootageQuality, GameResult, ImportRowError, InferredLabel, JobError, JobProgress, ModelProvenance,
+  PlanSection, PlayerAvailability, RecommendationCount, RosterImportField, RosterImportRow, ScheduleImportField, ScheduleImportRow, ScoutingFinding,
+  SourceRef, DepthChartSlot, Unit, UploadContext,
 } from '@footballos/contracts';
 
 // Column conventions: ids are UUID v4 text; timestamps are ISO 8601 UTC text ending in _at;
@@ -164,7 +165,8 @@ export const auditEvents = sqliteTable('audit_events', {
 export const mediaAssets = sqliteTable('media_assets', {
   id: text('id').primaryKey(),
   teamId: text('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
-  gameId: text('game_id').notNull().references(() => scheduledGames.id, { onDelete: 'cascade' }),
+  /** Null for playbook documents uploaded at team level (migration 0003_coaching); film is always game-bound. */
+  gameId: text('game_id').references(() => scheduledGames.id, { onDelete: 'cascade' }),
   uploadedBy: text('uploaded_by').notNull().references(() => users.id),
   kind: text('kind').notNull(),
   originalFilename: text('original_filename').notNull(),
@@ -323,3 +325,230 @@ export const teamSettings = sqliteTable('team_settings', {
   updatedBy: text('updated_by'),
   updatedAt: text('updated_at').notNull(),
 });
+
+// Milestone C (migration 0003_coaching): playbook, personnel, recommendations, unit plans, sharing.
+// Owned by B; see CONTRACTS §8–§11 and §15.
+
+export const playbookDocuments = sqliteTable('playbook_documents', {
+  id: text('id').primaryKey(),
+  teamId: text('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  unit: text('unit').notNull(),
+  title: text('title').notNull(),
+  assetId: text('asset_id').notNull().references(() => mediaAssets.id, { onDelete: 'cascade' }),
+  pageCount: integer('page_count').notNull().default(0),
+  status: text('status').notNull(),
+  extraction: text('extraction', { mode: 'json' }).$type<ExtractionSummary | null>(),
+  createdBy: text('created_by').notNull().references(() => users.id),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (t) => [index('playbook_documents_team_unit_idx').on(t.teamId, t.unit), uniqueIndex('playbook_documents_asset_unique').on(t.assetId)]);
+
+export const playbookPages = sqliteTable('playbook_pages', {
+  id: text('id').primaryKey(),
+  documentId: text('document_id').notNull().references(() => playbookDocuments.id, { onDelete: 'cascade' }),
+  pageNumber: integer('page_number').notNull(),
+  imageKey: text('image_key'),
+  /** Untrusted: text layer or OCR output. */
+  ocrText: text('ocr_text'),
+  ocrConfidence: real('ocr_confidence'),
+  textSource: text('text_source').notNull(),
+  width: integer('width'),
+  height: integer('height'),
+}, (t) => [uniqueIndex('playbook_pages_document_page_unique').on(t.documentId, t.pageNumber)]);
+
+export const playbookVersions = sqliteTable('playbook_versions', {
+  id: text('id').primaryKey(),
+  teamId: text('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  unit: text('unit').notNull(),
+  seasonId: text('season_id').notNull().references(() => seasons.id, { onDelete: 'cascade' }),
+  label: text('label').notNull(),
+  status: text('status').notNull(),
+  approvedBy: text('approved_by'),
+  approvedAt: text('approved_at'),
+  supersedes: text('supersedes'),
+  createdBy: text('created_by').notNull().references(() => users.id),
+  createdAt: text('created_at').notNull(),
+}, (t) => [index('playbook_versions_team_unit_idx').on(t.teamId, t.unit, t.seasonId)]);
+
+export const concepts = sqliteTable('concepts', {
+  id: text('id').primaryKey(),
+  teamId: text('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  versionId: text('version_id').notNull().references(() => playbookVersions.id, { onDelete: 'cascade' }),
+  /** The document whose extraction proposed it; null for coach-created concepts. */
+  documentId: text('document_id'),
+  name: text('name').notNull(),
+  kind: text('kind').notNull(),
+  description: text('description').notNull().default(''),
+  installed: integer('installed', { mode: 'boolean' }).notNull().default(false),
+  sources: text('sources', { mode: 'json' }).$type<SourceRef[]>().notNull(),
+  status: text('status').notNull(),
+  basis: text('basis').notNull(),
+  note: text('note').notNull().default(''),
+  decidedBy: text('decided_by'),
+  decidedAt: text('decided_at'),
+  version: integer('version').notNull().default(1),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (t) => [index('concepts_version_idx').on(t.versionId), index('concepts_document_idx').on(t.documentId)]);
+
+export const terms = sqliteTable('terms', {
+  id: text('id').primaryKey(),
+  teamId: text('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  versionId: text('version_id').notNull().references(() => playbookVersions.id, { onDelete: 'cascade' }),
+  documentId: text('document_id'),
+  term: text('term').notNull(),
+  definition: text('definition').notNull().default(''),
+  sources: text('sources', { mode: 'json' }).$type<SourceRef[]>().notNull(),
+  status: text('status').notNull(),
+  basis: text('basis').notNull(),
+  note: text('note').notNull().default(''),
+  decidedBy: text('decided_by'),
+  decidedAt: text('decided_at'),
+  version: integer('version').notNull().default(1),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (t) => [index('terms_version_idx').on(t.versionId), index('terms_document_idx').on(t.documentId)]);
+
+export const players = sqliteTable('players', {
+  id: text('id').primaryKey(),
+  teamId: text('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  seasonId: text('season_id').notNull().references(() => seasons.id, { onDelete: 'cascade' }),
+  jersey: text('jersey'),
+  firstName: text('first_name').notNull(),
+  lastName: text('last_name').notNull(),
+  positions: text('positions', { mode: 'json' }).$type<string[]>().notNull(),
+  classYear: text('class_year').notNull().default(''),
+  status: text('status').notNull(),
+  strengths: text('strengths', { mode: 'json' }).$type<string[]>().notNull(),
+  developmentPriorities: text('development_priorities', { mode: 'json' }).$type<string[]>().notNull(),
+  notes: text('notes').notNull().default(''),
+  availability: text('availability', { mode: 'json' }).$type<PlayerAvailability[]>().notNull(),
+  version: integer('version').notNull().default(1),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (t) => [index('players_team_season_idx').on(t.teamId, t.seasonId)]);
+
+export const rosterImports = sqliteTable('roster_imports', {
+  id: text('id').primaryKey(),
+  teamId: text('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  seasonId: text('season_id').notNull().references(() => seasons.id, { onDelete: 'cascade' }),
+  filename: text('filename').notNull(),
+  status: text('status').notNull(),
+  mapping: text('mapping', { mode: 'json' }).$type<Record<string, RosterImportField>>().notNull(),
+  rowCount: integer('row_count').notNull(),
+  rows: text('rows', { mode: 'json' }).$type<RosterImportRow[]>().notNull(),
+  errors: text('errors', { mode: 'json' }).$type<ImportRowError[]>().notNull(),
+  createdBy: text('created_by').notNull().references(() => users.id),
+  createdAt: text('created_at').notNull(),
+}, (t) => [index('roster_imports_team_idx').on(t.teamId)]);
+
+export const depthCharts = sqliteTable('depth_charts', {
+  id: text('id').primaryKey(),
+  teamId: text('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  seasonId: text('season_id').notNull().references(() => seasons.id, { onDelete: 'cascade' }),
+  unit: text('unit').notNull(),
+  slots: text('slots', { mode: 'json' }).$type<DepthChartSlot[]>().notNull(),
+  version: integer('version').notNull().default(1),
+  updatedBy: text('updated_by'),
+  updatedAt: text('updated_at').notNull(),
+}, (t) => [uniqueIndex('depth_charts_team_season_unit_unique').on(t.teamId, t.seasonId, t.unit)]);
+
+export const personnelPackages = sqliteTable('personnel_packages', {
+  id: text('id').primaryKey(),
+  teamId: text('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  seasonId: text('season_id').notNull().references(() => seasons.id, { onDelete: 'cascade' }),
+  unit: text('unit').notNull(),
+  name: text('name').notNull(),
+  playerIds: text('player_ids', { mode: 'json' }).$type<string[]>().notNull(),
+  description: text('description').notNull().default(''),
+  version: integer('version').notNull().default(1),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (t) => [index('personnel_packages_team_season_idx').on(t.teamId, t.seasonId)]);
+
+export const recommendations = sqliteTable('recommendations', {
+  id: text('id').primaryKey(),
+  teamId: text('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  gameId: text('game_id').notNull().references(() => scheduledGames.id, { onDelete: 'cascade' }),
+  unit: text('unit').notNull(),
+  statement: text('statement').notNull(),
+  supportingFindings: text('supporting_findings', { mode: 'json' }).$type<string[]>().notNull(),
+  supportingEvidence: text('supporting_evidence', { mode: 'json' }).$type<EvidenceRef[]>().notNull(),
+  counts: text('counts', { mode: 'json' }).$type<RecommendationCount[]>().notNull(),
+  limitations: text('limitations', { mode: 'json' }).$type<string[]>().notNull(),
+  contraryEvidence: text('contrary_evidence', { mode: 'json' }).$type<EvidenceRef[]>().notNull(),
+  playbookConceptIds: text('playbook_concept_ids', { mode: 'json' }).$type<string[]>().notNull(),
+  personnelPackageIds: text('personnel_package_ids', { mode: 'json' }).$type<string[]>().notNull(),
+  /** The stored decision state; `stale` is computed on read and never written here. */
+  status: text('status').notNull(),
+  staleReason: text('stale_reason'),
+  decidedBy: text('decided_by'),
+  decidedAt: text('decided_at'),
+  editedStatement: text('edited_statement'),
+  decisionNote: text('decision_note'),
+  planItemId: text('plan_item_id'),
+  inputsHash: text('inputs_hash').notNull(),
+  /** Generation batch; re-generation supersedes undecided items of earlier batches. */
+  generationId: text('generation_id').notNull(),
+  createdBy: text('created_by').notNull(),
+  createdAt: text('created_at').notNull(),
+  version: integer('version').notNull().default(1),
+}, (t) => [index('recommendations_game_unit_idx').on(t.gameId, t.unit), index('recommendations_team_idx').on(t.teamId)]);
+
+export const gamePlans = sqliteTable('game_plans', {
+  id: text('id').primaryKey(),
+  teamId: text('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  gameId: text('game_id').notNull().references(() => scheduledGames.id, { onDelete: 'cascade' }),
+  unit: text('unit').notNull(),
+  currentVersionId: text('current_version_id').notNull(),
+  createdAt: text('created_at').notNull(),
+}, (t) => [uniqueIndex('game_plans_game_unit_unique').on(t.gameId, t.unit)]);
+
+/** Stored input hashes at the time a plan version was created or approved; review flags compare them to current inputs. */
+export type PlanInputHashes = { playbook: string; personnel: string; labels: string };
+
+export const planVersions = sqliteTable('plan_versions', {
+  id: text('id').primaryKey(),
+  teamId: text('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  planId: text('plan_id').notNull().references(() => gamePlans.id, { onDelete: 'cascade' }),
+  number: integer('number').notNull(),
+  status: text('status').notNull(),
+  basedOn: text('based_on'),
+  sections: text('sections', { mode: 'json' }).$type<PlanSection[]>().notNull(),
+  createdBy: text('created_by').notNull().references(() => users.id),
+  createdAt: text('created_at').notNull(),
+  submittedAt: text('submitted_at'),
+  approvedBy: text('approved_by'),
+  approvedAt: text('approved_at'),
+  override: integer('override', { mode: 'boolean' }).notNull().default(false),
+  inputHashes: text('input_hashes', { mode: 'json' }).$type<PlanInputHashes>().notNull(),
+  version: integer('version').notNull().default(1),
+  updatedAt: text('updated_at').notNull(),
+}, (t) => [index('plan_versions_plan_idx').on(t.planId)]);
+
+export const planComments = sqliteTable('plan_comments', {
+  id: text('id').primaryKey(),
+  teamId: text('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  versionId: text('version_id').notNull().references(() => planVersions.id, { onDelete: 'cascade' }),
+  sectionKey: text('section_key'),
+  itemId: text('item_id'),
+  authorUserId: text('author_user_id').notNull().references(() => users.id),
+  body: text('body').notNull(),
+  createdAt: text('created_at').notNull(),
+  resolvedAt: text('resolved_at'),
+  resolvedBy: text('resolved_by'),
+}, (t) => [index('plan_comments_version_idx').on(t.versionId)]);
+
+export const shareLinks = sqliteTable('share_links', {
+  id: text('id').primaryKey(),
+  teamId: text('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  targetType: text('target_type').notNull(),
+  targetId: text('target_id').notNull(),
+  /** sha256 of the raw token; the token itself is shown once and never stored. */
+  tokenHash: text('token_hash').notNull(),
+  expiresAt: text('expires_at').notNull(),
+  createdBy: text('created_by').notNull().references(() => users.id),
+  createdAt: text('created_at').notNull(),
+  revokedAt: text('revoked_at'),
+  revokedBy: text('revoked_by'),
+}, (t) => [uniqueIndex('share_links_token_hash_unique').on(t.tokenHash), index('share_links_team_idx').on(t.teamId), index('share_links_target_idx').on(t.targetType, t.targetId)]);

@@ -5,7 +5,8 @@ import { sanitizeFilename, type CreateUploadRequest, type MediaAsset, type Uploa
 import type { Job } from '@footballos/media';
 import type { AppContext } from '../context.js';
 import type { Db } from '../db/db.js';
-import { mediaAssets, playSegments, processingJobs, teamSettings, uploads } from '../db/schema.js';
+import { mediaAssets, playSegments, playbookDocuments, processingJobs, teamSettings, uploads } from '../db/schema.js';
+import { coachingLibs } from '../libs/index.js';
 import { ApiError, errors } from '../errors.js';
 import { enqueueJob } from '../jobs/enqueue.js';
 import { writeAudit } from './audit.js';
@@ -15,6 +16,33 @@ import {
 
 export type AssetRow = typeof mediaAssets.$inferSelect;
 export type UploadRow = typeof uploads.$inferSelect;
+export type DocumentRow = typeof playbookDocuments.$inferSelect;
+
+/** Film is always game-bound; only playbook documents have a null gameId (§15.1). */
+export function filmGameId(asset: Pick<AssetRow, 'id' | 'kind' | 'gameId'>): string {
+  if (asset.gameId === null) throw errors.conflict(`Asset ${asset.id} is a ${asset.kind} without a game`, { reason: 'not_film' });
+  return asset.gameId;
+}
+
+/** Bump when the document extraction or proposal outputs change shape; part of the extract_document idempotency key. */
+export const DOCUMENT_EXTRACT_KIND = 'extract_document';
+
+export function documentConfigVersion(ctx: AppContext): string {
+  return `doc-extract-1:${coachingLibs.version}:dpi${ctx.config.limits.documentRenderDpi}:ocr-${ctx.config.limits.documentOcr}`;
+}
+
+/** `ProcessingJob.input` of an extract_document job: C's DocumentJobInput plus identity. */
+export type DocumentJobInput = { assetId: string; sourcePath: string; outDir: string; teamId: string; documentId: string };
+
+/** The upload context stored for a document: it describes our own unit, nothing is analyzed from film. */
+export function documentContext(unit: 'offense' | 'defense' | 'special_teams'): AssetRow['context'] {
+  return { analyzedTeam: 'us', analyzedUnit: unit, perspective: 'other', teamCues: null };
+}
+
+function titleFromFilename(filename: string): string {
+  const stem = filename.replace(/\.[A-Za-z0-9]{1,8}$/, '').replace(/[_]+/g, ' ').trim();
+  return (stem || filename).slice(0, 200);
+}
 
 /** Bump when the media chain's outputs change shape; part of every chain job's idempotency key. */
 export const MEDIA_CHAIN_VERSION = 'media-chain-1';
@@ -82,21 +110,33 @@ function retentionUntilFor(ctx: AppContext, teamId: string, createdAtIso: string
 
 // §14.1 Create ----------------------------------------------------------------------------------
 
-export function createUpload(ctx: AppContext, userId: string, teamId: string, gameId: string, input: CreateUploadRequest): { upload: UploadRow; asset: AssetRow } {
+export function createUpload(ctx: AppContext, userId: string, teamId: string, gameId: string | null, input: CreateUploadRequest): { upload: UploadRow; asset: AssetRow; document: DocumentRow | null } {
   const limits = ctx.config.limits;
-  if (input.byteSize > limits.maxUploadBytes) {
-    throw new ApiError('payload_too_large', `File is larger than the ${limits.maxUploadBytes} byte limit`, { maxUploadBytes: limits.maxUploadBytes });
+  const isDocument = input.kind === 'document';
+  if (!isDocument && gameId === null) throw errors.validation('Film uploads belong to a game');
+  const maxBytes = isDocument ? limits.maxDocumentBytes : limits.maxUploadBytes;
+  if (input.byteSize > maxBytes) {
+    throw new ApiError('payload_too_large', `File is larger than the ${maxBytes} byte limit`, { maxUploadBytes: maxBytes });
   }
   // The route's validator already sanitized the name (§14.10, QA D-7); callers that bypass it get the same rule.
   const filename = sanitizeFilename(input.filename);
   if (filename === null) throw errors.validation('filename must be 1-255 characters with a name before the extension and no control characters');
   const ext = extensionOf(filename);
-  if (!ext || !limits.allowedVideoContainers.includes(ext)) {
-    throw errors.validation(`Unsupported file type; allowed: ${limits.allowedVideoContainers.join(', ')}`, { allowedVideoContainers: limits.allowedVideoContainers });
+  const allowed = isDocument ? limits.allowedDocumentTypes : limits.allowedVideoContainers;
+  if (!ext || !allowed.includes(ext)) {
+    throw errors.validation(`Unsupported file type; allowed: ${allowed.join(', ')}`, isDocument ? { allowedDocumentTypes: allowed } : { allowedVideoContainers: allowed });
   }
   if (input.sha256) {
     const dup = findDuplicate(ctx, teamId, input.sha256);
     if (dup) throw errors.conflict('This file was already uploaded to this team', { existingAssetId: dup.id });
+  }
+  let context: AssetRow['context'];
+  if (isDocument) {
+    if (!input.unit) throw errors.validation('unit is required for a document upload');
+    context = documentContext(input.unit);
+  } else {
+    if (!input.context) throw errors.validation('context is required for film uploads');
+    context = input.context;
   }
   const now = ctx.now();
   const nowIso = now.toISOString();
@@ -105,20 +145,27 @@ export function createUpload(ctx: AppContext, userId: string, teamId: string, ga
   const asset: AssetRow = {
     id: assetId, teamId, gameId, uploadedBy: userId, kind: input.kind, originalFilename: filename, byteSize: input.byteSize,
     sha256: null, mimeType: input.mimeType, durationSec: null, width: null, height: null, fps: null, container: null, status: 'uploading',
-    rejectionReason: null, context: input.context, quality: null, storageKey: originalKey(teamId, assetId, ext), proxyStorageKey: null,
-    thumbnailSheetKey: null, retentionUntil: retentionUntilFor(ctx, teamId, nowIso), createdAt: nowIso, updatedAt: nowIso,
+    rejectionReason: null, context, quality: null, storageKey: originalKey(teamId, assetId, ext), proxyStorageKey: null,
+    thumbnailSheetKey: null, retentionUntil: isDocument ? null : retentionUntilFor(ctx, teamId, nowIso), createdAt: nowIso, updatedAt: nowIso,
   };
   const upload: UploadRow = {
     id: uploadId, assetId, teamId, chunkSizeBytes: limits.uploadChunkBytes, receivedBytes: 0, totalBytes: input.byteSize,
     expectedSha256: input.sha256 ?? null, expiresAt: new Date(now.getTime() + limits.uploadTtlHours * 3_600_000).toISOString(),
     completedAt: null, createdAt: nowIso,
   };
+  const document: DocumentRow | null = isDocument
+    ? {
+        id: crypto.randomUUID(), teamId, unit: input.unit!, title: input.title ?? titleFromFilename(filename), assetId, pageCount: 0, status: 'uploaded',
+        extraction: null, createdBy: userId, createdAt: nowIso, updatedAt: nowIso,
+      }
+    : null;
   ctx.db.transaction((tx) => {
     tx.insert(mediaAssets).values(asset).run();
     tx.insert(uploads).values(upload).run();
+    if (document) tx.insert(playbookDocuments).values(document).run();
   });
   createPrivateFile(partPath(ctx.config, uploadId));
-  return { upload, asset };
+  return { upload, asset, document };
 }
 
 // §14.1 PUT range -------------------------------------------------------------------------------
@@ -213,8 +260,21 @@ export async function completeUpload(ctx: AppContext, userId: string, upload: Up
     tx.update(uploads).set({ completedAt: nowIso }).where(eq(uploads.id, upload.id)).run();
   });
   const updated = getAsset(ctx, asset.id)!;
-  const jobs = await enqueueProcessingChain(ctx, updated, userId);
+  const jobs = updated.kind === 'document' ? [await enqueueDocumentExtraction(ctx, updated, userId)] : await enqueueProcessingChain(ctx, updated, userId);
   return { asset: updated, jobs };
+}
+
+/** §15.1: one `extract_document` job per document, idempotent per sha256 + config version. */
+export async function enqueueDocumentExtraction(ctx: AppContext, asset: AssetRow, requestedBy: string): Promise<Job> {
+  const doc = ctx.db.select().from(playbookDocuments).where(eq(playbookDocuments.assetId, asset.id)).get();
+  if (!doc) throw errors.notFound('Playbook document');
+  const outDir = absolutePath(ctx.config, assetDirKey(asset.teamId, asset.id));
+  const input: DocumentJobInput = { assetId: asset.id, teamId: asset.teamId, documentId: doc.id, sourcePath: absolutePath(ctx.config, asset.storageKey), outDir };
+  const { job } = await enqueueJob(ctx, {
+    teamId: asset.teamId, assetId: asset.id, kind: DOCUMENT_EXTRACT_KIND, input, requestedBy, keyInputs: { assetId: asset.id, sha256: asset.sha256 }, configVersion: documentConfigVersion(ctx),
+  });
+  ctx.db.update(playbookDocuments).set({ status: 'extracting', updatedAt: ctx.now().toISOString() }).where(and(eq(playbookDocuments.id, doc.id), eq(playbookDocuments.status, 'uploaded'))).run();
+  return job;
 }
 
 /** validate → proxy → thumbnails → segment, each idempotent by sha256(kind + assetId + configVersion). */
@@ -236,7 +296,7 @@ export async function enqueueProcessingChain(ctx: AppContext, asset: AssetRow, r
 
 async function listChainJobs(ctx: AppContext, assetId: string): Promise<Job[]> {
   const all = await ctx.jobStore.list();
-  return all.filter((j) => j.assetId === assetId && (CHAIN_KINDS as readonly string[]).includes(j.kind));
+  return all.filter((j) => j.assetId === assetId && ((CHAIN_KINDS as readonly string[]).includes(j.kind) || j.kind === DOCUMENT_EXTRACT_KIND));
 }
 
 // §14.1 Delete (retention action) ----------------------------------------------------------------

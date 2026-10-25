@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { IdSchema, SecondsSchema, TimestampSchema, VersionSchema } from './common.js';
+import { IdSchema, SecondsSchema, TimestampSchema, UnitSchema, VersionSchema } from './common.js';
 
 // §5 Media, processing jobs, segments ----------------------------------------------------
 
@@ -44,7 +44,8 @@ export type FootageQuality = z.infer<typeof FootageQualitySchema>;
 export const MediaAssetSchema = z.object({
   id: IdSchema,
   teamId: IdSchema,
-  gameId: IdSchema,
+  /** Null for playbook documents uploaded at team level (v0.4, §15.1); film is always game-bound. */
+  gameId: IdSchema.nullable(),
   uploadedBy: IdSchema,
   kind: MediaKindSchema,
   originalFilename: z.string().min(1).max(255),
@@ -201,16 +202,40 @@ export const UploadFilenameSchema = z
     return out;
   });
 
-export const CreateUploadRequestSchema = z.object({
+export const CreateUploadRequestSchema = z
+  .object({
+    filename: UploadFilenameSchema,
+    byteSize: z.number().int().positive(),
+    mimeType: z.string().min(1).max(127),
+    /** Optional client-side hash; enables the early duplicate check (`409 existingAssetId`). */
+    sha256: z.string().regex(/^[0-9a-f]{64}$/).optional(),
+    /** `document` (v0.4, §15.1): a playbook document; `context` is then omitted and `unit` is required. */
+    kind: z.enum(['game_film', 'clip', 'document']).default('game_film'),
+    context: UploadContextSchema.optional(),
+    /** Documents only: the unit the playbook belongs to. */
+    unit: UnitSchema.optional(),
+    /** Documents only: display title (defaults to the filename stem). */
+    title: z.string().trim().min(1).max(200).optional(),
+  })
+  .superRefine((v, ctx) => {
+    if (v.kind === 'document') {
+      if (!v.unit) ctx.addIssue({ code: 'custom', path: ['unit'], message: 'unit is required for a document upload' });
+    } else if (!v.context) {
+      ctx.addIssue({ code: 'custom', path: ['context'], message: 'context is required for film uploads' });
+    }
+  });
+export type CreateUploadRequest = z.infer<typeof CreateUploadRequestSchema>;
+
+/** §15.1 team-level document intake: `POST /teams/:teamId/playbook/documents` (same chunk/complete flow as film). */
+export const CreateDocumentUploadRequestSchema = z.object({
   filename: UploadFilenameSchema,
   byteSize: z.number().int().positive(),
   mimeType: z.string().min(1).max(127),
-  /** Optional client-side hash; enables the early duplicate check (`409 existingAssetId`). */
   sha256: z.string().regex(/^[0-9a-f]{64}$/).optional(),
-  kind: z.enum(['game_film', 'clip']).default('game_film'),
-  context: UploadContextSchema,
+  unit: UnitSchema,
+  title: z.string().trim().min(1).max(200).optional(),
 });
-export type CreateUploadRequest = z.infer<typeof CreateUploadRequestSchema>;
+export type CreateDocumentUploadRequest = z.infer<typeof CreateDocumentUploadRequestSchema>;
 
 export const CreateUploadResponseSchema = z.object({ upload: UploadSchema, asset: MediaAssetSchema });
 export type CreateUploadResponse = z.infer<typeof CreateUploadResponseSchema>;
