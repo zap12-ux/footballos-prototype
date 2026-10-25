@@ -39,14 +39,14 @@ Contract: `docs/team/CONTRACTS.md` §14. Briefs: `docs/team/briefs/*-milestone-b
 
 | ID | Task | Owner | Status | Depends on | Allowed paths |
 | --- | --- | --- | --- | --- | --- |
-| B1 | Upload API (resumable ranges, sha256 dedupe, limits, TTL), assets, media grants/streaming, schema `0001` | B (subagent `backend` #2) | In progress | A5 | `apps/api/**`, `packages/contracts/**` |
-| B2 | `SqliteJobStore` + worker hosting media and AI handlers; cancel/retry/restart; usage/cost cap | B (same agent) | In progress | B1, B2-lib, B4-lib | `apps/api/**` |
+| B1 | Upload API (resumable ranges, sha256 dedupe, limits, TTL), assets, media grants/streaming, schema `0001` | B (subagent `backend` #2) | Verified (api 68/68 on integration; chain ran end to end on play-1) | A5 | `apps/api/**`, `packages/contracts/**` |
+| B2 | `SqliteJobStore` + worker hosting media and AI handlers; cancel/retry/restart; usage/cost cap | B (same agent) | Verified (api 68/68 on integration; chain ran end to end on play-1) | B1, B2-lib, B4-lib | `apps/api/**` |
 | B2-lib | `extractFrames`, `createMediaHandlers`, contracts types in `packages/media` | C (subagent `media` #2) | Verified (media vitest 79/79 on integration) | A5 | `packages/media/**` |
 | B3 | Film page (chunked upload, jobs, segments split/merge, proxy player), label review with bulk accept, scouting page, typed `hc<AppType>` client | A (subagent `frontend` #2) | In progress | §14 (code against contract) | `apps/web/**` |
 | B4-lib | `createInferLabelsHandler`, `applyInference` (corrections survive reprocessing), `bulkAcceptPlan` | D (subagent `ai` #2) | Verified (ai vitest 65/65 on integration 9d30d6f) | A5 | `packages/ai/**`, `docs/ai/**` |
-| B4 / B5 | Label routes, inference enqueue, scouting route and snapshots in the API | B (same agent) | In progress | B4-lib, B5-lib | `apps/api/**` |
+| B4 / B5 | Label routes, inference enqueue, scouting route and snapshots in the API | B (same agent) | Verified (api 68/68 on integration; chain ran end to end on play-1) | B4-lib, B5-lib | `apps/api/**` |
 | B5-lib | `buildScoutingReport`, `snapshotFromReport` | D (same agent) | Verified | — | `packages/ai/**` |
-| B6 | QA: interrupted upload, worker restart, provider failure, correction persistence, counts, a11y of A2/B3 | E | Ready | B1–B5 integrated | `tests/e2e/**`, `docs/qa/**` |
+| B6 | QA: interrupted upload, worker restart, provider failure, correction persistence, counts, a11y of A2/B3 | E (subagent `qa` #2) | In progress (API/worker scope now; UI scope after B3) | B1–B5 integrated | `tests/e2e/**`, `docs/qa/**` |
 | K5 | Console defects D-1..D-4, `agentctl wait --poll-until-answered` | console-fix (subagent) | Verified (console 45/45 on re-run after one load-related timing failure, ui 41/41, fixture 52/52 on integration) | K4 | `tools/agent-console/**`, `tools/agent-console-ui/**` |
 
 ## Milestones C–E
