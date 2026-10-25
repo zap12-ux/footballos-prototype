@@ -6,20 +6,21 @@ Do not edit by hand; rerun after any dependency change.
 Allowed licenses: MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, 0BSD, Unlicense, MPL-2.0. Anything else must appear in
 `scripts/license-allowlist.json` with the exact license string and a reason.
 
-Workspaces: `@footballos/web`, `@footballos/media`, `@footballos/agent-console`, `@footballos/agent-console-ui`, `@footballos/ops`.
-Installed third-party packages: 317.
+Workspaces: `@footballos/web`, `@footballos/ai`, `@footballos/media`, `@footballos/agent-console`, `@footballos/agent-console-ui`, `@footballos/ops`.
+Installed third-party packages: 324.
 
 ## Licenses
 
 | License | Packages |
 | --- | --- |
-| MIT | 276 |
+| MIT | 280 |
 | ISC | 23 |
-| Apache-2.0 | 6 |
+| Apache-2.0 | 8 |
 | BSD-3-Clause | 5 |
 | BSD-2-Clause | 3 |
 | CC-BY-4.0 | 1 |
 | MIT-0 | 1 |
+| Unlicense | 1 |
 | GPL-3.0-or-later | 1 |
 | BSD | 1 |
 
@@ -36,6 +37,7 @@ Installed third-party packages: 317.
 | --- | --- | --- | --- | --- |
 | @adobe/css-tools | 4.5.0 | MIT | @footballos/agent-console-ui | dev |
 | @adobe/css-tools | 4.5.0 | MIT | @footballos/web | dev |
+| @anthropic-ai/sdk | 1.3.0 | Apache-2.0 | @footballos/ai | prod |
 | @asamuzakjp/css-color | 3.2.0 | MIT | @footballos/agent-console-ui | dev |
 | @asamuzakjp/css-color | 3.2.0 | MIT | @footballos/web | dev |
 | @babel/code-frame | 7.29.7 | MIT | @footballos/agent-console-ui | dev |
@@ -71,6 +73,7 @@ Installed third-party packages: 317.
 | @babel/plugin-transform-react-jsx-source | 7.29.7 | MIT | @footballos/agent-console-ui | dev |
 | @babel/plugin-transform-react-jsx-source | 7.29.7 | MIT | @footballos/web | dev |
 | @babel/runtime | 7.29.10 | MIT | @footballos/agent-console-ui | dev |
+| @babel/runtime | 7.29.10 | MIT | @footballos/ai | prod |
 | @babel/runtime | 7.29.10 | MIT | @footballos/web | dev |
 | @babel/template | 7.29.7 | MIT | @footballos/agent-console-ui | dev |
 | @babel/template | 7.29.7 | MIT | @footballos/web | dev |
@@ -91,6 +94,7 @@ Installed third-party packages: 317.
 | @derhuerst/http-basic | 8.2.4 | MIT | @footballos/media | prod |
 | @esbuild/darwin-x64 | 0.21.5 | MIT | @footballos/agent-console | dev |
 | @esbuild/darwin-x64 | 0.21.5 | MIT | @footballos/agent-console-ui | dev |
+| @esbuild/darwin-x64 | 0.21.5 | MIT | @footballos/ai | dev |
 | @esbuild/darwin-x64 | 0.21.5 | MIT | @footballos/media | dev |
 | @esbuild/darwin-x64 | 0.21.5 | MIT | @footballos/ops | dev |
 | @esbuild/darwin-x64 | 0.21.5 | MIT | @footballos/web | dev |
@@ -107,19 +111,23 @@ Installed third-party packages: 317.
 | @jridgewell/resolve-uri | 3.1.2 | MIT | @footballos/web | dev |
 | @jridgewell/sourcemap-codec | 1.6.0 | MIT | @footballos/agent-console | dev |
 | @jridgewell/sourcemap-codec | 1.6.0 | MIT | @footballos/agent-console-ui | dev |
+| @jridgewell/sourcemap-codec | 1.6.0 | MIT | @footballos/ai | dev |
 | @jridgewell/sourcemap-codec | 1.6.0 | MIT | @footballos/media | dev |
 | @jridgewell/sourcemap-codec | 1.6.0 | MIT | @footballos/ops | dev |
 | @jridgewell/sourcemap-codec | 1.6.0 | MIT | @footballos/web | dev |
 | @jridgewell/trace-mapping | 0.3.31 | MIT | @footballos/agent-console-ui | dev |
 | @jridgewell/trace-mapping | 0.3.31 | MIT | @footballos/web | dev |
 | @modelcontextprotocol/sdk | 1.32.2 | MIT | @footballos/agent-console | prod |
+| @opentelemetry/api | 1.10.0 | Apache-2.0 | @footballos/ai | prod |
 | @rolldown/pluginutils | 1.0.0-beta.27 | MIT | @footballos/agent-console-ui | dev |
 | @rolldown/pluginutils | 1.0.0-beta.27 | MIT | @footballos/web | dev |
 | @rollup/rollup-darwin-x64 | 4.65.0 | MIT | @footballos/agent-console | dev |
 | @rollup/rollup-darwin-x64 | 4.65.0 | MIT | @footballos/agent-console-ui | dev |
+| @rollup/rollup-darwin-x64 | 4.65.0 | MIT | @footballos/ai | dev |
 | @rollup/rollup-darwin-x64 | 4.65.0 | MIT | @footballos/media | dev |
 | @rollup/rollup-darwin-x64 | 4.65.0 | MIT | @footballos/ops | dev |
 | @rollup/rollup-darwin-x64 | 4.65.0 | MIT | @footballos/web | dev |
+| @stablelib/base64 | 1.0.1 | MIT | @footballos/ai | prod |
 | @testing-library/dom | 10.4.2 | MIT | @footballos/agent-console-ui | dev |
 | @testing-library/dom | 10.4.2 | MIT | @footballos/web | dev |
 | @testing-library/jest-dom | 6.9.1 | MIT | @footballos/agent-console-ui | dev |
@@ -147,11 +155,13 @@ Installed third-party packages: 317.
 | @types/d3-zoom | 3.0.9 | MIT | @footballos/agent-console-ui | prod |
 | @types/estree | 1.0.9 | MIT | @footballos/agent-console | dev |
 | @types/estree | 1.0.9 | MIT | @footballos/agent-console-ui | dev |
+| @types/estree | 1.0.9 | MIT | @footballos/ai | dev |
 | @types/estree | 1.0.9 | MIT | @footballos/media | dev |
 | @types/estree | 1.0.9 | MIT | @footballos/ops | dev |
 | @types/estree | 1.0.9 | MIT | @footballos/web | dev |
 | @types/node | 10.17.60 | MIT | @footballos/media | prod |
 | @types/node | 22.20.5 | MIT | @footballos/agent-console | dev |
+| @types/node | 22.20.5 | MIT | @footballos/ai | dev |
 | @types/node | 22.20.5 | MIT | @footballos/media | dev |
 | @types/react | 19.3.0 | MIT | @footballos/agent-console-ui | dev |
 | @types/react | 19.3.0 | MIT | @footballos/web | dev |
@@ -161,36 +171,43 @@ Installed third-party packages: 317.
 | @vitejs/plugin-react | 4.7.0 | MIT | @footballos/web | dev |
 | @vitest/expect | 2.1.9 | MIT | @footballos/agent-console | dev |
 | @vitest/expect | 2.1.9 | MIT | @footballos/agent-console-ui | dev |
+| @vitest/expect | 2.1.9 | MIT | @footballos/ai | dev |
 | @vitest/expect | 2.1.9 | MIT | @footballos/media | dev |
 | @vitest/expect | 2.1.9 | MIT | @footballos/ops | dev |
 | @vitest/expect | 2.1.9 | MIT | @footballos/web | dev |
 | @vitest/mocker | 2.1.9 | MIT | @footballos/agent-console | dev |
 | @vitest/mocker | 2.1.9 | MIT | @footballos/agent-console-ui | dev |
+| @vitest/mocker | 2.1.9 | MIT | @footballos/ai | dev |
 | @vitest/mocker | 2.1.9 | MIT | @footballos/media | dev |
 | @vitest/mocker | 2.1.9 | MIT | @footballos/ops | dev |
 | @vitest/mocker | 2.1.9 | MIT | @footballos/web | dev |
 | @vitest/pretty-format | 2.1.9 | MIT | @footballos/agent-console | dev |
 | @vitest/pretty-format | 2.1.9 | MIT | @footballos/agent-console-ui | dev |
+| @vitest/pretty-format | 2.1.9 | MIT | @footballos/ai | dev |
 | @vitest/pretty-format | 2.1.9 | MIT | @footballos/media | dev |
 | @vitest/pretty-format | 2.1.9 | MIT | @footballos/ops | dev |
 | @vitest/pretty-format | 2.1.9 | MIT | @footballos/web | dev |
 | @vitest/runner | 2.1.9 | MIT | @footballos/agent-console | dev |
 | @vitest/runner | 2.1.9 | MIT | @footballos/agent-console-ui | dev |
+| @vitest/runner | 2.1.9 | MIT | @footballos/ai | dev |
 | @vitest/runner | 2.1.9 | MIT | @footballos/media | dev |
 | @vitest/runner | 2.1.9 | MIT | @footballos/ops | dev |
 | @vitest/runner | 2.1.9 | MIT | @footballos/web | dev |
 | @vitest/snapshot | 2.1.9 | MIT | @footballos/agent-console | dev |
 | @vitest/snapshot | 2.1.9 | MIT | @footballos/agent-console-ui | dev |
+| @vitest/snapshot | 2.1.9 | MIT | @footballos/ai | dev |
 | @vitest/snapshot | 2.1.9 | MIT | @footballos/media | dev |
 | @vitest/snapshot | 2.1.9 | MIT | @footballos/ops | dev |
 | @vitest/snapshot | 2.1.9 | MIT | @footballos/web | dev |
 | @vitest/spy | 2.1.9 | MIT | @footballos/agent-console | dev |
 | @vitest/spy | 2.1.9 | MIT | @footballos/agent-console-ui | dev |
+| @vitest/spy | 2.1.9 | MIT | @footballos/ai | dev |
 | @vitest/spy | 2.1.9 | MIT | @footballos/media | dev |
 | @vitest/spy | 2.1.9 | MIT | @footballos/ops | dev |
 | @vitest/spy | 2.1.9 | MIT | @footballos/web | dev |
 | @vitest/utils | 2.1.9 | MIT | @footballos/agent-console | dev |
 | @vitest/utils | 2.1.9 | MIT | @footballos/agent-console-ui | dev |
+| @vitest/utils | 2.1.9 | MIT | @footballos/ai | dev |
 | @vitest/utils | 2.1.9 | MIT | @footballos/media | dev |
 | @vitest/utils | 2.1.9 | MIT | @footballos/ops | dev |
 | @vitest/utils | 2.1.9 | MIT | @footballos/web | dev |
@@ -210,6 +227,7 @@ Installed third-party packages: 317.
 | aria-query | 5.3.0 | Apache-2.0 | @footballos/web | dev |
 | assertion-error | 2.0.1 | MIT | @footballos/agent-console | dev |
 | assertion-error | 2.0.1 | MIT | @footballos/agent-console-ui | dev |
+| assertion-error | 2.0.1 | MIT | @footballos/ai | dev |
 | assertion-error | 2.0.1 | MIT | @footballos/media | dev |
 | assertion-error | 2.0.1 | MIT | @footballos/ops | dev |
 | assertion-error | 2.0.1 | MIT | @footballos/web | dev |
@@ -226,6 +244,7 @@ Installed third-party packages: 317.
 | bytes | 3.1.2 | MIT | @footballos/agent-console | prod |
 | cac | 6.7.14 | MIT | @footballos/agent-console | dev |
 | cac | 6.7.14 | MIT | @footballos/agent-console-ui | dev |
+| cac | 6.7.14 | MIT | @footballos/ai | dev |
 | cac | 6.7.14 | MIT | @footballos/media | dev |
 | cac | 6.7.14 | MIT | @footballos/ops | dev |
 | cac | 6.7.14 | MIT | @footballos/web | dev |
@@ -238,11 +257,13 @@ Installed third-party packages: 317.
 | caseless | 0.12.0 | Apache-2.0 | @footballos/media | prod |
 | chai | 5.3.3 | MIT | @footballos/agent-console | dev |
 | chai | 5.3.3 | MIT | @footballos/agent-console-ui | dev |
+| chai | 5.3.3 | MIT | @footballos/ai | dev |
 | chai | 5.3.3 | MIT | @footballos/media | dev |
 | chai | 5.3.3 | MIT | @footballos/ops | dev |
 | chai | 5.3.3 | MIT | @footballos/web | dev |
 | check-error | 2.1.3 | MIT | @footballos/agent-console | dev |
 | check-error | 2.1.3 | MIT | @footballos/agent-console-ui | dev |
+| check-error | 2.1.3 | MIT | @footballos/ai | dev |
 | check-error | 2.1.3 | MIT | @footballos/media | dev |
 | check-error | 2.1.3 | MIT | @footballos/ops | dev |
 | check-error | 2.1.3 | MIT | @footballos/web | dev |
@@ -278,6 +299,7 @@ Installed third-party packages: 317.
 | data-urls | 5.0.0 | MIT | @footballos/web | dev |
 | debug | 4.4.3 | MIT | @footballos/agent-console | prod |
 | debug | 4.4.3 | MIT | @footballos/agent-console-ui | dev |
+| debug | 4.4.3 | MIT | @footballos/ai | dev |
 | debug | 4.4.3 | MIT | @footballos/media | prod |
 | debug | 4.4.3 | MIT | @footballos/ops | dev |
 | debug | 4.4.3 | MIT | @footballos/web | dev |
@@ -285,6 +307,7 @@ Installed third-party packages: 317.
 | decimal.js | 10.6.0 | MIT | @footballos/web | dev |
 | deep-eql | 5.0.2 | MIT | @footballos/agent-console | dev |
 | deep-eql | 5.0.2 | MIT | @footballos/agent-console-ui | dev |
+| deep-eql | 5.0.2 | MIT | @footballos/ai | dev |
 | deep-eql | 5.0.2 | MIT | @footballos/media | dev |
 | deep-eql | 5.0.2 | MIT | @footballos/ops | dev |
 | deep-eql | 5.0.2 | MIT | @footballos/web | dev |
@@ -315,6 +338,7 @@ Installed third-party packages: 317.
 | es-errors | 1.3.0 | MIT | @footballos/web | dev |
 | es-module-lexer | 1.7.0 | MIT | @footballos/agent-console | dev |
 | es-module-lexer | 1.7.0 | MIT | @footballos/agent-console-ui | dev |
+| es-module-lexer | 1.7.0 | MIT | @footballos/ai | dev |
 | es-module-lexer | 1.7.0 | MIT | @footballos/media | dev |
 | es-module-lexer | 1.7.0 | MIT | @footballos/ops | dev |
 | es-module-lexer | 1.7.0 | MIT | @footballos/web | dev |
@@ -325,6 +349,7 @@ Installed third-party packages: 317.
 | es-set-tostringtag | 2.1.0 | MIT | @footballos/web | dev |
 | esbuild | 0.21.5 | MIT | @footballos/agent-console | dev |
 | esbuild | 0.21.5 | MIT | @footballos/agent-console-ui | dev |
+| esbuild | 0.21.5 | MIT | @footballos/ai | dev |
 | esbuild | 0.21.5 | MIT | @footballos/media | dev |
 | esbuild | 0.21.5 | MIT | @footballos/ops | dev |
 | esbuild | 0.21.5 | MIT | @footballos/web | dev |
@@ -337,6 +362,7 @@ Installed third-party packages: 317.
 | escape-html | 1.0.3 | MIT | @footballos/agent-console | prod |
 | estree-walker | 3.0.3 | MIT | @footballos/agent-console | dev |
 | estree-walker | 3.0.3 | MIT | @footballos/agent-console-ui | dev |
+| estree-walker | 3.0.3 | MIT | @footballos/ai | dev |
 | estree-walker | 3.0.3 | MIT | @footballos/media | dev |
 | estree-walker | 3.0.3 | MIT | @footballos/ops | dev |
 | estree-walker | 3.0.3 | MIT | @footballos/web | dev |
@@ -345,12 +371,14 @@ Installed third-party packages: 317.
 | eventsource-parser | 3.1.1 | MIT | @footballos/agent-console | prod |
 | expect-type | 1.4.0 | Apache-2.0 | @footballos/agent-console | dev |
 | expect-type | 1.4.0 | Apache-2.0 | @footballos/agent-console-ui | dev |
+| expect-type | 1.4.0 | Apache-2.0 | @footballos/ai | dev |
 | expect-type | 1.4.0 | Apache-2.0 | @footballos/media | dev |
 | expect-type | 1.4.0 | Apache-2.0 | @footballos/ops | dev |
 | expect-type | 1.4.0 | Apache-2.0 | @footballos/web | dev |
 | express | 5.3.0 | MIT | @footballos/agent-console | prod |
 | express-rate-limit | 8.7.1 | MIT | @footballos/agent-console | prod |
 | fast-deep-equal | 3.1.3 | MIT | @footballos/agent-console | prod |
+| fast-sha256 | 1.3.0 | Unlicense | @footballos/ai | prod |
 | fast-uri | 3.1.9 | BSD-3-Clause | @footballos/agent-console | prod |
 | fdir | 6.5.0 | MIT | @footballos/agent-console-ui | dev |
 | fdir | 6.5.0 | MIT | @footballos/web | dev |
@@ -363,6 +391,7 @@ Installed third-party packages: 317.
 | fresh | 2.0.0 | MIT | @footballos/agent-console | prod |
 | fsevents | 2.3.3 | MIT | @footballos/agent-console | dev |
 | fsevents | 2.3.3 | MIT | @footballos/agent-console-ui | dev |
+| fsevents | 2.3.3 | MIT | @footballos/ai | dev |
 | fsevents | 2.3.3 | MIT | @footballos/media | dev |
 | fsevents | 2.3.3 | MIT | @footballos/ops | dev |
 | fsevents | 2.3.3 | MIT | @footballos/web | dev |
@@ -418,12 +447,14 @@ Installed third-party packages: 317.
 | jsdom | 25.0.1 | MIT | @footballos/web | dev |
 | jsesc | 3.1.0 | MIT | @footballos/agent-console-ui | dev |
 | jsesc | 3.1.0 | MIT | @footballos/web | dev |
+| json-schema-to-ts | 3.1.1 | MIT | @footballos/ai | prod |
 | json-schema-traverse | 1.0.0 | MIT | @footballos/agent-console | prod |
 | json-schema-typed | 8.0.2 | BSD-2-Clause | @footballos/agent-console | prod |
 | json5 | 2.2.3 | MIT | @footballos/agent-console-ui | dev |
 | json5 | 2.2.3 | MIT | @footballos/web | dev |
 | loupe | 3.2.1 | MIT | @footballos/agent-console | dev |
 | loupe | 3.2.1 | MIT | @footballos/agent-console-ui | dev |
+| loupe | 3.2.1 | MIT | @footballos/ai | dev |
 | loupe | 3.2.1 | MIT | @footballos/media | dev |
 | loupe | 3.2.1 | MIT | @footballos/ops | dev |
 | loupe | 3.2.1 | MIT | @footballos/web | dev |
@@ -435,6 +466,7 @@ Installed third-party packages: 317.
 | lz-string | 1.5.0 | MIT | @footballos/web | dev |
 | magic-string | 0.30.21 | MIT | @footballos/agent-console | dev |
 | magic-string | 0.30.21 | MIT | @footballos/agent-console-ui | dev |
+| magic-string | 0.30.21 | MIT | @footballos/ai | dev |
 | magic-string | 0.30.21 | MIT | @footballos/media | dev |
 | magic-string | 0.30.21 | MIT | @footballos/ops | dev |
 | magic-string | 0.30.21 | MIT | @footballos/web | dev |
@@ -453,11 +485,13 @@ Installed third-party packages: 317.
 | min-indent | 1.0.1 | MIT | @footballos/web | dev |
 | ms | 2.1.3 | MIT | @footballos/agent-console | prod |
 | ms | 2.1.3 | MIT | @footballos/agent-console-ui | dev |
+| ms | 2.1.3 | MIT | @footballos/ai | dev |
 | ms | 2.1.3 | MIT | @footballos/media | prod |
 | ms | 2.1.3 | MIT | @footballos/ops | dev |
 | ms | 2.1.3 | MIT | @footballos/web | dev |
 | nanoid | 3.3.20 | MIT | @footballos/agent-console | dev |
 | nanoid | 3.3.20 | MIT | @footballos/agent-console-ui | dev |
+| nanoid | 3.3.20 | MIT | @footballos/ai | dev |
 | nanoid | 3.3.20 | MIT | @footballos/media | dev |
 | nanoid | 3.3.20 | MIT | @footballos/ops | dev |
 | nanoid | 3.3.20 | MIT | @footballos/web | dev |
@@ -480,16 +514,19 @@ Installed third-party packages: 317.
 | path-to-regexp | 8.4.2 | MIT | @footballos/agent-console | prod |
 | pathe | 1.1.2 | MIT | @footballos/agent-console | dev |
 | pathe | 1.1.2 | MIT | @footballos/agent-console-ui | dev |
+| pathe | 1.1.2 | MIT | @footballos/ai | dev |
 | pathe | 1.1.2 | MIT | @footballos/media | dev |
 | pathe | 1.1.2 | MIT | @footballos/ops | dev |
 | pathe | 1.1.2 | MIT | @footballos/web | dev |
 | pathval | 2.0.1 | MIT | @footballos/agent-console | dev |
 | pathval | 2.0.1 | MIT | @footballos/agent-console-ui | dev |
+| pathval | 2.0.1 | MIT | @footballos/ai | dev |
 | pathval | 2.0.1 | MIT | @footballos/media | dev |
 | pathval | 2.0.1 | MIT | @footballos/ops | dev |
 | pathval | 2.0.1 | MIT | @footballos/web | dev |
 | picocolors | 1.1.1 | ISC | @footballos/agent-console | dev |
 | picocolors | 1.1.1 | ISC | @footballos/agent-console-ui | dev |
+| picocolors | 1.1.1 | ISC | @footballos/ai | dev |
 | picocolors | 1.1.1 | ISC | @footballos/media | dev |
 | picocolors | 1.1.1 | ISC | @footballos/ops | dev |
 | picocolors | 1.1.1 | ISC | @footballos/web | dev |
@@ -498,6 +535,7 @@ Installed third-party packages: 317.
 | pkce-challenge | 5.0.1 | MIT | @footballos/agent-console | prod |
 | postcss | 8.5.31 | MIT | @footballos/agent-console | dev |
 | postcss | 8.5.31 | MIT | @footballos/agent-console-ui | dev |
+| postcss | 8.5.31 | MIT | @footballos/ai | dev |
 | postcss | 8.5.31 | MIT | @footballos/media | dev |
 | postcss | 8.5.31 | MIT | @footballos/ops | dev |
 | postcss | 8.5.31 | MIT | @footballos/web | dev |
@@ -524,6 +562,7 @@ Installed third-party packages: 317.
 | require-from-string | 2.0.2 | MIT | @footballos/agent-console | prod |
 | rollup | 4.65.0 | MIT | @footballos/agent-console | dev |
 | rollup | 4.65.0 | MIT | @footballos/agent-console-ui | dev |
+| rollup | 4.65.0 | MIT | @footballos/ai | dev |
 | rollup | 4.65.0 | MIT | @footballos/media | dev |
 | rollup | 4.65.0 | MIT | @footballos/ops | dev |
 | rollup | 4.65.0 | MIT | @footballos/web | dev |
@@ -553,22 +592,27 @@ Installed third-party packages: 317.
 | side-channel-weakmap | 1.0.2 | MIT | @footballos/agent-console | prod |
 | siginfo | 2.0.0 | ISC | @footballos/agent-console | dev |
 | siginfo | 2.0.0 | ISC | @footballos/agent-console-ui | dev |
+| siginfo | 2.0.0 | ISC | @footballos/ai | dev |
 | siginfo | 2.0.0 | ISC | @footballos/media | dev |
 | siginfo | 2.0.0 | ISC | @footballos/ops | dev |
 | siginfo | 2.0.0 | ISC | @footballos/web | dev |
 | source-map-js | 1.2.2 | BSD-3-Clause | @footballos/agent-console | dev |
 | source-map-js | 1.2.2 | BSD-3-Clause | @footballos/agent-console-ui | dev |
+| source-map-js | 1.2.2 | BSD-3-Clause | @footballos/ai | dev |
 | source-map-js | 1.2.2 | BSD-3-Clause | @footballos/media | dev |
 | source-map-js | 1.2.2 | BSD-3-Clause | @footballos/ops | dev |
 | source-map-js | 1.2.2 | BSD-3-Clause | @footballos/web | dev |
 | stackback | 0.0.2 | MIT | @footballos/agent-console | dev |
 | stackback | 0.0.2 | MIT | @footballos/agent-console-ui | dev |
+| stackback | 0.0.2 | MIT | @footballos/ai | dev |
 | stackback | 0.0.2 | MIT | @footballos/media | dev |
 | stackback | 0.0.2 | MIT | @footballos/ops | dev |
 | stackback | 0.0.2 | MIT | @footballos/web | dev |
+| standardwebhooks | 1.1.1 | MIT | @footballos/ai | prod |
 | statuses | 2.0.2 | MIT | @footballos/agent-console | prod |
 | std-env | 3.10.0 | MIT | @footballos/agent-console | dev |
 | std-env | 3.10.0 | MIT | @footballos/agent-console-ui | dev |
+| std-env | 3.10.0 | MIT | @footballos/ai | dev |
 | std-env | 3.10.0 | MIT | @footballos/media | dev |
 | std-env | 3.10.0 | MIT | @footballos/ops | dev |
 | std-env | 3.10.0 | MIT | @footballos/web | dev |
@@ -579,11 +623,13 @@ Installed third-party packages: 317.
 | symbol-tree | 3.2.4 | MIT | @footballos/web | dev |
 | tinybench | 2.9.0 | MIT | @footballos/agent-console | dev |
 | tinybench | 2.9.0 | MIT | @footballos/agent-console-ui | dev |
+| tinybench | 2.9.0 | MIT | @footballos/ai | dev |
 | tinybench | 2.9.0 | MIT | @footballos/media | dev |
 | tinybench | 2.9.0 | MIT | @footballos/ops | dev |
 | tinybench | 2.9.0 | MIT | @footballos/web | dev |
 | tinyexec | 0.3.2 | MIT | @footballos/agent-console | dev |
 | tinyexec | 0.3.2 | MIT | @footballos/agent-console-ui | dev |
+| tinyexec | 0.3.2 | MIT | @footballos/ai | dev |
 | tinyexec | 0.3.2 | MIT | @footballos/media | dev |
 | tinyexec | 0.3.2 | MIT | @footballos/ops | dev |
 | tinyexec | 0.3.2 | MIT | @footballos/web | dev |
@@ -591,16 +637,19 @@ Installed third-party packages: 317.
 | tinyglobby | 0.2.17 | MIT | @footballos/web | dev |
 | tinypool | 1.1.1 | MIT | @footballos/agent-console | dev |
 | tinypool | 1.1.1 | MIT | @footballos/agent-console-ui | dev |
+| tinypool | 1.1.1 | MIT | @footballos/ai | dev |
 | tinypool | 1.1.1 | MIT | @footballos/media | dev |
 | tinypool | 1.1.1 | MIT | @footballos/ops | dev |
 | tinypool | 1.1.1 | MIT | @footballos/web | dev |
 | tinyrainbow | 1.2.0 | MIT | @footballos/agent-console | dev |
 | tinyrainbow | 1.2.0 | MIT | @footballos/agent-console-ui | dev |
+| tinyrainbow | 1.2.0 | MIT | @footballos/ai | dev |
 | tinyrainbow | 1.2.0 | MIT | @footballos/media | dev |
 | tinyrainbow | 1.2.0 | MIT | @footballos/ops | dev |
 | tinyrainbow | 1.2.0 | MIT | @footballos/web | dev |
 | tinyspy | 3.0.2 | MIT | @footballos/agent-console | dev |
 | tinyspy | 3.0.2 | MIT | @footballos/agent-console-ui | dev |
+| tinyspy | 3.0.2 | MIT | @footballos/ai | dev |
 | tinyspy | 3.0.2 | MIT | @footballos/media | dev |
 | tinyspy | 3.0.2 | MIT | @footballos/ops | dev |
 | tinyspy | 3.0.2 | MIT | @footballos/web | dev |
@@ -613,15 +662,18 @@ Installed third-party packages: 317.
 | tough-cookie | 5.1.2 | BSD-3-Clause | @footballos/web | dev |
 | tr46 | 5.1.1 | MIT | @footballos/agent-console-ui | dev |
 | tr46 | 5.1.1 | MIT | @footballos/web | dev |
+| ts-algebra | 2.0.0 | MIT | @footballos/ai | prod |
 | tsx | 4.23.15 | MIT | @footballos/agent-console | dev |
 | tsx | 4.23.15 | MIT | @footballos/media | dev |
 | type-is | 2.1.0 | MIT | @footballos/agent-console | prod |
 | typedarray | 0.0.6 | MIT | @footballos/media | prod |
 | typescript | 5.9.3 | Apache-2.0 | @footballos/agent-console | dev |
 | typescript | 5.9.3 | Apache-2.0 | @footballos/agent-console-ui | dev |
+| typescript | 5.9.3 | Apache-2.0 | @footballos/ai | dev |
 | typescript | 5.9.3 | Apache-2.0 | @footballos/media | dev |
 | typescript | 5.9.3 | Apache-2.0 | @footballos/web | dev |
 | undici-types | 6.21.0 | MIT | @footballos/agent-console | dev |
+| undici-types | 6.21.0 | MIT | @footballos/ai | dev |
 | undici-types | 6.21.0 | MIT | @footballos/media | dev |
 | unpipe | 1.0.0 | MIT | @footballos/agent-console | prod |
 | update-browserslist-db | 1.3.4 | MIT | @footballos/agent-console-ui | dev |
@@ -631,6 +683,7 @@ Installed third-party packages: 317.
 | vary | 1.1.2 | MIT | @footballos/agent-console | prod |
 | vite | 5.4.21 | MIT | @footballos/agent-console | dev |
 | vite | 5.4.21 | MIT | @footballos/agent-console-ui | dev |
+| vite | 5.4.21 | MIT | @footballos/ai | dev |
 | vite | 5.4.21 | MIT | @footballos/media | dev |
 | vite | 5.4.21 | MIT | @footballos/ops | dev |
 | vite | 5.4.21 | MIT | @footballos/web | dev |
@@ -638,11 +691,13 @@ Installed third-party packages: 317.
 | vite | 6.4.5 | MIT | @footballos/web | dev |
 | vite-node | 2.1.9 | MIT | @footballos/agent-console | dev |
 | vite-node | 2.1.9 | MIT | @footballos/agent-console-ui | dev |
+| vite-node | 2.1.9 | MIT | @footballos/ai | dev |
 | vite-node | 2.1.9 | MIT | @footballos/media | dev |
 | vite-node | 2.1.9 | MIT | @footballos/ops | dev |
 | vite-node | 2.1.9 | MIT | @footballos/web | dev |
 | vitest | 2.1.9 | MIT | @footballos/agent-console | dev |
 | vitest | 2.1.9 | MIT | @footballos/agent-console-ui | dev |
+| vitest | 2.1.9 | MIT | @footballos/ai | dev |
 | vitest | 2.1.9 | MIT | @footballos/media | dev |
 | vitest | 2.1.9 | MIT | @footballos/ops | dev |
 | vitest | 2.1.9 | MIT | @footballos/web | dev |
@@ -659,6 +714,7 @@ Installed third-party packages: 317.
 | which | 2.0.2 | ISC | @footballos/agent-console | prod |
 | why-is-node-running | 2.3.0 | MIT | @footballos/agent-console | dev |
 | why-is-node-running | 2.3.0 | MIT | @footballos/agent-console-ui | dev |
+| why-is-node-running | 2.3.0 | MIT | @footballos/ai | dev |
 | why-is-node-running | 2.3.0 | MIT | @footballos/media | dev |
 | why-is-node-running | 2.3.0 | MIT | @footballos/ops | dev |
 | why-is-node-running | 2.3.0 | MIT | @footballos/web | dev |
@@ -672,6 +728,7 @@ Installed third-party packages: 317.
 | yallist | 3.1.1 | ISC | @footballos/agent-console-ui | dev |
 | yallist | 3.1.1 | ISC | @footballos/web | dev |
 | zod | 4.6.7 | MIT | @footballos/agent-console | prod |
+| zod | 4.6.7 | MIT | @footballos/ai | prod |
 | zod | 4.6.7 | MIT | @footballos/media | prod |
 | zod-to-json-schema | 3.25.2 | ISC | @footballos/agent-console | prod |
 | zustand | 4.5.7 | MIT | @footballos/agent-console-ui | prod |
