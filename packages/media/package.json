@@ -9,7 +9,11 @@
     "node": ">=22"
   },
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
   },
   "bin": {
     "footballos-media": "bin/media.mjs"
@@ -21,7 +25,8 @@
     "prebuild": "npm run contracts:build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "build": "tsc -p tsconfig.json"
+    "build": "tsc -p tsconfig.build.json",
+    "build:types": "tsc -p tsconfig.build.json --emitDeclarationOnly"
   },
   "dependencies": {
     "@footballos/contracts": "0.1.0",
@@ -40,5 +45,12 @@
     "tsx": "^4.23.15",
     "typescript": "^5.6.3",
     "vitest": "^2.1.8"
-  }
+  },
+  "main": "./src/index.ts",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "src",
+    "bin"
+  ]
 }
