@@ -6,7 +6,11 @@
 //
 //   FOOTBALLOS_DATA_DIR=<abs path> FOOTBALLOS_ENV=demo node tests/e2e/api-create-second-team.mjs
 //
-// Prints JSON: { teamId, seasonId, gameId }. Refuses to run when FOOTBALLOS_ENV=production.
+// Optional (B6): when FOS_T2_EMAIL and FOS_T2_PASSWORD are set, a position coach with that e-mail
+// and password is created in the second team (credentials come only from the environment and are
+// never printed), so cross-team checks can run as a genuine member of another team.
+//
+// Prints JSON: { teamId, seasonId, gameId, userId? }. Refuses to run when FOOTBALLOS_ENV=production.
 
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -23,9 +27,12 @@ if (!process.env.FOOTBALLOS_DATA_DIR) {
 }
 
 const { buildContext } = await import(path.join(dist, 'bootstrap-context.js'));
-const { createTeam } = await import(path.join(dist, 'services', 'teams.js'));
+const { createTeam, addMembership } = await import(path.join(dist, 'services', 'teams.js'));
 const { createSeason, createGame, createOpponent } = await import(path.join(dist, 'services', 'schedule.js'));
+const { createUser } = await import(path.join(dist, 'services', 'users.js'));
 
+process.env.WORKER_CONCURRENCY = '0';
+process.env.WORKER_INLINE = 'false';
 const { ctx, close } = buildContext({});
 try {
   const team = createTeam(ctx, {
@@ -45,7 +52,13 @@ try {
     scheduledAt: '2026-09-04T23:00:00.000Z',
     notes: 'QA fixture game',
   });
-  process.stdout.write(JSON.stringify({ teamId: team.id, seasonId: season.id, gameId: game.id }) + '\n');
+  let userId;
+  if (process.env.FOS_T2_EMAIL && process.env.FOS_T2_PASSWORD) {
+    const user = await createUser(ctx, { email: process.env.FOS_T2_EMAIL, displayName: 'QA Second-Team Coach (demo)', password: process.env.FOS_T2_PASSWORD });
+    addMembership(ctx, { teamId: team.id, userId: user.id, role: 'position_coach', units: ['offense'], title: 'QA fixture' });
+    userId = user.id;
+  }
+  process.stdout.write(JSON.stringify({ teamId: team.id, seasonId: season.id, gameId: game.id, ...(userId ? { userId } : {}) }) + '\n');
 } finally {
   close();
 }
