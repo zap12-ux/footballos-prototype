@@ -218,6 +218,11 @@ Please do not enter names, player details or school details anywhere in the prot
 
 ## Project structure
 
+![System architecture: GitHub repository, GitHub Actions and GitHub Pages above; the coach's browser running a static React app with hash router, session reducer, local storage, deterministic logic, authored demo data, session export and film stage; no server, API or model.](docs/ARCHITECTURE.svg)
+
+[`docs/ARCHITECTURE.svg`](docs/ARCHITECTURE.svg) shows the system as built: a static React
+app published to GitHub Pages, with all state in the browser and no server, API or model.
+
 ```
 index.html            Page shell
 src/
@@ -231,7 +236,7 @@ public/demo-film/     The credited demo clips, one per play (real footage, CC BY
   utils/              localStorage (with migration), exposure record, hash routes, film check, practice-focus logic, review-time intervals, summary and JSON export
   tests/              Vitest + React Testing Library suite
 verification/         Optional Playwright end-to-end script (developer utility, not part of npm test)
-docs/                 Module 7 submission documents
+docs/                 Module 7 submission documents and the system architecture diagram (ARCHITECTURE.svg)
 ```
 
 Stack: React 19, TypeScript 5, Vite 6, Vitest 2. No other runtime dependencies were added.
