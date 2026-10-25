@@ -1,0 +1,33 @@
+{
+  "name": "@footballos/media",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Film validation, playback proxies, thumbnails, proposed play boundaries, footage-quality assessment and store-agnostic job-runner semantics for FootballOS. Hosted by the API job worker.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "bin": {
+    "footballos-media": "bin/media.mjs"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "ffmpeg-static": "^5.2.0",
+    "ffprobe-static": "^3.1.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "tsx": "^4.23.15",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  }
+}
