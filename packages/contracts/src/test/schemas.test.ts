@@ -99,4 +99,24 @@ describe('request schemas', () => {
   it('create season rejects inverted dates', () => {
     expect(schemas.CreateSeasonRequestSchema.safeParse({ label: '2026', startsOn: '2026-12-01', endsOn: '2026-08-01' }).success).toBe(false);
   });
+  it('upload filename is sanitized on intake (§14.10, QA D-7)', () => {
+    const { sanitizeFilename, UploadFilenameSchema } = schemas;
+    expect(sanitizeFilename('play-1.mp4')).toBe('play-1.mp4');
+    expect(sanitizeFilename('  spaced name.MOV ')).toBe('spaced name.MOV');
+    expect(sanitizeFilename('a\u0007b\u001b[31m.mp4\u007f')).toBe('ab[31m.mp4'); // control characters stripped
+    expect(sanitizeFilename('../../../../tmp/escape.mp4')).toBe('../../../../tmp/escape.mp4'); // path-like names are display names only
+    expect(sanitizeFilename('a\u0000b.mp4')).toBeNull(); // NUL is rejected, not stripped
+    expect(sanitizeFilename('.mp4')).toBeNull(); // no stem
+    expect(sanitizeFilename('..mp4')).toBeNull();
+    expect(sanitizeFilename('')).toBeNull();
+    expect(sanitizeFilename('\u0001\u0002')).toBeNull(); // empty after cleaning
+    expect(sanitizeFilename(`${'x'.repeat(251)}.mp4`)).toBe(`${'x'.repeat(251)}.mp4`); // exactly 255
+    expect(sanitizeFilename(`${'x'.repeat(252)}.mp4`)).toBeNull(); // 256
+    expect(UploadFilenameSchema.parse('a\u0007b.mp4')).toBe('ab.mp4');
+    for (const bad of ['a\u0000b.mp4', '.mp4', '', `${'x'.repeat(252)}.mp4`]) {
+      expect(UploadFilenameSchema.safeParse(bad).success).toBe(false);
+    }
+    const req = schemas.CreateUploadRequestSchema.safeParse({ filename: 'a\u0000b.mp4', byteSize: 10, mimeType: 'video/mp4', context: { analyzedTeam: 'us', analyzedUnit: 'offense', perspective: 'endzone', teamCues: null } });
+    expect(req.success).toBe(false);
+  });
 });

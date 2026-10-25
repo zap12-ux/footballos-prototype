@@ -15,6 +15,13 @@
       "when": 1792953592781,
       "tag": "0001_media_labels",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1792958550329,
+      "tag": "0002_asset_container",
+      "breakpoints": true
     }
   ]
 }

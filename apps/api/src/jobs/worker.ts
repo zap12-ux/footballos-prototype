@@ -19,7 +19,8 @@ import { monthlyCostUsd } from '../services/usage.js';
 /** `ProcessingJob.input` for the validate → proxy → thumbnails → segment chain (C's MediaJobInput plus identity). */
 export type ChainJobInput = MediaJobInput & { teamId: string; gameId: string };
 
-export const MAINTENANCE_INTERVAL_MS = 5 * 60_000;
+/** Default maintenance cadence (seconds); `WORKER_MAINTENANCE_SEC` overrides it. */
+export const DEFAULT_MAINTENANCE_INTERVAL_SEC = 60;
 
 export function uploadLimitsFor(ctx: AppContext): Partial<UploadLimits> {
   return {
@@ -60,22 +61,31 @@ export function registerJobHandlers(ctx: AppContext): void {
     .register('thumbnails', asJobHandler(guarded(media.thumbnails)))
     .register('segment', asJobHandler(guarded(media.segment)))
     .register<InferLabelsJobInput, InferLabelsResult>('infer_labels', async (h: HandlerContext<InferLabelsJobInput>) => {
-      // §14.5: no provider → fail immediately and truthfully; manual labeling stays available.
-      if (ctx.config.modelProvider === 'none') throw new NonRetryableError('provider_unavailable', 'No model provider is configured');
+      // §14.5 / §14.10 (QA D-4): the provider is checked before the cost cap so the error names the
+      // real cause, and every failure here happens before any frame is extracted or any call is made.
+      // Manual labeling stays available in all of these cases.
+      const provider = ctx.config.modelProvider;
+      if (provider === 'none') throw new NonRetryableError('provider_unavailable', 'No model provider is configured');
+      const labeler = createVisionLabeler(provider, { config: ctx.config.ai });
+      if (!labeler.isAvailable()) {
+        const keyVar = provider === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY';
+        throw new NonRetryableError('provider_unavailable', `no_api_key: MODEL_PROVIDER=${provider} but ${keyVar} is not set; manual labeling remains available`);
+      }
       const cap = ctx.config.limits.monthlyCostCapUsd;
       const spent = monthlyCostUsd(ctx, h.job.teamId, ctx.now());
       if (spent >= cap) {
         throw new NonRetryableError('budget_exceeded', `Month-to-date model spend $${spent.toFixed(4)} has reached the monthly cap $${cap.toFixed(2)} (MONTHLY_COST_CAP_USD)`);
       }
-      const labeler = createVisionLabeler(ctx.config.modelProvider, { config: ctx.config.ai });
       const handler = createInferLabelsHandler({ labeler, extractFrames, budgetUsd: ctx.config.ai.jobBudgetUsd, maxFramesPerSegment: ctx.config.ai.maxFramesPerSegment });
       try {
         return await handler({ id: h.job.id, input: h.input }, { signal: h.signal, progress: (done, total, message) => h.progress({ done, total, message }) });
       } catch (err) {
-        // C's runner retries everything except NonRetryableError; D's adapter says whether a retry can help.
+        // C's runner retries everything except NonRetryableError; D's adapter says whether a retry can
+        // help. The adapter's `reason` (no_api_key, auth, rate_limited, refusal, ...) is kept in the message.
         if (isProviderUnavailable(err)) {
-          if (!err.retryable) throw new NonRetryableError(err.reason === 'budget_exceeded' ? 'budget_exceeded' : 'provider_unavailable', err.message);
-          throw Object.assign(new Error(err.message), { code: 'provider_unavailable' });
+          const message = err.toJobError().message;
+          if (!err.retryable) throw new NonRetryableError(err.reason === 'budget_exceeded' ? 'budget_exceeded' : 'provider_unavailable', message);
+          throw Object.assign(new Error(message), { code: 'provider_unavailable' });
         }
         throw err;
       }
@@ -112,6 +122,8 @@ function persistResult(ctx: AppContext, tx: Db, job: Job, result: unknown): void
           status: r.ok ? 'validated' : 'rejected',
           rejectionReason: r.ok ? null : r.reasons.join(' '),
           durationSec: r.probe?.durationSec ?? null, width: r.probe?.width ?? null, height: r.probe?.height ?? null, fps: r.probe?.fps ?? null, quality: r.quality,
+          // The probe's container (not the client's mimeType) decides the stream Content-Type (§14.10, QA D-1).
+          container: r.probe?.container ?? null,
           updatedAt: nowIso,
         })
         .where(eq(mediaAssets.id, asset.id))
@@ -180,20 +192,38 @@ export async function runWorkerUntilIdle(ctx: AppContext, maxJobs = 100): Promis
   return done;
 }
 
-/** Upload garbage collection and retention; the worker runs it at start and every MAINTENANCE_INTERVAL_MS. */
-export function runMaintenance(ctx: AppContext): { expiredUploads: number; retentionDeleted: number } {
+export type MaintenanceResult = { recoveredLeases: number; expiredUploads: number; retentionDeleted: number };
+
+/**
+ * Maintenance tick (§14.10, QA D-2): expired job leases are recovered (an orphaned `running` job goes
+ * back to `queued`, or ends `failed`/`canceled` when no attempts remain or a cancel was pending),
+ * expired incomplete uploads are garbage-collected, and retention is applied. The worker runs it at
+ * start and every `WORKER_MAINTENANCE_SEC` seconds (default 60), so a job orphaned by a crash is
+ * picked up again without another restart.
+ */
+export async function runMaintenance(ctx: AppContext): Promise<MaintenanceResult> {
+  const recoveredLeases = (await ctx.runner.recover()).length;
   const expiredUploads = gcExpiredUploads(ctx);
   const retentionDeleted = applyRetention(ctx);
-  if (expiredUploads || retentionDeleted) ctx.logger.info('maintenance tick', { expiredUploads, retentionDeleted });
-  return { expiredUploads, retentionDeleted };
+  if (recoveredLeases || expiredUploads || retentionDeleted) ctx.logger.info('maintenance tick', { recoveredLeases, expiredUploads, retentionDeleted });
+  return { recoveredLeases, expiredUploads, retentionDeleted };
 }
 
 /** Starts the runner loop (recovering expired leases first) plus the maintenance timer. Returns a stop function. */
 export async function startWorker(ctx: AppContext): Promise<() => Promise<void>> {
   const recovered = await ctx.runner.recover();
-  ctx.logger.info('worker starting', { workerId: ctx.runner.workerId, recoveredJobs: recovered.length, concurrency: ctx.config.limits.workerConcurrency });
-  try { runMaintenance(ctx); } catch (err) { ctx.logger.error('maintenance failed', { error: err }); }
-  const timer = setInterval(() => { try { runMaintenance(ctx); } catch (err) { ctx.logger.error('maintenance failed', { error: err }); } }, MAINTENANCE_INTERVAL_MS);
+  const intervalMs = ctx.config.limits.maintenanceIntervalSec * 1000;
+  ctx.logger.info('worker starting', { workerId: ctx.runner.workerId, recoveredJobs: recovered.length, concurrency: ctx.config.limits.workerConcurrency, maintenanceIntervalSec: ctx.config.limits.maintenanceIntervalSec });
+  const tick = async () => {
+    try { await runMaintenance(ctx); } catch (err) { ctx.logger.error('maintenance failed', { error: err }); }
+  };
+  await tick();
+  let ticking = false;
+  const timer = setInterval(() => {
+    if (ticking) return; // never overlap two ticks
+    ticking = true;
+    void tick().finally(() => { ticking = false; });
+  }, intervalMs);
   timer.unref();
   if (ctx.config.limits.workerConcurrency > 0) ctx.runner.start();
   return async () => { clearInterval(timer); await ctx.runner.stop(); };

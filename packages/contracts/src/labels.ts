@@ -146,6 +146,13 @@ export const PatchLabelRequestSchema = z.object({
 });
 export type PatchLabelRequest = z.infer<typeof PatchLabelRequestSchema>;
 
+/**
+ * `PATCH /labels/:id` response (§14.10, QA D-5): `changed: false` when the requested `accepted`
+ * block equals the current one; such a PATCH is a no-op (no version bump, no LabelRevision).
+ */
+export const PatchLabelResponseSchema = z.object({ label: LabelSchema, changed: z.boolean() });
+export type PatchLabelResponse = z.infer<typeof PatchLabelResponseSchema>;
+
 export const BulkAcceptRequestSchema = z.object({
   segmentIds: z.array(IdSchema).min(1).max(2000),
   keys: z.array(LabelKeySchema).min(1),

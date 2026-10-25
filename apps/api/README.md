@@ -30,7 +30,11 @@ first builds `packages/contracts`, `packages/media` and `packages/ai` (`deps:bui
 scripts): the API resolves contracts and ai through their `dist/` output and takes the media
 package's types from `packages/media/dist/index.d.ts` (`tsconfig.json` `paths`), because its
 source uses `.ts` import specifiers that Node runs natively but `tsc` cannot compile from another
-project. Tests alias all three packages to source instead (`vitest.config.ts`).
+project. The `tsx` entry points (`dev`, `worker`, `migrate`, `seed:demo`, `bootstrap`) run with
+`--tsconfig tsconfig.tsx.json`, which maps `@footballos/media` to `packages/media/src/index.ts`
+instead: tsx honours `paths` at run time and would otherwise load the `.d.ts` and fail with
+`ERR_MODULE_NOT_FOUND …/dist/types.ts` (QA B6 D-3). Tests alias all three packages to source
+(`vitest.config.ts`).
 
 ## Worker and the film processing chain
 
@@ -58,18 +62,26 @@ WORKER_INLINE=true npm run dev -w apps/api     # worker loop inside the API proc
 npm run worker -w apps/api                     # separate process on the same FOOTBALLOS_DATA_DIR
 ```
 
-The worker also runs a maintenance tick at start and every 5 minutes: expired incomplete uploads
-(`UPLOAD_TTL_HOURS`) are removed with their partial files (audit `upload.expired`), and when a head
-coach has set `retentionDays` in team settings, originals and proxies past it are deleted (audit
-`retention.applied`). The default is **null: keep originals and proxies until the head coach
-deletes them** (owner decision 2026-10-25).
+The worker also runs a maintenance tick at start and every `WORKER_MAINTENANCE_SEC` seconds
+(default 60): expired job leases are recovered first (`JobRunner.recover()`: a job orphaned by a
+worker that died goes back to `queued`, or ends `failed` when no attempts remain / `canceled` when a
+cancel was pending), then expired incomplete uploads (`UPLOAD_TTL_HOURS`) are removed with their
+partial files (audit `upload.expired`), and when a head coach has set `retentionDays` in team
+settings, originals and proxies past it are deleted (audit `retention.applied`). Independently of the
+tick, `claim()` also takes a `running` row whose lease has expired (no cancel pending, attempts
+remaining), so a crash followed by an immediate supervisor restart no longer leaves the chain stuck
+until a further restart (CONTRACTS §14.10, QA B6 D-2). The retention default is **null: keep
+originals and proxies until the head coach deletes them** (owner decision 2026-10-25).
 
-`infer_labels` fails truthfully without doing work: `MODEL_PROVIDER=none` → `error.code
-'provider_unavailable'`, message "No model provider is configured", `retryable: false`; a reached
-`MONTHLY_COST_CAP_USD` (month-to-date sum of `model_provenance.costUsd`, also served by
-`GET /teams/:teamId/usage`) → `budget_exceeded`, `retryable: false`; a provider without a key →
-`provider_unavailable` from the adapter. Manual labeling stays available: every segment has one
-`labels` row per `LabelKey` (`accepted.status: 'unknown'`) from the moment it exists.
+`infer_labels` fails truthfully without doing work, checking in this order (§14.10, QA B6 D-4):
+`MODEL_PROVIDER=none` → `error.code 'provider_unavailable'`, message "No model provider is
+configured"; a provider whose key is missing → `provider_unavailable`, message
+`no_api_key: MODEL_PROVIDER=anthropic but ANTHROPIC_API_KEY is not set; manual labeling remains
+available`; then a reached `MONTHLY_COST_CAP_USD` (month-to-date sum of `model_provenance.costUsd`,
+also served by `GET /teams/:teamId/usage`) → `budget_exceeded`. All three are `retryable: false` and
+happen before any frame is extracted or any request is made; adapter failures keep the adapter's
+`reason` in the message. Manual labeling stays available: every segment has one `labels` row per
+`LabelKey` (`accepted.status: 'unknown'`) from the moment it exists.
 
 Run the chain locally end to end:
 
@@ -181,6 +193,32 @@ Authorization (`src/http/guards.ts`): `requireMembership()` turns a missing acti
 into `404` so other teams are never revealed; `policy.*` encodes the §3 table for every owner
 (plans, playbook, uploads) even where the routes do not exist yet.
 
+## Behaviour fixed after QA B6 (CONTRACTS §14.10)
+
+- **Media delivery (D-1).** `GET /media/:assetId/stream` and `/thumb/:n` serve only assets whose
+  status is `validated`, `processing` or `ready`; `uploading`, `uploaded`, `rejected`, `failed` and
+  `deleted` answer `404`. The `Content-Type` is chosen by the server: the proxy is `video/mp4`, an
+  original is typed from the validate probe's container (`media_assets.container`, migration
+  `0002_asset_container`: mp4 → `video/mp4`, mov → `video/quicktime`, mkv → `video/x-matroska`, …),
+  tiles are `image/jpeg`; the client-supplied `mimeType` is stored on the record but never used on
+  the wire. Every byte response carries `Content-Disposition: inline; filename="<assetId>.<ext>"`,
+  `X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none'` and
+  `Cache-Control: private, no-store`.
+- **Lease recovery (D-2).** See "Worker and the film processing chain" above
+  (`WORKER_MAINTENANCE_SEC`, `claim()` of expired `running` rows).
+- **tsx entry points (D-3).** `dev`, `worker`, `migrate`, `seed:demo`, `bootstrap` run with
+  `--tsconfig tsconfig.tsx.json` (see "Run").
+- **Provider failures (D-4).** Provider check before the cost cap; the no-key message names
+  `no_api_key` and the environment variable (see above).
+- **No-op corrections (D-5).** `PATCH /labels/:id` whose `accepted` value and status equal the
+  current ones changes nothing: no version bump, no `LabelRevision`, response
+  `200 { label, changed: false }` (`PatchLabelResponse`); a real change answers `changed: true`.
+  The `expectedVersion` check still applies first.
+- **Filenames (D-7).** `originalFilename` is sanitized on intake (`sanitizeFilename` in
+  `@footballos/contracts`): control characters are removed, the name is trimmed, must be 1–255
+  characters and must have a stem before the extension (`.mp4` is rejected); a NUL byte is a
+  `400 validation_error`. Storage keys never use the filename.
+
 ## Data directory layout
 
 ```
@@ -232,7 +270,7 @@ src/services/grants.ts   HMAC media grants
 ```
 
 Environment variables added in Milestone B (see `.env.example`): `UPLOAD_TTL_HOURS`,
-`MEDIA_GRANT_TTL_MIN`, `WORKER_INLINE`, `WORKER_POLL_MS`, `PROXY_HEIGHT`, `THUMBNAIL_EVERY_SEC`,
+`MEDIA_GRANT_TTL_MIN`, `WORKER_INLINE`, `WORKER_POLL_MS`, `WORKER_MAINTENANCE_SEC`, `PROXY_HEIGHT`, `THUMBNAIL_EVERY_SEC`,
 `FOOTBALLOS_AI_MODEL` / `FOOTBALLOS_AI_EFFORT` / `FOOTBALLOS_AI_MAX_OUTPUT_TOKENS` /
 `FOOTBALLOS_AI_JOB_BUDGET_USD` / `FOOTBALLOS_AI_MAX_FRAMES_PER_SEGMENT` /
 `FOOTBALLOS_AI_MAX_SEGMENTS_PER_JOB` / `FOOTBALLOS_AI_REQUEST_TIMEOUT_MS` (read through

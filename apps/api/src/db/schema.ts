@@ -176,6 +176,8 @@ export const mediaAssets = sqliteTable('media_assets', {
   width: integer('width'),
   height: integer('height'),
   fps: real('fps'),
+  /** Container family from the validate probe (mp4, mov, mkv, ...); null until validated. Drives the stream Content-Type (never the client mimeType). */
+  container: text('container'),
   status: text('status').notNull(),
   rejectionReason: text('rejection_reason'),
   context: text('context', { mode: 'json' }).$type<UploadContext>().notNull(),
