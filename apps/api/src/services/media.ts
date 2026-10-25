@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import { and, asc, eq, inArray, isNull, lt, ne } from 'drizzle-orm';
-import type { CreateUploadRequest, MediaAsset, Upload } from '@footballos/contracts';
+import { sanitizeFilename, type CreateUploadRequest, type MediaAsset, type Upload } from '@footballos/contracts';
 import type { Job } from '@footballos/media';
 import type { AppContext } from '../context.js';
 import type { Db } from '../db/db.js';
@@ -87,7 +87,10 @@ export function createUpload(ctx: AppContext, userId: string, teamId: string, ga
   if (input.byteSize > limits.maxUploadBytes) {
     throw new ApiError('payload_too_large', `File is larger than the ${limits.maxUploadBytes} byte limit`, { maxUploadBytes: limits.maxUploadBytes });
   }
-  const ext = extensionOf(input.filename);
+  // The route's validator already sanitized the name (§14.10, QA D-7); callers that bypass it get the same rule.
+  const filename = sanitizeFilename(input.filename);
+  if (filename === null) throw errors.validation('filename must be 1-255 characters with a name before the extension and no control characters');
+  const ext = extensionOf(filename);
   if (!ext || !limits.allowedVideoContainers.includes(ext)) {
     throw errors.validation(`Unsupported file type; allowed: ${limits.allowedVideoContainers.join(', ')}`, { allowedVideoContainers: limits.allowedVideoContainers });
   }
@@ -100,7 +103,7 @@ export function createUpload(ctx: AppContext, userId: string, teamId: string, ga
   const assetId = crypto.randomUUID();
   const uploadId = crypto.randomUUID();
   const asset: AssetRow = {
-    id: assetId, teamId, gameId, uploadedBy: userId, kind: input.kind, originalFilename: input.filename, byteSize: input.byteSize,
+    id: assetId, teamId, gameId, uploadedBy: userId, kind: input.kind, originalFilename: filename, byteSize: input.byteSize,
     sha256: null, mimeType: input.mimeType, durationSec: null, width: null, height: null, fps: null, container: null, status: 'uploading',
     rejectionReason: null, context: input.context, quality: null, storageKey: originalKey(teamId, assetId, ext), proxyStorageKey: null,
     thumbnailSheetKey: null, retentionUntil: retentionUntilFor(ctx, teamId, nowIso), createdAt: nowIso, updatedAt: nowIso,

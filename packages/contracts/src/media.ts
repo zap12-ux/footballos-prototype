@@ -172,8 +172,37 @@ export type PlaySegment = z.infer<typeof PlaySegmentSchema>;
 
 // §14.1 Resumable uploads: request / response shapes (v0.3) ------------------------------
 
+/**
+ * Sanitizes a client-supplied upload filename (§14.10, QA D-7): control characters (C0, DEL) are
+ * removed, the result is trimmed and must be 1..255 characters with a stem before the extension.
+ * Returns null when the name must be rejected: a NUL byte anywhere, empty after cleaning, longer
+ * than 255 characters, or no stem (`.mp4`, `..mp4`). Storage keys never use this name; it is the
+ * display name echoed to clients.
+ */
+export function sanitizeFilename(input: string): string | null {
+  if (input.includes('\u0000')) return null;
+  const cleaned = input.replace(/[\u0001-\u001f\u007f]/g, '').trim();
+  if (cleaned.length === 0 || cleaned.length > 255) return null;
+  const stem = cleaned.replace(/\.[A-Za-z0-9]{1,8}$/, '');
+  if (stem.replace(/\./g, '').length === 0) return null;
+  return cleaned;
+}
+
+/** Upload filename: sanitized on intake (see `sanitizeFilename`); invalid names are a validation error. */
+export const UploadFilenameSchema = z
+  .string()
+  .max(4096)
+  .transform((v, ctx) => {
+    const out = sanitizeFilename(v);
+    if (out === null) {
+      ctx.addIssue({ code: 'custom', message: 'filename must be 1-255 characters with a name before the extension and no control characters' });
+      return z.NEVER;
+    }
+    return out;
+  });
+
 export const CreateUploadRequestSchema = z.object({
-  filename: z.string().trim().min(1).max(255),
+  filename: UploadFilenameSchema,
   byteSize: z.number().int().positive(),
   mimeType: z.string().min(1).max(127),
   /** Optional client-side hash; enables the early duplicate check (`409 existingAssetId`). */

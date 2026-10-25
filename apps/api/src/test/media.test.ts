@@ -104,6 +104,15 @@ describe('§14.1 resumable uploads', () => {
     expect(big.body.error.code).toBe('payload_too_large');
     const avi = await call(t, 'POST', `/api/v1/games/${game.gameId}/uploads`, { filename: 'film.avi', byteSize: 1000, mimeType: 'video/x-msvideo', context: CONTEXT }, alpha.oc.cookie);
     expect(avi.status).toBe(400);
+    // §14.10 (QA D-7): originalFilename is sanitized on intake
+    for (const name of ['.mp4', 'a\u0000b.mp4', `${'x'.repeat(252)}.mp4`, '\u0001\u0002.mp4']) {
+      const r = await call(t, 'POST', `/api/v1/games/${game.gameId}/uploads`, { filename: name, byteSize: 1000, mimeType: 'video/mp4', context: CONTEXT }, alpha.oc.cookie);
+      expect(r.status, JSON.stringify(name)).toBe(400);
+      expect(r.body.error.code).toBe('validation_error');
+    }
+    const ctl = await call(t, 'POST', `/api/v1/games/${game.gameId}/uploads`, { filename: ' week\u00071\u001b[0m film.mp4 ', byteSize: 1000, mimeType: 'video/mp4', context: CONTEXT }, alpha.oc.cookie);
+    expect(ctl.status).toBe(201);
+    expect(ctl.body.asset.originalFilename).toBe('week1[0m film.mp4');
     const create = await call(t, 'POST', `/api/v1/games/${game.gameId}/uploads`, { filename: 'limits.mp4', byteSize: 5_000_000, mimeType: 'video/mp4', context: CONTEXT }, alpha.oc.cookie);
     const oversize = await putChunk(t, alpha.oc.cookie, create.body.upload.id, Buffer.alloc(2_000_001), 0, 5_000_000);
     expect(oversize.status).toBe(413);
