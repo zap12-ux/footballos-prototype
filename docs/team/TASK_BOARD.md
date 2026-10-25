@@ -42,7 +42,7 @@ Contract: `docs/team/CONTRACTS.md` §14. Briefs: `docs/team/briefs/*-milestone-b
 | B1 | Upload API (resumable ranges, sha256 dedupe, limits, TTL), assets, media grants/streaming, schema `0001` | B (subagent `backend` #2) | Verified (api 68/68 on integration; chain ran end to end on play-1) | A5 | `apps/api/**`, `packages/contracts/**` |
 | B2 | `SqliteJobStore` + worker hosting media and AI handlers; cancel/retry/restart; usage/cost cap | B (same agent) | Verified (api 68/68 on integration; chain ran end to end on play-1) | B1, B2-lib, B4-lib | `apps/api/**` |
 | B2-lib | `extractFrames`, `createMediaHandlers`, contracts types in `packages/media` | C (subagent `media` #2) | Verified (media vitest 79/79 on integration) | A5 | `packages/media/**` |
-| B3 | Film page (chunked upload, jobs, segments split/merge, proxy player), label review with bulk accept, scouting page, typed `hc<AppType>` client | A (subagent `frontend` #2) | In progress | §14 (code against contract) | `apps/web/**` |
+| B3 | Film page (chunked upload, jobs, segments split/merge, proxy player), label review with bulk accept, scouting page, typed `hc<AppType>` client | A (subagent `frontend` #2) | Integrated (web 125/125; lead browser check on the real API; QA UI pass pending) | §14 (code against contract) | `apps/web/**` |
 | B4-lib | `createInferLabelsHandler`, `applyInference` (corrections survive reprocessing), `bulkAcceptPlan` | D (subagent `ai` #2) | Verified (ai vitest 65/65 on integration 9d30d6f) | A5 | `packages/ai/**`, `docs/ai/**` |
 | B4 / B5 | Label routes, inference enqueue, scouting route and snapshots in the API | B (same agent) | Verified (api 68/68 on integration; chain ran end to end on play-1) | B4-lib, B5-lib | `apps/api/**` |
 | B5-lib | `buildScoutingReport`, `snapshotFromReport` | D (same agent) | Verified | — | `packages/ai/**` |
@@ -63,25 +63,31 @@ Defined in the brief; tasks will be cut when B is integrated. Not started.
 | X3 | Hosting target and staff roster | Single Mac on staff LAN vs small VPS; head coach + coordinators list | Design for single host; demo team seeded with fictional staff |
 | X4 | Acceptance targets for model and operations | Owner agreement before evaluation results decide release readiness | Propose targets in `docs/ai/EVALUATION_PLAN.md`; not used for release decisions until agreed |
 
-## STATUS (session 1, end)
+## STATUS (session 1, Milestone B integrated)
 
-**Working now.** Milestone A is integrated on `integration`: contracts, API with auth/MFA/team
-scoping/schedule, web product shell (poster-only montage), media package, AI package, console
-(live, acceptance run recorded), CI/deploy templates, backup/restore tools, QA report.
-Browser-verified: sign-in → MFA → dashboard on the real API with seeded demo data.
+**Working now.** Milestone B is integrated on `integration`: resumable chunked uploads with
+sha256 dedupe, private storage, SQLite job store and worker hosting the media chain
+(validate → proxy → thumbnails → segment) and the AI inference handler, media grants with Range
+streaming, segment split/merge, labels with corrections, revisions and bulk accept, computed
+scouting with snapshots, team settings; web film workflow (upload client, job polling, asset
+view with proxy player and thumbnails, segment timeline, label review, provenance, scouting
+page) on the typed `hc<AppType>` client; console defects D-1..D-4 fixed and the live console
+rebuilt.
 
-**Verified now.** Suites re-run by the lead on `integration`: web 98, api 39, contracts 75,
-media 60, ai 37, console 32 + fixture 48, console-ui 33, ops 8; license inventory 0 violations;
-`npm ci --dry-run` clean. QA independent pass: `docs/qa/QA_REPORT_A6.md`.
+**Verified now (lead, on the real stack in the browser).** Chunked upload of a fixture clip →
+chain completed in ~10 s → asset view with playback, tiles, verbatim quality notes → cut
+accepted → "Run inference" shows the truthful "No model provider is configured" state with no
+invented label → three coach corrections persisted with revision rows → opponent tendency
+report computed from stored labels with denominators (1/1, reviewed-only). Suites on
+integration: web 125, api 68, contracts 75, media 79, ai 65, console 45 + fixture 52,
+console-ui 41, ops 8; licenses 0 violations; lockfile in sync. One prototype timing test is
+load-sensitive (fails under parallel ffmpeg load, passes alone); tracked, not a product defect.
 
-**Known defects.** Console: `leadctl answer|git` dispatch (D-1), drawer unusable under 1024 px
-(D-2), card scroll offset (D-3), relative data dir (D-4). Web: HttpApi calls proposed routes not
-yet in the API (assets, jobs, settings, plans, playbook, personnel) → truthful error panels.
-Environment: repo on iCloud-synced Desktop with ~10 GB free disk → files evicted repeatedly;
-recovery is `git checkout --` of the evicted tracked files; move planned (owner approved planning).
+**In progress.** B6 QA on the API/worker failure paths; UI a11y pass to follow.
 
-**Next integration milestone.** B: upload (resumable, sha256 dedupe) → job worker hosting media
-and AI jobs → segments → labels with corrections → tendencies; plus console defects D-1..D-4.
+**Not done / limits.** No live model call (no key); montage clips pending (X5); full-game
+footage still absent (X1); Milestone C (schedule workspace, playbook, personnel,
+recommendations, plans, approvals, sharing) not started; `thumbEverySec` in grants and
+`hono` dev dependency clean-up are open follow-ups for B/A.
 
-**Input needed.** X1 footage download confirmation; X2 model API key + budget; X4 evaluation
-targets; X5 montage clips (Weave link + cap); go-ahead for the folder move.
+**Input needed.** X1, X2, X4, X5 as before.
