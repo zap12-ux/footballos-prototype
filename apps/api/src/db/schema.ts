@@ -488,6 +488,8 @@ export const recommendations = sqliteTable('recommendations', {
   decisionNote: text('decision_note'),
   planItemId: text('plan_item_id'),
   inputsHash: text('inputs_hash').notNull(),
+  /** Component hashes (labels, playbook, personnel) from `recommendationInputHashes`, for stale reasons and review flags. */
+  inputHashes: text('input_hashes', { mode: 'json' }).$type<InputHashes>().notNull(),
   /** Generation batch; re-generation supersedes undecided items of earlier batches. */
   generationId: text('generation_id').notNull(),
   createdBy: text('created_by').notNull(),
@@ -504,8 +506,10 @@ export const gamePlans = sqliteTable('game_plans', {
   createdAt: text('created_at').notNull(),
 }, (t) => [uniqueIndex('game_plans_game_unit_unique').on(t.gameId, t.unit)]);
 
-/** Stored input hashes at the time a plan version was created or approved; review flags compare them to current inputs. */
-export type PlanInputHashes = { playbook: string; personnel: string; labels: string };
+/** `@footballos/ai` RecommendationInputHashes: sha256 over all inputs plus one per component. */
+export type InputHashes = { inputsHash: string; labelsHash: string; playbookHash: string; personnelHash: string };
+/** Hashes recorded when a plan version was created or approved (`at`); review flags compare them to current inputs. */
+export type PlanBaselineHashes = InputHashes & { at: string };
 
 export const planVersions = sqliteTable('plan_versions', {
   id: text('id').primaryKey(),
@@ -521,7 +525,7 @@ export const planVersions = sqliteTable('plan_versions', {
   approvedBy: text('approved_by'),
   approvedAt: text('approved_at'),
   override: integer('override', { mode: 'boolean' }).notNull().default(false),
-  inputHashes: text('input_hashes', { mode: 'json' }).$type<PlanInputHashes>().notNull(),
+  baselineHashes: text('baseline_hashes', { mode: 'json' }).$type<PlanBaselineHashes>().notNull(),
   version: integer('version').notNull().default(1),
   updatedAt: text('updated_at').notNull(),
 }, (t) => [index('plan_versions_plan_idx').on(t.planId)]);

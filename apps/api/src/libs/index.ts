@@ -9,7 +9,7 @@ export {
 } from '@footballos/media';
 export {
   proposeFromPages, AnthropicPageLabeler, buildRecommendations, recommendationInputHashes, recommendationInputsHash, planReviewFlags,
-  RECOMMENDATION_HASH_VERSION, PLAYBOOK_PAGE_PROMPT_VERSION,
+  RECOMMENDATION_HASH_VERSION, PLAYBOOK_PAGE_PROMPT_VERSION, REPORT_UNIT_FOR_PLAN_UNIT, evaluatePackages,
   type ProposalPage, type ProposeResult, type ProposedConcept, type ProposedTerm, type PageLabeler,
   type RecommendationInputs, type RecommendationInputHashes, type BuildRecommendationsResult, type PlanReviewFlagsInput,
 } from '@footballos/ai';

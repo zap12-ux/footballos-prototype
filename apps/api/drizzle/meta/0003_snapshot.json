@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "d59f173d-23ae-4f47-881b-3149c4b9ecd1",
+  "id": "197c1a39-ef58-4e3e-a232-5ea7a359931e",
   "prevId": "e4341de2-1a73-4a28-bd91-57bb55967b73",
   "tables": {
     "audit_events": {
@@ -1798,8 +1798,8 @@
           "autoincrement": false,
           "default": false
         },
-        "input_hashes": {
-          "name": "input_hashes",
+        "baseline_hashes": {
+          "name": "baseline_hashes",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -2938,6 +2938,13 @@
         },
         "inputs_hash": {
           "name": "inputs_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "input_hashes": {
+          "name": "input_hashes",
           "type": "text",
           "primaryKey": false,
           "notNull": true,

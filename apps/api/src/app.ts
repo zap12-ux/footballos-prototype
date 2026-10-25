@@ -15,6 +15,8 @@ import { scoutingRoutes } from './routes/scouting.js';
 import { settingsRoutes } from './routes/settings.js';
 import { playbookPageRoutes, playbookRoutes } from './routes/playbook.js';
 import { personnelRoutes } from './routes/personnel.js';
+import { recommendationRoutes } from './routes/recommendations.js';
+import { planRoutes, sharedPlanRoutes } from './routes/plans.js';
 
 import { API_PREFIX } from './http/prefix.js';
 export { API_PREFIX };
@@ -53,6 +55,7 @@ export function createApp(ctx: AppContext) {
     // session guard is mounted at the same prefix (Hono composes matching handlers in registration order).
     .route(API_PREFIX, mediaStreamRoutes(ctx))
     .route(API_PREFIX, playbookPageRoutes(ctx))
+    .route(API_PREFIX, sharedPlanRoutes(ctx))
     .route(`${API_PREFIX}/auth`, authRoutes(ctx))
     .route(API_PREFIX, teamRoutes(ctx))
     .route(API_PREFIX, scheduleRoutes(ctx))
@@ -63,7 +66,9 @@ export function createApp(ctx: AppContext) {
     .route(API_PREFIX, scoutingRoutes(ctx))
     .route(API_PREFIX, settingsRoutes(ctx))
     .route(API_PREFIX, playbookRoutes(ctx))
-    .route(API_PREFIX, personnelRoutes(ctx));
+    .route(API_PREFIX, personnelRoutes(ctx))
+    .route(API_PREFIX, recommendationRoutes(ctx))
+    .route(API_PREFIX, planRoutes(ctx));
   return app;
 }
 
