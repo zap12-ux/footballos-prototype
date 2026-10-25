@@ -26,7 +26,7 @@ Last updated: 2026-10-25 (session 1). Execution mode: lead + parallel subagents 
 | A2 | `apps/web`: design tokens, app shell, `react-router` routes for the 10 pages (refresh-safe, back/forward), auth screens wired to A1 contract shapes, landing page with montage slot (poster fallback, pause, reduced motion), environment label, loading/saving/error states, responsive + keyboard a11y; prototype flow preserved under `/demo/film-review` with all 58 tests green | A (subagent `frontend`) | Verified | A0 (contracts by spec; swap to package when A1 lands) | `apps/web/**` | All routes render via direct URL; existing 58 tests pass; new tests for routing, auth gating, montage controls; axe-clean on landing and dashboard | Merged `wt/a-frontend` (5 commits); lead re-ran on integration: vitest 98/98, build ok. Montage is poster-only pending X5; HttpApi untested against the real API (A5) |
 | A3 | `packages/media`: ffprobe validation, proxy (720p h264) + thumbnail sheet, proposed play boundaries for fixed-camera film (motion/scene heuristics), split/merge primitives, original-timestamp mapping, footage-quality assessment with explicit "cannot evaluate" list, job-runner contract (lease, heartbeat, retry, cancel, resume), CLI for the six fixture clips | C (subagent `media`) | Verified | A0 | `packages/media/**`, `fixtures/media/**` | Unit tests on the six clips: probe fields, proxy produced, thumbnails produced, segment proposals with timestamps mapped to source; job runner tests for retry/cancel/restart on a fake job | Merged as `wt/c-media` (4 commits); lead re-ran vitest on integration: 60/60. Synthetic asset: 6 proposed segments for 6 plays. Untested on a full game |
 | A4 | `packages/ai`: `VisionLabeler` adapter interface, Anthropic adapter (frame sequence, ordered timestamps, abstention, provenance), OpenAI adapter stub, label prompt + output schema (contracts `Label.inferred`), deterministic scouting statistics module (counts/denominators from stored labels), evaluation harness (coach-labeled JSONL → metrics incl. abstention/coverage), model-candidate comparison doc from official docs (capabilities, media limits, pricing, retention) with sources and dates | D (subagent `ai`) | Verified | A0 | `packages/ai/**`, `docs/ai/**` | Adapter tests with a fake transport; stats tests with hand-computed expectations; harness runs on a synthetic labeled set; comparison doc cites current official pages; **no paid call made** | Merged as `wt/d-ai` (5 commits); lead re-ran on integration: typecheck clean, vitest 37/37, build + eval CLI ok; `docs/ai/MODEL_CANDIDATES.md` and `EVALUATION_PLAN.md` (targets are proposals, X4) |
-| A5 | Integrate A1–A4; regenerate lockfile; wire API ↔ web for sign-in + team dashboard; smoke test | Lead | In progress (A1–A4 merged; wiring next) | A1–A4 | root, lockfile, glue | Sign-in → dashboard works end to end locally | — |
+| A5 | Integrate A1–A4; regenerate lockfile; wire API ↔ web for sign-in + team dashboard; smoke test | Lead | Verified | A1–A4 | root, lockfile, glue | Sign-in → dashboard works end to end locally | — |
 | A6 | QA pass on integrated Milestone A and the console (auth denial, cross-team, a11y, prototype regressions, console communication and recovery) | E (subagent `qa`) | Integrated (`docs/qa/QA_REPORT_A6.md`; defects D-1..D-4 open for console runtime/UI; a11y pass on A2 still to do) | A1, A3, A4, K4 | `tests/e2e/**`, reports in `docs/qa/**` | Defects filed per owner; prototype regressions (Grade 1/2 reason prompt, Grade 3 not deficiency, No Grade distinct, review time preserved, demo/research distinct, baseline wording) re-run | — |
 | A8 | SQLite online backup and verified restore tools (`@footballos/ops`), restore drill on synthetic data | F (session footballos-11) | Verified | — | `tools/ops/**`, `scripts/**`, `deploy/**` | Backup integrity-checked with sha256 sidecar; restore verifies, refuses without force, moves WAL/SHM; drill recorded | Lead re-ran `npm test -w tools/ops`: 8/8 pass on integration cd435a2; `npm run licenses`: 186 packages, 0 violations; full application restore drill still not performed |
 | A7 | CI for monorepo (typecheck, tests, build for all workspaces), environment templates, dependency + license inventory script | F (session footballos-11) | Integrated (merge 1 of 2; rerun inventory after A5) | A5 for the rerun | `.github/**`, `deploy/**`, `scripts/**` | CI green on `integration`; inventory committed | — |
@@ -59,14 +59,25 @@ Defined in the brief; tasks will be cut when B is integrated. Not started.
 | X3 | Hosting target and staff roster | Single Mac on staff LAN vs small VPS; head coach + coordinators list | Design for single host; demo team seeded with fictional staff |
 | X4 | Acceptance targets for model and operations | Owner agreement before evaluation results decide release readiness | Propose targets in `docs/ai/EVALUATION_PLAN.md`; not used for release decisions until agreed |
 
-## STATUS (session 1)
+## STATUS (session 1, end)
 
-**Working now.** Monorepo on `integration`; prototype at `apps/web` with its 58 tests green;
-coordination docs in `docs/team`; console contract written; console runtime and UI being built by two subagents; session footballos-11 drafting A7. Product workers A–D are **not launched yet** (console must be proven first).
+**Working now.** Milestone A is integrated on `integration`: contracts, API with auth/MFA/team
+scoping/schedule, web product shell (poster-only montage), media package, AI package, console
+(live, acceptance run recorded), CI/deploy templates, backup/restore tools, QA report.
+Browser-verified: sign-in → MFA → dashboard on the real API with seeded demo data.
 
-**Verified now.** `npm run typecheck && npm test` from root after the move (58/58). Nothing
-else is verified yet.
+**Verified now.** Suites re-run by the lead on `integration`: web 98, api 39, contracts 75,
+media 60, ai 37, console 32 + fixture 48, console-ui 33, ops 8; license inventory 0 violations;
+`npm ci --dry-run` clean. QA independent pass: `docs/qa/QA_REPORT_A6.md`.
 
-**Next integration milestone.** K3/K4: console live and proven with two real agents; then A1–A4 launch through it.
+**Known defects.** Console: `leadctl answer|git` dispatch (D-1), drawer unusable under 1024 px
+(D-2), card scroll offset (D-3), relative data dir (D-4). Web: HttpApi calls proposed routes not
+yet in the API (assets, jobs, settings, plans, playbook, personnel) → truthful error panels.
+Environment: repo on iCloud-synced Desktop with ~10 GB free disk → files evicted repeatedly;
+recovery is `git checkout --` of the evicted tracked files; move planned (owner approved planning).
 
-**Input needed.** X1–X3 above.
+**Next integration milestone.** B: upload (resumable, sha256 dedupe) → job worker hosting media
+and AI jobs → segments → labels with corrections → tendencies; plus console defects D-1..D-4.
+
+**Input needed.** X1 footage download confirmation; X2 model API key + budget; X4 evaluation
+targets; X5 montage clips (Weave link + cap); go-ahead for the folder move.
