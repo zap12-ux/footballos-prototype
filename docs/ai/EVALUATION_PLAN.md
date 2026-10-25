@@ -76,3 +76,73 @@ calibration of `uncertainty` against correctness.
 2. Which three games, and who labels them.
 3. Whether a second paid key (OpenAI) is authorized for the comparison, or whether the
    comparison stays Anthropic-only across Opus 5.5 / Sonnet 5.5 / Haiku 5.5.
+
+## 7. First live call checklist (before any job runs with a key)
+
+No live call has been made as of 2026-10-25. The request shape follows the official docs
+but has only been exercised against a fake transport. The first call is a **single
+segment**, run by hand, and its result is recorded before `POST /assets/:assetId/infer`
+is used on a game.
+
+1. **Environment.** `ANTHROPIC_API_KEY` exported in the shell only (never in a file in the
+   repository, never in a console message). `FOOTBALLOS_AI_MODEL` left at the default or set
+   to the model under evaluation; `FOOTBALLOS_AI_JOB_BUDGET_USD=1` for this check so a
+   surprise costs at most one dollar.
+2. **Input.** One accepted segment of demo or permitted footage, 5–10 s long, extracted at
+   1 fps with the production cap (`planFrameSampling({ fps: 1, maxFrames: 12 })` →
+   `extractFrames(src, plan.timestampsSec, { height: 720 })`). Keys:
+   `["unit", "formation_family", "play_type", "situation_down"]` (the last one must come back
+   abstained unless a down marker is visible).
+3. **Confirm the request shape** before sending (log the params with the image data
+   replaced by `<jpeg n bytes>`): `model`, `max_tokens`, `system[0].cache_control`,
+   `output_config.format.type === "json_schema"`, `output_config.effort`, one text/image pair
+   per frame with `t=…s` in the text, the context block with `<team_cues untrusted="true">`.
+   Nothing else; no `tool_choice`, no `fallbacks`.
+4. **Send once.** If the API rejects the request (400), record the error body verbatim in
+   `docs/ai/results/first-call-<date>.md` and fix the adapter; do not loop on retries.
+5. **Record provenance.** From the returned `ModelProvenance`: `model` (the served id, which
+   may be a dated snapshot), `promptId`/`promptHash`, `inputTokens`, `outputTokens`,
+   `costUsd`, `latencyMs`, `inspected.frameTimestampsSec`. Compare `costUsd` with the
+   invoice line in the provider console the next day and note any difference in the same
+   results file.
+6. **Check the labels against the frames by eye:** every non-null value cites frame
+   timestamps that were sent; `situation_*` is abstained unless a marker is visible; the
+   validator accepted the response without rewriting anything.
+7. **Only then** raise the budget back to the default and run one asset through
+   `POST /assets/:assetId/infer`; review the job's `skipped` list and total `costUsd`.
+
+## 8. Coach-labeled set: the export B's API must produce
+
+The harness scores a **truth** file against a **prediction** file, both JSONL, one row per
+(segment, key). B's export of a reviewed asset or game produces both from stored rows:
+
+Truth (`coach.jsonl`), one row per `Label` whose `accepted.status` is `accepted` or
+`corrected` (a coach decision), plus `unknown` and `rejected` as `value: null`:
+
+```json
+{"segmentId":"<PlaySegment.id>","gameId":"<PlaySegment.gameId>","key":"<LabelKey>","value":"trips"}
+{"segmentId":"<PlaySegment.id>","gameId":"<PlaySegment.gameId>","key":"situation_down","value":null}
+```
+
+Predictions (`predictions.jsonl`), one row per `Label` with a non-null `inferred` block,
+regardless of what the coach later decided:
+
+```json
+{"segmentId":"<PlaySegment.id>","gameId":"<PlaySegment.gameId>","key":"<LabelKey>","value":"trips","abstained":false}
+{"segmentId":"<PlaySegment.id>","gameId":"<PlaySegment.gameId>","key":"situation_down","value":null,"abstained":true}
+```
+
+Rules for the export:
+- `value` is the raw stored string (`accepted.value` for truth, `inferred.value` for
+  predictions); no normalisation beyond what the harness does (trim, case-insensitive
+  `"unknown"` → null).
+- Rows with `accepted.status === 'inferred'` are **not** truth: the coach has not looked.
+- Superseded segments (`supersededBy.length > 0`) and `rejected` segments are omitted from
+  both files.
+- Include the `ModelProvenance` ids used for the predictions in a sidecar
+  `provenance.json` (`{ promptHash, model, provenanceIds: [...] }`) so a run is tied to
+  one prompt and model; the harness will refuse mixed prompt hashes in a later version.
+- Labels made before the model ran (coach labeled first) are preferable; the export
+  should carry `LabelRevision.at` so a later check can tell which came first.
+
+Run: `node packages/ai/bin/eval.mjs --truth coach.jsonl --pred predictions.jsonl --held-out-games <gameId,...> --json docs/ai/results/<date>-<model>.json`.
