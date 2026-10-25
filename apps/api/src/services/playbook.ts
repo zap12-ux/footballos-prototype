@@ -6,9 +6,9 @@ import type {
 import type { Job } from '@footballos/media';
 import type { AppContext } from '../context.js';
 import type { Db } from '../db/db.js';
-import { concepts, mediaAssets, playbookDocuments, playbookPages, playbookVersions, seasons, terms } from '../db/schema.js';
+import { concepts, mediaAssets, modelProvenance, playbookDocuments, playbookPages, playbookVersions, seasons, terms } from '../db/schema.js';
 import { errors } from '../errors.js';
-import type { ExtractDocumentResult, ProposeResult } from '../libs/index.js';
+import type { ExtractDocumentJobResult, ProposeResult } from '../libs/index.js';
 import { writeAudit } from './audit.js';
 import { deleteAsset, type AssetRow, type DocumentJobInput, type DocumentRow } from './media.js';
 import { keyFor } from './storage.js';
@@ -19,7 +19,7 @@ export type ConceptRow = typeof concepts.$inferSelect;
 export type TermRow = typeof terms.$inferSelect;
 
 /** What the hosted `extract_document` handler returns: C's extraction plus D's proposals. */
-export type ExtractionJobResult = { extraction: ExtractDocumentResult; proposals: ProposeResult };
+export type ExtractionJobResult = { extraction: ExtractDocumentJobResult; proposals: ProposeResult };
 
 // Serialization ---------------------------------------------------------------------------------
 
@@ -119,17 +119,27 @@ export function persistExtraction(ctx: AppContext, tx: Db, job: Job, result: Ext
   const doc = tx.select().from(playbookDocuments).where(eq(playbookDocuments.id, input.documentId)).get();
   if (!doc) return;
   const nowIso = ctx.now().toISOString();
+  if (result.extraction.pageCount === 0) {
+    // e.g. a password-protected PDF: the extractor says why in `warnings`.
+    markExtractionFailed(ctx, tx, job, result.extraction.warnings.join(' ') || 'The document has no readable pages');
+    return;
+  }
   tx.delete(playbookPages).where(eq(playbookPages.documentId, doc.id)).run();
-  const pageIds = new Map<number, string>();
   for (const p of result.extraction.pages) {
     const id = crypto.randomUUID();
-    pageIds.set(p.pageNumber, id);
     tx.insert(playbookPages).values({
       id, documentId: doc.id, pageNumber: p.pageNumber, imageKey: p.imagePath ? safeKey(ctx, p.imagePath) : null, ocrText: p.text, ocrConfidence: p.ocrConfidence,
       textSource: p.textSource, width: p.width, height: p.height,
     }).run();
   }
   const warnings = [...result.extraction.warnings];
+  for (const prov of result.proposals.provenance ?? []) {
+    tx.insert(modelProvenance).values({
+      id: prov.id, teamId: doc.teamId, assetId: doc.assetId, segmentId: null, jobId: job.id, provider: prov.provider, model: prov.model, modelRevision: prov.modelRevision,
+      promptId: prov.promptId, promptHash: prov.promptHash, preprocessing: prov.preprocessing, inspected: prov.inspected, analysisVersion: prov.analysisVersion,
+      inputTokens: prov.inputTokens, outputTokens: prov.outputTokens, costUsd: prov.costUsd, latencyMs: prov.latencyMs, requestedAt: prov.requestedAt, completedAt: prov.completedAt,
+    }).onConflictDoNothing().run();
+  }
   let conceptsProposed = 0;
   let termsProposed = 0;
   const total = result.proposals.concepts.length + result.proposals.terms.length;

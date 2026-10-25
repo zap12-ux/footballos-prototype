@@ -6,7 +6,7 @@ import type { Job } from '@footballos/media';
 import type { AppContext } from '../context.js';
 import type { Db } from '../db/db.js';
 import { mediaAssets, playSegments, playbookDocuments, processingJobs, teamSettings, uploads } from '../db/schema.js';
-import { coachingLibs } from '../libs/index.js';
+import { DOCUMENT_PIPELINE_VERSION, PLAYBOOK_PAGE_PROMPT_VERSION } from '../libs/index.js';
 import { ApiError, errors } from '../errors.js';
 import { enqueueJob } from '../jobs/enqueue.js';
 import { writeAudit } from './audit.js';
@@ -28,7 +28,7 @@ export function filmGameId(asset: Pick<AssetRow, 'id' | 'kind' | 'gameId'>): str
 export const DOCUMENT_EXTRACT_KIND = 'extract_document';
 
 export function documentConfigVersion(ctx: AppContext): string {
-  return `doc-extract-1:${coachingLibs.version}:dpi${ctx.config.limits.documentRenderDpi}:ocr-${ctx.config.limits.documentOcr}`;
+  return `${DOCUMENT_PIPELINE_VERSION}:page-prompt-${PLAYBOOK_PAGE_PROMPT_VERSION}:dpi${ctx.config.limits.documentRenderDpi}:ocr-${ctx.config.limits.documentOcr}`;
 }
 
 /** `ProcessingJob.input` of an extract_document job: C's DocumentJobInput plus identity. */

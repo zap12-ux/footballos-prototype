@@ -19,12 +19,7 @@
     "declaration": false,
     "sourceMap": true,
     "outDir": "dist",
-    "rootDir": "src",
-    "paths": {
-      "@footballos/media": [
-        "../../packages/media/dist/index.d.ts"
-      ]
-    }
+    "rootDir": "src"
   },
   "include": [
     "src"

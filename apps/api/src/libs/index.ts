@@ -1,23 +1,18 @@
 /**
- * Binding of the §15.5 library interfaces. Today every function is the local stub; when the lead
- * confirms that `@footballos/media` exports `extractDocument` / `createDocumentHandlers` and
- * `@footballos/ai` exports `proposeFromPages` / `buildRecommendations` /
- * `recommendationInputsHash` / `planReviewFlags`, replace the right-hand sides with those imports
- * (and bump `version`, which is part of the extract_document idempotency key).
+ * Binding of the §15.5 library interfaces hosted by the API (CONTRACTS §15.5). Both packages
+ * landed on integration on 2026-10-25 (C2-lib, C3-lib); this module is the single place the API
+ * imports them from, so a future swap or stub is one file.
  */
-import type { CoachingLibs } from './types.js';
-import { createDocumentHandlersStub, extractDocumentStub, STUB_EXTRACTOR_VERSION } from './stub-document.js';
-import { buildRecommendationsStub, planReviewFlagsStub, proposeFromPagesStub, recommendationInputsHashStub, STUB_PROPOSER_VERSION, STUB_RECOMMENDER_VERSION } from './stub-ai.js';
+export {
+  createDocumentHandlers, asDocumentJobHandler, DocumentError, PAGES_DIRNAME, PAGES_FILENAME,
+  type DocumentJobInput as MediaDocumentJobInput, type ExtractDocumentJobResult, type ExtractedPage, type TextSource,
+} from '@footballos/media';
+export {
+  proposeFromPages, AnthropicPageLabeler, buildRecommendations, recommendationInputHashes, recommendationInputsHash, planReviewFlags,
+  RECOMMENDATION_HASH_VERSION, PLAYBOOK_PAGE_PROMPT_VERSION,
+  type ProposalPage, type ProposeResult, type ProposedConcept, type ProposedTerm, type PageLabeler,
+  type RecommendationInputs, type RecommendationInputHashes, type BuildRecommendationsResult, type PlanReviewFlagsInput,
+} from '@footballos/ai';
 
-export const coachingLibs: CoachingLibs = {
-  extractDocument: extractDocumentStub,
-  createDocumentHandlers: createDocumentHandlersStub,
-  proposeFromPages: proposeFromPagesStub,
-  buildRecommendations: buildRecommendationsStub,
-  recommendationInputsHash: recommendationInputsHashStub,
-  planReviewFlags: planReviewFlagsStub,
-  version: `${STUB_EXTRACTOR_VERSION}:${STUB_PROPOSER_VERSION}:${STUB_RECOMMENDER_VERSION}`,
-};
-
-export * from './types.js';
-export { playbookHashStub as playbookInputsHash, personnelHashStub as personnelInputsHash, unavailablePackageIds } from './stub-ai.js';
+/** Part of the extract_document idempotency key: changes when the extractor or the proposer changes. */
+export const DOCUMENT_PIPELINE_VERSION = 'doc-pipeline-1';

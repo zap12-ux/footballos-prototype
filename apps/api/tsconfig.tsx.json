@@ -1,13 +1,6 @@
 {
-  // Used only by the tsx entry points (`npm run dev|worker|migrate|seed:demo|bootstrap`).
-  // `tsconfig.json` points @footballos/media at its built .d.ts so that `tsc` can type-check the
-  // API; tsx honours the same `paths` at run time and would load that .d.ts (whose re-exports use
-  // `.ts` specifiers that do not exist under dist/). At run time the package source is what we
-  // want: tsx executes `.ts` imports natively (QA B6 defect D-3).
-  "extends": "./tsconfig.json",
-  "compilerOptions": {
-    "paths": {
-      "@footballos/media": ["../../packages/media/src/index.ts"]
-    }
-  }
+  // Used by the tsx entry points (`npm run dev|worker|migrate|seed:demo|bootstrap`). Since Milestone C
+  // `@footballos/media` ships a proper `types` export, so no `paths` override is needed any more; the
+  // file stays so the scripts keep one config to point at.
+  "extends": "./tsconfig.json"
 }

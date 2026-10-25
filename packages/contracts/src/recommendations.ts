@@ -37,14 +37,16 @@ export const RecommendationSchema = z
     inputsHash: z.string().min(1),
     createdAt: TimestampSchema,
     version: VersionSchema,
-    /** v0.4: the coach's wording when the decision was `edit`; the stored decision is never rewritten. */
-    editedStatement: z.string().nullable(),
-    /** v0.4: coach note recorded with the decision. */
-    decisionNote: z.string().nullable(),
-    /** v0.4: the stored decision, kept even while the item is reported `stale` on read. */
-    storedStatus: RecommendationStatusSchema,
-    /** v0.4: the plan item created by an `accept`/`edit` decision. */
-    planItemId: IdSchema.nullable(),
+    // v0.4 decision record, always present on API responses; optional so library code that builds
+    // fresh recommendations (`@footballos/ai` buildRecommendations) need not know them.
+    /** The coach's wording when the decision was `edit`; the stored decision is never rewritten. */
+    editedStatement: z.string().nullable().optional(),
+    /** Coach note recorded with the decision. */
+    decisionNote: z.string().nullable().optional(),
+    /** The stored decision, kept even while the item is reported `stale` on read. */
+    storedStatus: RecommendationStatusSchema.optional(),
+    /** The plan item created by an `accept`/`edit` decision. */
+    planItemId: IdSchema.nullable().optional(),
   })
   .refine((r) => (r.status === 'stale' ? r.staleReason !== null : true), {
     message: 'a stale recommendation states its staleReason',

@@ -72,6 +72,10 @@ export const policy = {
   canManageTeam: (m: MembershipRow) => m.role === 'head_coach',
   /** Create seasons, games and schedule imports. */
   canManageSchedule: (m: MembershipRow) => m.role === 'head_coach' || m.role === 'coordinator',
+  /** §15.2 personnel edits (roster, imports, depth chart, packages, availability): head coach and coordinators. */
+  canEditPersonnel: (m: MembershipRow) => m.role === 'head_coach' || m.role === 'coordinator',
+  /** §15.3 generate / decide recommendations and §15.4 reopen a plan: coordinator of the unit or head coach. */
+  canDecideForUnit: (m: MembershipRow, unit: Unit) => m.role === 'head_coach' || (m.role === 'coordinator' && m.units.includes(unit)),
 };
 
 export function assert(cond: boolean, message = 'Not permitted'): void {
