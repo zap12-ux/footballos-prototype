@@ -25,8 +25,20 @@ import type {
   Task,
   TaskResult,
   TaskStatus,
+  TaskView,
   Verification,
 } from './types.js';
+
+/** The seven planned roles of the build team, shown by the UI as placeholders until registered. */
+export const PLANNED_ROLES = [
+  'Lead / Integrator',
+  'Product Design / Frontend',
+  'Backend / Team Platform',
+  'Media / Document Processing',
+  'Applied AI / Scouting',
+  'QA / Security',
+  'Deployment / Reliability',
+];
 
 export interface NewEvent {
   runId: string;
@@ -43,12 +55,16 @@ export interface NewEvent {
 export interface StateSnapshot {
   run: Run | null;
   agents: AgentView[];
-  tasks: Task[];
+  tasks: TaskView[];
   questions: Question[];
   responses: ResponseView[];
   taskResults: TaskResult[];
   verifications: Verification[];
   lastRuntimeEventAt: string | null;
+  /** Max event seq for this run; pass as `after` to GET /api/stream. */
+  lastSeq: number;
+  plannedRoles: string[];
+  staleAfterMin: number;
   serverTime: string;
   config: { staleAfterMin: number; leadPickupAfterSec: number };
 }
@@ -131,7 +147,7 @@ export class Service {
         .prepare('INSERT INTO runs (id, project_id, kind, label, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
         .run(id, 'footballos', input.kind, redact(input.label), ts, ts);
       const run = this.store.getRun(id)!;
-      emit({ runId: id, type: 'run.created', source: 'lead', payload: { kind: run.kind, label: run.label } });
+      emit({ runId: id, type: 'run.created', source: 'lead', payload: { run } });
       return run;
     });
   }
@@ -196,7 +212,7 @@ export class Service {
         type: 'agent.registered',
         source: 'lead',
         agentId: id,
-        payload: { name: agent.name, role: agent.role, branch: agent.branch, worktree: agent.worktree },
+        payload: { agent },
       });
       return { agent, agentToken: token };
     });
@@ -227,7 +243,7 @@ export class Service {
           agentId,
         );
       const updated = this.store.getAgent(agentId)!;
-      emit({ runId: agent.runId, type: 'lead.note', source: 'lead', agentId, payload: { agentPatched: patch } });
+      emit({ runId: agent.runId, type: 'lead.note', source: 'lead', agentId, payload: { agent: updated, patch } });
       return updated;
     });
   }
@@ -248,7 +264,7 @@ export class Service {
     dependsOn: string[];
     allowedPaths: string[];
     branch?: string | null;
-  }): Task {
+  }): TaskView {
     if (!this.store.getRun(input.runId)) throw notFound('run');
     if (input.agentId) {
       const agent = this.store.getAgent(input.agentId);
@@ -276,14 +292,14 @@ export class Service {
           ts,
           ts,
         );
-      const task = this.store.getTask(id)!;
+      const task = this.taskView(this.store.getTask(id)!);
       emit({
         runId: input.runId,
         type: 'task.created',
         source: 'lead',
         taskId: id,
         agentId: task.agentId,
-        payload: { title: task.title, status: task.status, agentId: task.agentId },
+        payload: { task: this.taskView(task) },
       });
       return task;
     });
@@ -302,7 +318,7 @@ export class Service {
       acceptanceCriteria?: string[];
       verificationId?: string;
     },
-  ): Task {
+  ): TaskView {
     const task = this.store.getTask(taskId);
     if (!task) throw notFound('task');
     if (patch.status === 'integrated' || patch.status === 'verified') {
@@ -329,9 +345,10 @@ export class Service {
         objective: patch.objective !== undefined ? redact(patch.objective) : task.objective,
         acceptanceCriteria: patch.acceptanceCriteria?.map(redact) ?? task.acceptanceCriteria,
       };
+      const closing = next.status === 'integrated' || next.status === 'verified';
       this.db
         .prepare(
-          `UPDATE tasks SET status = ?, agent_id = ?, depends_on_json = ?, allowed_paths_json = ?, branch = ?, title = ?, objective = ?, acceptance_criteria_json = ?, updated_at = ? WHERE id = ?`,
+          `UPDATE tasks SET status = ?, agent_id = ?, depends_on_json = ?, allowed_paths_json = ?, branch = ?, title = ?, objective = ?, acceptance_criteria_json = ?, verification_id = ?, updated_at = ? WHERE id = ?`,
         )
         .run(
           next.status,
@@ -342,24 +359,21 @@ export class Service {
           next.title,
           next.objective,
           JSON.stringify(next.acceptanceCriteria),
+          closing ? patch.verificationId! : task.verificationId,
           ts,
           taskId,
         );
+      const updated = this.taskView(this.store.getTask(taskId)!);
       emit({
         runId: task.runId,
         type: 'task.updated',
         source: 'lead',
         taskId,
         agentId: next.agentId,
-        payload: {
-          previousStatus: task.status,
-          status: next.status,
-          changes: Object.keys(patch),
-          verificationId: patch.verificationId ?? null,
-        },
+        payload: { task: updated, previousStatus: task.status, changes: Object.keys(patch) },
       });
-      if (next.status === 'integrated' || next.status === 'verified') this.expireOpenQuestionsForTask(taskId, emit);
-      return this.store.getTask(taskId)!;
+      if (closing) this.expireOpenQuestionsForTask(taskId, emit);
+      return updated;
     });
   }
 
@@ -378,7 +392,7 @@ export class Service {
         agentId: row.agent_id as string,
         taskId,
         questionId: row.id as string,
-        payload: { reason: 'task_closed' },
+        payload: { question: this.store.getQuestion(row.id as string), reason: 'task_closed' },
       });
     }
   }
@@ -421,7 +435,7 @@ export class Service {
         source: 'lead',
         taskId: input.taskId,
         agentId: task.agentId,
-        payload: { verificationId: id, kind: v.kind, passed: v.passed, resultSummary: v.resultSummary },
+        payload: { verification: v },
       });
       return v;
     });
@@ -481,7 +495,7 @@ export class Service {
         taskId: task?.id ?? response?.taskId ?? null,
         questionId: response?.questionId ?? null,
         responseId: response?.id ?? null,
-        payload: { details: input.details },
+        payload: { details: input.details, ...(agent ? { agent: this.store.getAgent(agent.id) } : {}) },
       });
       if (input.type === 'message.delivered' && response && response.state === 'submitted') {
         this.db
@@ -497,7 +511,7 @@ export class Service {
           taskId: response.taskId,
           questionId: response.questionId,
           responseId: response.id,
-          payload: { via: 'lead_continuation' },
+          payload: { via: 'lead_continuation', deliveredAt: ts, response: this.store.getResponse(response.id) },
         });
       }
       return ev;
@@ -566,7 +580,7 @@ export class Service {
         taskId: question.taskId,
         questionId,
         responseId: id,
-        payload: { option, text, questionVersion: question.questionVersion },
+        payload: { response, question: this.store.getQuestion(questionId) },
       });
       return { response, created: true };
     });
@@ -580,6 +594,7 @@ export class Service {
 
   getState(run: Run | null): StateSnapshot {
     const now = Date.now();
+    const config = { staleAfterMin: this.config.staleAfterMin, leadPickupAfterSec: this.config.leadPickupAfterSec };
     if (!run) {
       return {
         run: null,
@@ -590,8 +605,11 @@ export class Service {
         taskResults: [],
         verifications: [],
         lastRuntimeEventAt: null,
+        lastSeq: 0,
+        plannedRoles: PLANNED_ROLES,
+        staleAfterMin: this.config.staleAfterMin,
         serverTime: nowIso(),
-        config: { staleAfterMin: this.config.staleAfterMin, leadPickupAfterSec: this.config.leadPickupAfterSec },
+        config,
       };
     }
     const blocking = this.store.openBlockingQuestionIdsByAgent(run.id);
@@ -603,15 +621,22 @@ export class Service {
     return {
       run,
       agents,
-      tasks: this.store.listTasks(run.id),
+      tasks: this.store.listTasks(run.id).map((t) => this.taskView(t)),
       questions: this.store.listQuestions(run.id),
       responses,
       taskResults: this.store.listTaskResults(run.id),
       verifications: this.store.listVerifications(run.id),
       lastRuntimeEventAt: this.store.lastRuntimeEventAt(run.id),
+      lastSeq: this.store.lastSeq(run.id),
+      plannedRoles: PLANNED_ROLES,
+      staleAfterMin: this.config.staleAfterMin,
       serverTime: nowIso(),
-      config: { staleAfterMin: this.config.staleAfterMin, leadPickupAfterSec: this.config.leadPickupAfterSec },
+      config,
     };
+  }
+
+  taskView(task: Task): TaskView {
+    return { ...task, result: this.store.latestTaskResult(task.id) };
   }
 
   withResumed(r: Response): ResponseView {
@@ -662,9 +687,9 @@ export class Service {
       const ts = nowIso();
       this.db
         .prepare(
-          `UPDATE agents SET self_state = ?, current_task_id = COALESCE(?, current_task_id), last_agent_update_at = ?, updated_at = ? WHERE id = ?`,
+          `UPDATE agents SET self_state = ?, current_task_id = COALESCE(?, current_task_id), last_message = ?, last_agent_update_at = ?, updated_at = ? WHERE id = ?`,
         )
-        .run(input.state, input.taskId ?? null, ts, ts, agent.id);
+        .run(input.state, input.taskId ?? null, redact(input.message), ts, ts, agent.id);
       if (task && task.status === 'ready' && input.state === 'working') {
         this.db.prepare("UPDATE tasks SET status = 'in_progress', updated_at = ? WHERE id = ?").run(ts, task.id);
         emit({
@@ -673,7 +698,7 @@ export class Service {
           source: 'agent',
           taskId: task.id,
           agentId: agent.id,
-          payload: { previousStatus: 'ready', status: 'in_progress', changes: ['status'], reason: 'agent_started' },
+          payload: { task: this.taskView(this.store.getTask(task.id)!), previousStatus: 'ready', changes: ['status'], reason: 'agent_started' },
         });
       }
       const event = emit({
@@ -682,7 +707,7 @@ export class Service {
         source: 'agent',
         agentId: agent.id,
         taskId: input.taskId ?? null,
-        payload: { state: input.state, message: redact(input.message) },
+        payload: { state: input.state, taskId: input.taskId ?? null, message: redact(input.message) },
         clientEventId: input.clientEventId,
       });
       return { event, duplicate: false };
@@ -762,7 +787,7 @@ export class Service {
           agentId: agent.id,
           taskId: question.taskId,
           questionId: question.id,
-          payload: { ...publicQuestionPayload(question), revised: true },
+          payload: { question, revised: true },
         });
         return { question, created: false };
       });
@@ -810,7 +835,7 @@ export class Service {
           agentId: agent.id,
           taskId: superseded.taskId,
           questionId: superseded.id,
-          payload: { supersededByQuestionId: id },
+          payload: { question: this.store.getQuestion(superseded.id), supersededByQuestionId: id },
         });
       }
       const question = this.store.getQuestion(id)!;
@@ -821,7 +846,7 @@ export class Service {
         agentId: agent.id,
         taskId: input.taskId,
         questionId: id,
-        payload: publicQuestionPayload(question),
+        payload: { question },
       });
       return { question, created: true };
     });
@@ -875,7 +900,7 @@ export class Service {
           taskId: question.taskId,
           questionId,
           responseId: response.id,
-          payload: { via: 'agent_poll' },
+          payload: { via: 'agent_poll', deliveredAt: ts, response: this.store.getResponse(response.id) },
         });
         return this.store.getResponse(response.id)!;
       });
@@ -936,6 +961,10 @@ export class Service {
     if (response.state === 'acknowledged') return { response, changed: false };
     return this.tx((emit) => {
       const ts = nowIso();
+      const note = input.note ? redact(input.note) : null;
+      this.db
+        .prepare(`UPDATE responses SET state = 'acknowledged', acknowledged_at = ?, ack_note = ?, updated_at = ? WHERE id = ?`)
+        .run(ts, note, ts, response.id);
       const ev = emit({
         runId: agent.runId,
         type: 'response.acknowledged',
@@ -944,13 +973,9 @@ export class Service {
         taskId: question.taskId,
         questionId,
         responseId: response.id,
-        payload: { note: input.note ? redact(input.note) : null, previousState: response.state },
+        payload: { response: this.store.getResponse(response.id), note, previousState: response.state },
       });
-      this.db
-        .prepare(
-          `UPDATE responses SET state = 'acknowledged', acknowledged_at = ?, ack_event_seq = ?, ack_note = ?, updated_at = ? WHERE id = ?`,
-        )
-        .run(ts, ev.seq, input.note ? redact(input.note) : null, ts, response.id);
+      this.db.prepare('UPDATE responses SET ack_event_seq = ? WHERE id = ?').run(ev.seq, response.id);
       this.db.prepare('UPDATE agents SET last_agent_update_at = ?, updated_at = ? WHERE id = ?').run(ts, ts, agent.id);
       return { response: this.store.getResponse(response.id)!, changed: true };
     });
@@ -970,12 +995,12 @@ export class Service {
       limitations: string[];
       followUps: string[];
     },
-  ): { result: TaskResult; task: Task; duplicate: boolean } {
+  ): { result: TaskResult; task: TaskView; duplicate: boolean } {
     const task = this.store.getTask(taskId);
     if (!task || task.runId !== agent.runId) throw notFound('task');
     if (task.agentId && task.agentId !== agent.id) throw notFound('task');
     const dup = this.store.getTaskResultByClientRequest(agent.id, input.clientRequestId);
-    if (dup) return { result: dup, task, duplicate: true };
+    if (dup) return { result: dup, task: this.taskView(task), duplicate: true };
     return this.tx((emit) => {
       const id = newId();
       const ts = nowIso();
@@ -1011,32 +1036,23 @@ export class Service {
           source: 'agent',
           taskId,
           agentId: agent.id,
-          payload: { previousStatus: task.status, status: nextStatus, changes: ['status'], reason: 'task_result' },
+          payload: { task: this.taskView(this.store.getTask(taskId)!), previousStatus: task.status, changes: ['status'], reason: 'task_result' },
         });
       }
       this.db
         .prepare("UPDATE agents SET self_state = 'idle', last_agent_update_at = ?, updated_at = ? WHERE id = ?")
         .run(ts, ts, agent.id);
       const result = this.store.getTaskResultByClientRequest(agent.id, input.clientRequestId)!;
+      const taskView = this.taskView(this.store.getTask(taskId)!);
       emit({
         runId: agent.runId,
         type: 'task.result',
         source: 'agent',
         taskId,
         agentId: agent.id,
-        payload: {
-          resultId: id,
-          status: result.status,
-          summary: result.summary,
-          branch: result.branch,
-          commit: result.commit,
-          changedFiles: result.changedFiles,
-          testsRun: result.testsRun,
-          limitations: result.limitations,
-          followUps: result.followUps,
-        },
+        payload: { result, task: taskView },
       });
-      return { result, task: this.store.getTask(taskId)!, duplicate: false };
+      return { result, task: taskView, duplicate: false };
     });
   }
 }
@@ -1048,14 +1064,3 @@ export interface InboxItem {
   ageSec: number;
 }
 
-function publicQuestionPayload(q: Question) {
-  return {
-    question: q.question,
-    why: q.why,
-    options: q.options,
-    recommendation: q.recommendation,
-    blocking: q.blocking,
-    questionVersion: q.questionVersion,
-    supersedesQuestionId: q.supersedesQuestionId,
-  };
-}

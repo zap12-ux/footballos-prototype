@@ -67,14 +67,19 @@ export interface Agent {
   worktree: string | null;
   branch: string | null;
   runtimeAgentId: string | null;
-  /** State the agent last reported about itself (§3). */
+  /** State the agent last reported about itself (§3). `selfReportedState` is the same value. */
   selfState: SelfState;
+  selfReportedState: SelfState;
+  /** Message of the agent's last status report. */
+  lastMessage: string | null;
   /** Terminal state set by runtime events only. */
   runtimeState: 'completed' | 'failed' | null;
   currentTaskId: string | null;
   blockedByTaskId: string | null;
   lastAgentUpdateAt: string | null;
   lastRuntimeUpdateAt: string | null;
+  /** Latest of lastAgentUpdateAt / lastRuntimeUpdateAt. */
+  lastUpdateAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -96,8 +101,15 @@ export interface Task {
   allowedPaths: string[];
   branch: string | null;
   status: TaskStatus;
+  /** Verification used to set integrated/verified. */
+  verificationId: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface TaskView extends Task {
+  /** The last report_task_result for this task, if any. */
+  result: TaskResult | null;
 }
 
 export interface Question {
@@ -135,6 +147,8 @@ export interface Response {
   submittedAt: string;
   deliveredAt: string | null;
   deliveredVia: 'agent_poll' | 'lead_continuation' | null;
+  /** Same as deliveredVia (UI name). */
+  via: 'agent_poll' | 'lead_continuation' | null;
   acknowledgedAt: string | null;
   ackNote: string | null;
   createdAt: string;
@@ -172,6 +186,7 @@ export interface Verification {
   resultSummary: string;
   passed: boolean;
   evidence: Record<string, unknown>;
+  recordedBy: string;
   createdAt: string;
 }
 

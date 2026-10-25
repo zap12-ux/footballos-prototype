@@ -33,6 +33,12 @@ const json = <T>(v: unknown, fallback: T): T => {
 
 export const DEFAULT_PROJECT_ID = 'footballos';
 
+function latestIso(a: string | null, b: string | null): string | null {
+  if (!a) return b;
+  if (!b) return a;
+  return Date.parse(a) >= Date.parse(b) ? a : b;
+}
+
 export function mapRun(r: Row): Run {
   return {
     id: r.id as string,
@@ -55,11 +61,14 @@ export function mapAgent(r: Row): Agent {
     branch: str(r.branch),
     runtimeAgentId: str(r.runtime_agent_id),
     selfState: r.self_state as Agent['selfState'],
+    selfReportedState: r.self_state as Agent['selfState'],
+    lastMessage: str(r.last_message),
     runtimeState: (str(r.runtime_state) as Agent['runtimeState']) ?? null,
     currentTaskId: str(r.current_task_id),
     blockedByTaskId: str(r.blocked_by_task_id),
     lastAgentUpdateAt: str(r.last_agent_update_at),
     lastRuntimeUpdateAt: str(r.last_runtime_update_at),
+    lastUpdateAt: latestIso(str(r.last_agent_update_at), str(r.last_runtime_update_at)),
     createdAt: r.created_at as string,
     updatedAt: r.updated_at as string,
   };
@@ -77,6 +86,7 @@ export function mapTask(r: Row): Task {
     allowedPaths: json<string[]>(r.allowed_paths_json, []),
     branch: str(r.branch),
     status: r.status as Task['status'],
+    verificationId: str(r.verification_id),
     createdAt: r.created_at as string,
     updatedAt: r.updated_at as string,
   };
@@ -120,6 +130,7 @@ export function mapResponse(r: Row, projectId = DEFAULT_PROJECT_ID): Response {
     submittedAt: r.submitted_at as string,
     deliveredAt: str(r.delivered_at),
     deliveredVia: str(r.delivered_via) as Response['deliveredVia'],
+    via: str(r.delivered_via) as Response['deliveredVia'],
     acknowledgedAt: str(r.acknowledged_at),
     ackNote: str(r.ack_note),
     createdAt: r.created_at as string,
@@ -156,6 +167,7 @@ export function mapVerification(r: Row): Verification {
     resultSummary: r.result_summary as string,
     passed: Number(r.passed) === 1,
     evidence: json<Record<string, unknown>>(r.evidence_json, {}),
+    recordedBy: (r.recorded_by as string) ?? 'lead',
     createdAt: r.created_at as string,
   };
 }
@@ -289,6 +301,13 @@ export class Store {
       [agentId, clientRequestId],
       mapTaskResult,
     );
+  }
+  latestTaskResult(taskId: string) {
+    return this.one('SELECT * FROM task_results WHERE task_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1', [taskId], mapTaskResult);
+  }
+  lastSeq(runId: string): number {
+    const row = this.db.prepare('SELECT MAX(seq) AS s FROM events WHERE run_id = ?').get(runId) as { s: number | null };
+    return row?.s ?? 0;
   }
   listTaskResults(runId: string) {
     return this.many('SELECT * FROM task_results WHERE run_id = ? ORDER BY created_at', [runId], mapTaskResult);

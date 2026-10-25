@@ -180,6 +180,35 @@ npm run fixture:acceptance -w tools/agent-console   # end-to-end on a random por
 Fixture runs are stored with `kind: 'fixture'` and the API labels them (`run.fixture: true`);
 `GET /api/state` without `runId` always prefers the latest **live** run.
 
+## Interface notes (beyond CONTRACT.md v1 wording)
+
+- All create/patch routes return the entity wrapped under its name: `{ run }`, `{ agent, agentToken }`,
+  `{ task }`, `{ verification }`, `{ event }`, `{ response }`, `{ question }`, `{ result, task }`.
+- `GET /api/state` adds `taskResults[]`, `lastSeq`, `plannedRoles[]`, `staleAfterMin`, `config`, and
+  `run.fixture`. Agents carry `selfState`/`selfReportedState` (raw) and `execState` (derived),
+  `lastMessage`, `lastUpdateAt`, `openBlockingQuestionIds`. Tasks carry `result` (last
+  `report_task_result`) and `verificationId`. Responses carry `deliveredVia`/`via` and
+  `resumedAfterAck`. Verifications carry `recordedBy`.
+- Event payloads wrap the entity under its name (`{ task }`, `{ question }`, `{ response }`,
+  `{ verification }`, `{ agent }`, `{ run }`, `{ result, task }`); `agent.status` is
+  `{ state, taskId, message }`, `agent.log` is `{ message }`, `response.delivered` is
+  `{ via, deliveredAt, response }`.
+- `POST /api/runtime/events` accepts an optional `runId`; otherwise the run is inferred from
+  `agentId`/`responseId`/`taskId`, else the latest live run.
+- A status report of `working` with a `taskId` moves a `ready` task to `in_progress`.
+  `report_task_result` with `status: failed` sets the task to `blocked`; `completed` sets
+  `ready_for_review`; the agent's self state becomes `idle` either way.
+- Asking again with the same `clientRequestId` while the question is still open and the content
+  changed bumps `questionVersion` (stale answers then get `409`). Superseding is allowed for
+  `open` or `answered` questions.
+- When a task becomes `integrated`/`verified`, its open questions are marked `expired`
+  (`question.expired`, source `system`).
+- The Origin allow-list also includes the actual listening port when it is not 4800.
+- An agent may ack a response it never fetched through the API (e.g. the lead relayed it and
+  forgot `message.delivered`): state goes `submitted → acknowledged` with `deliveredAt: null`.
+- `GET /api/git/agents/:id` returns `exists`, `base`, `computedAt` and an `error` string instead of
+  failing when the branch is missing; commits are `{ sha, shortSha, subject, authoredAt }`.
+
 ## Known limitations
 
 - Single process, single SQLite file; no multi-user, no TLS (localhost only by design).

@@ -307,3 +307,62 @@ describe('lead inbox and redaction', () => {
     expect(await root.text()).toContain('UI is not built');
   });
 });
+
+describe('UI contract additions', () => {
+  it('state carries lastSeq, plannedRoles, staleAfterMin and entity aliases', async () => {
+    const s = await seed(h);
+    await h.agent(s.tok1, 'POST', `/api/agent/${s.a1.id}/status`, { clientEventId: 'e1', state: 'working', taskId: s.t1.id, message: 'hello there' });
+    const q = (await ask(h, s.tok1, s.a1.id, s.t1.id)).body.question;
+    const r = (await h.owner('POST', `/api/questions/${q.id}/responses`, { clientRequestId: 'r1', questionVersion: 1, option: 'a' })).body.response;
+    await h.agent(s.tok1, 'GET', `/api/agent/${s.a1.id}/questions/${q.id}/response`);
+    await h.agent(s.tok1, 'POST', `/api/agent/${s.a1.id}/questions/${q.id}/ack`, { responseId: r.id });
+    await h.agent(s.tok1, 'POST', `/api/agent/${s.a1.id}/tasks/${s.t1.id}/result`, { clientRequestId: 'res', status: 'completed', summary: 'ok', branch: 'wt/a' });
+    const v = (await h.owner('POST', '/api/verifications', { taskId: s.t1.id, kind: 'tests', resultSummary: 'ok', passed: true, evidence: {} })).body.verification;
+    expect(v.recordedBy).toBe('lead');
+    await h.owner('PATCH', `/api/tasks/${s.t1.id}`, { status: 'integrated', verificationId: v.id });
+
+    const st = (await h.owner('GET', `/api/state?runId=${s.run.id}`)).body;
+    expect(st.plannedRoles).toHaveLength(7);
+    expect(st.plannedRoles[0]).toBe('Lead / Integrator');
+    expect(st.staleAfterMin).toBe(20);
+    const events = h.service.eventsAfter(s.run.id, 0);
+    expect(st.lastSeq).toBe(events[events.length - 1]!.seq);
+    const a = st.agents[0];
+    expect(a.selfReportedState).toBe('idle'); // report_task_result parks the agent as idle
+    expect(a.selfState).toBe(a.selfReportedState);
+    expect(a.lastMessage).toBe('hello there');
+    expect(a.lastUpdateAt).toBe(a.lastAgentUpdateAt);
+    const t = st.tasks.find((x: any) => x.id === s.t1.id);
+    expect(t.verificationId).toBe(v.id);
+    expect(t.result.summary).toBe('ok');
+    expect(t.status).toBe('integrated');
+    const resp = st.responses[0];
+    expect(resp.via).toBe('agent_poll');
+    expect(resp.deliveredAt).toBeTruthy();
+    expect(resp.acknowledgedAt).toBeTruthy();
+    expect(resp.resumedAfterAck).toBe(false);
+  });
+
+  it('event payloads wrap entities and response events carry ids', async () => {
+    const s = await seed(h);
+    const q = (await ask(h, s.tok1, s.a1.id, s.t1.id)).body.question;
+    const r = (await h.owner('POST', `/api/questions/${q.id}/responses`, { clientRequestId: 'r1', questionVersion: 1, option: 'a' })).body.response;
+    await h.owner('POST', '/api/runtime/events', { type: 'message.delivered', responseId: r.id, details: {} });
+    await h.agent(s.tok1, 'POST', `/api/agent/${s.a1.id}/questions/${q.id}/ack`, { responseId: r.id, note: 'n' });
+    await h.agent(s.tok1, 'POST', `/api/agent/${s.a1.id}/status`, { clientEventId: 'e1', state: 'reviewing', taskId: s.t1.id, message: 'm' });
+    const byType = Object.fromEntries(h.service.eventsAfter(s.run.id, 0).map((e) => [e.type, e]));
+    expect(byType['run.created']!.payload.run).toMatchObject({ id: s.run.id });
+    expect(byType['agent.registered']!.payload.agent).toMatchObject({ id: s.a2.id }); // last registered
+    expect(byType['task.created']!.payload.task).toMatchObject({ id: s.t1.id, status: 'ready' });
+    expect(byType['question.asked']!.payload.question).toMatchObject({ id: q.id, questionVersion: 1 });
+    expect(byType['response.submitted']!.payload.response).toMatchObject({ id: r.id, state: 'submitted' });
+    expect(byType['response.delivered']!.payload).toMatchObject({ via: 'lead_continuation' });
+    expect(byType['response.delivered']!.payload.deliveredAt).toBeTruthy();
+    expect(byType['response.acknowledged']!.payload.response).toMatchObject({ id: r.id, state: 'acknowledged' });
+    expect(byType['agent.status']!.payload).toEqual({ state: 'reviewing', taskId: s.t1.id, message: 'm' });
+    for (const t of ['response.submitted', 'response.delivered', 'response.acknowledged', 'message.delivered']) {
+      expect(byType[t]!.responseId).toBe(r.id);
+      expect(byType[t]!.questionId).toBe(q.id);
+    }
+  });
+});
