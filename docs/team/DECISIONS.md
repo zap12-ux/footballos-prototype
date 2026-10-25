@@ -69,3 +69,25 @@ must be re-verified on a real full game before Milestone E.
 | Global routing (`apps/web/src/app/router.tsx`) | A (Frontend) |
 | Design tokens (`apps/web/src/styles/tokens.css`) | A (Frontend) |
 | Deployment configuration (`.github/workflows`, `deploy/`) | F (Deployment); lead until F is active |
+
+## D-007 · 2026-10-25 · Agent Build Console: integration approach
+**Decision.** Owner-only localhost console at `tools/agent-console` (Hono + SQLite + SSE)
+and `tools/agent-console-ui` (React 19 + `@xyflow/react`). Agents talk to it through the
+`agentctl` CLI from their Bash tool (operations `report_status`, `ask_user`,
+`get_user_response`, `acknowledge_response`, `report_task_result`). Owner answers reach an
+agent primarily by the agent's own long-poll and acknowledgment; if the agent's turn has
+already ended, the lead resumes it with Claude Code `SendMessage` and records a
+`message.delivered` runtime event. Lifecycle (`agent.spawned/completed/failed`) is posted
+by the lead from real Agent-tool results and task notifications. An MCP stdio server and a
+hook forwarder are shipped for future sessions and marked untested in a live session.
+**Why.** Claude Code here exposes no dashboard API, hooks are snapshotted at session start,
+and MCP servers registered now would only load in a new session. The CLI path is supported
+today and every step leaves verifiable evidence (token-bound fetch, ack, subsequent event).
+**Consequences.** The console is built and proven with two real agents before the product
+workers launch (brief §1). Contract: `tools/agent-console/CONTRACT.md`.
+
+## D-008 · 2026-10-25 · A second Claude Code session joins as Deployment / Reliability (F)
+**Decision.** Session `footballos-11`, started by the owner, takes A7 under the lead's
+direction in `.worktrees/f-deploy` (`wt/f-deploy`), paths `.github/**`, `deploy/**`,
+`scripts/**`. It is the third of at most four concurrent specialists and will be registered
+as a console node when the console is live.

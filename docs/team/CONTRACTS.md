@@ -246,5 +246,7 @@ snapshot is immutable. Concurrent edits use `expectedVersion` → `409 conflict`
 | plans | `GET /games/:gameId/plans/:unit`, `POST /plan-versions/:id/draft`, `PATCH /plan-versions/:id`, `POST /plan-versions/:id/submit`, `POST /plan-versions/:id/approve`, `POST /plan-versions/:id/comments`, `POST /plan-versions/:id/share`, `GET /plan-versions/:id/export.pdf` |
 | ops | `GET /healthz`, `GET /teams/:teamId/usage` (cost accounting) |
 
-Client types come from `hono/client` over the typed app, re-exported from
-`packages/contracts` as `ApiClient`; no hand-written fetch types in `apps/web`.
+Client types: `apps/api` exports `type AppType` (the typed Hono app) and `apps/web`
+imports it **type-only** (`import type { AppType } from '@footballos/api'`) to build a
+`hono/client` client. `packages/contracts` holds only zod schemas and inferred types so it
+never depends on the API package. No hand-written fetch types in `apps/web`.

@@ -7,6 +7,16 @@ the integrated branch by the lead or QA, evidence linked. Updated by the lead on
 Last updated: 2026-10-25 (session 1). Execution mode: lead + parallel subagents in worktrees
 (see DECISIONS.md D-001).
 
+## Milestone K — Agent Build Console (required before substantial parallel product work)
+
+| ID | Task | Owner | Status | Depends on | Allowed paths | Acceptance criteria | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| K0 | Communication contract v1 | Lead | Integrated | — | `tools/agent-console/CONTRACT.md` | Routes, states, SSE, auth, CLI, storage defined | commit 08d2a82 |
+| K1 | Runtime service: Hono + SQLite migrations, auth, all routes, SSE replay, git corroboration, `agentctl`/`leadctl`, MCP stdio server, hook forwarder, fixture acceptance script, vitest | console-runtime (subagent) | In progress | K0 | `tools/agent-console/**` | Fixture acceptance passes; unit tests pass; owner URL printed at start | — |
+| K2 | Graph UI: React 19 + `@xyflow/react`, nodes from registry with placeholders, drawer, question cards, needs-input queue, SSE reader with replay, drafts preserved, health/staleness | console-ui (subagent) | In progress | K0 | `tools/agent-console-ui/**` | Tests pass; build serves from the runtime; refresh restores state | — |
+| K3 | Integrate K1+K2; lockfile; `npm run console`; start console; register lead and workers | Lead | Ready | K1, K2 | root, lockfile | Console opens at printed URL and shows live run | — |
+| K4 | Real-agent acceptance run: two agents, two simultaneous questions, routed answers, acks, continued activity, refresh, duplicate submit, replay, unauthorized, superseded | Lead + QA | Ready | K3 | `docs/console/**` | Scenarios in brief §9 recorded with real event log export | — |
+
 ## Milestone A — Foundation and feasibility
 
 | ID | Task | Owner | Status | Depends on | Allowed paths | Acceptance criteria | Evidence |
@@ -18,7 +28,7 @@ Last updated: 2026-10-25 (session 1). Execution mode: lead + parallel subagents 
 | A4 | `packages/ai`: `VisionLabeler` adapter interface, Anthropic adapter (frame sequence, ordered timestamps, abstention, provenance), OpenAI adapter stub, label prompt + output schema (contracts `Label.inferred`), deterministic scouting statistics module (counts/denominators from stored labels), evaluation harness (coach-labeled JSONL → metrics incl. abstention/coverage), model-candidate comparison doc from official docs (capabilities, media limits, pricing, retention) with sources and dates | D | In progress | A0 | `packages/ai/**`, `docs/ai/**` | Adapter tests with a fake transport; stats tests with hand-computed expectations; harness runs on a synthetic labeled set; comparison doc cites current official pages; **no paid call made** | — |
 | A5 | Integrate A1–A4; regenerate lockfile; wire API ↔ web for sign-in + team dashboard; smoke test | Lead | Ready | A1–A4 | root, lockfile, glue | Sign-in → dashboard works end to end locally | — |
 | A6 | QA pass on integrated Milestone A (auth denial, cross-team, a11y, prototype regressions) | E | Ready | A5 | `tests/e2e/**`, reports in `docs/qa/**` | Defects filed per owner; prototype regressions (Grade 1/2 reason prompt, Grade 3 not deficiency, No Grade distinct, review time preserved, demo/research distinct, baseline wording) re-run | — |
-| A7 | CI for monorepo (typecheck, tests, build for all workspaces), environment templates, dependency + license inventory script | F | Ready | A5 | `.github/**`, `deploy/**`, `scripts/**` | CI green on `integration`; inventory committed | — |
+| A7 | CI for monorepo (typecheck, tests, build for all workspaces), environment templates, dependency + license inventory script | F (session footballos-11) | In progress (drafting against current layout; rebase after A5) | A5 | `.github/**`, `deploy/**`, `scripts/**` | CI green on `integration`; inventory committed | — |
 
 ## Milestone B — First real end-to-end workflow (not started)
 
@@ -50,12 +60,11 @@ Defined in the brief; tasks will be cut when B is integrated. Not started.
 ## STATUS (session 1)
 
 **Working now.** Monorepo on `integration`; prototype at `apps/web` with its 58 tests green;
-coordination docs in `docs/team`. Workers A–D launched on A1–A4.
+coordination docs in `docs/team`; console contract written; console runtime and UI being built by two subagents; session footballos-11 drafting A7. Product workers A–D are **not launched yet** (console must be proven first).
 
 **Verified now.** `npm run typecheck && npm test` from root after the move (58/58). Nothing
 else is verified yet.
 
-**Next integration milestone.** A5: contracts package + API skeleton + web shell wired for
-sign-in → dashboard on local SQLite.
+**Next integration milestone.** K3/K4: console live and proven with two real agents; then A1–A4 launch through it.
 
 **Input needed.** X1–X3 above.
