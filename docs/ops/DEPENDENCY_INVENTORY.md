@@ -7,19 +7,20 @@ Allowed licenses: MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, 0BSD, Unlice
 `scripts/license-allowlist.json` with the exact license string and a reason.
 
 Workspaces: `@footballos/api`, `@footballos/web`, `@footballos/ai`, `@footballos/contracts`, `@footballos/media`, `@footballos/agent-console`, `@footballos/agent-console-ui`, `@footballos/ops`.
-Installed third-party packages: 342.
+Installed third-party packages: 346.
 
 ## Licenses
 
 | License | Packages |
 | --- | --- |
-| MIT | 294 |
+| MIT | 297 |
 | ISC | 23 |
 | Apache-2.0 | 10 |
 | BSD-3-Clause | 6 |
 | BSD-2-Clause | 3 |
 | UNKNOWN | 1 |
 | CC-BY-4.0 | 1 |
+| MPL-2.0 | 1 |
 | MIT-0 | 1 |
 | Unlicense | 1 |
 | GPL-3.0-or-later | 1 |
@@ -274,6 +275,7 @@ Installed third-party packages: 342.
 | assertion-error | 2.0.1 | MIT | @footballos/web | dev |
 | asynckit | 0.4.0 | MIT | @footballos/agent-console-ui | dev |
 | asynckit | 0.4.0 | MIT | @footballos/web | dev |
+| axe-core | 4.14.0 | MPL-2.0 | @footballos/web | dev |
 | baseline-browser-mapping | 2.11.32 | Apache-2.0 | @footballos/agent-console-ui | dev |
 | baseline-browser-mapping | 2.11.32 | Apache-2.0 | @footballos/web | dev |
 | better-sqlite3 | 13.0.3 | MIT | @footballos/agent-console | prod |
@@ -326,6 +328,7 @@ Installed third-party packages: 342.
 | convert-source-map | 2.0.0 | MIT | @footballos/agent-console-ui | dev |
 | convert-source-map | 2.0.0 | MIT | @footballos/web | dev |
 | cookie | 0.7.2 | MIT | @footballos/agent-console | prod |
+| cookie | 1.1.1 | MIT | @footballos/web | prod |
 | cookie-signature | 1.2.2 | MIT | @footballos/agent-console | prod |
 | cors | 2.8.6 | MIT | @footballos/agent-console | prod |
 | cross-spawn | 7.0.6 | MIT | @footballos/agent-console | prod |
@@ -488,6 +491,7 @@ Installed third-party packages: 342.
 | hasown | 2.0.4 | MIT | @footballos/web | dev |
 | hono | 4.13.14 | MIT | @footballos/agent-console | prod |
 | hono | 4.13.14 | MIT | @footballos/api | prod |
+| hono | 4.13.14 | MIT | @footballos/web | prod |
 | html-encoding-sniffer | 4.0.0 | MIT | @footballos/agent-console-ui | dev |
 | html-encoding-sniffer | 4.0.0 | MIT | @footballos/web | dev |
 | http-errors | 2.0.1 | MIT | @footballos/agent-console | prod |
@@ -644,6 +648,7 @@ Installed third-party packages: 342.
 | react-is | 17.0.2 | MIT | @footballos/web | dev |
 | react-refresh | 0.17.0 | MIT | @footballos/agent-console-ui | dev |
 | react-refresh | 0.17.0 | MIT | @footballos/web | dev |
+| react-router | 7.18.4 | MIT | @footballos/web | prod |
 | readable-stream | 3.6.2 | MIT | @footballos/media | prod |
 | redent | 3.0.0 | MIT | @footballos/agent-console-ui | dev |
 | redent | 3.0.0 | MIT | @footballos/web | dev |
@@ -674,6 +679,7 @@ Installed third-party packages: 342.
 | semver | 6.3.1 | ISC | @footballos/web | dev |
 | send | 1.2.1 | MIT | @footballos/agent-console | prod |
 | serve-static | 2.2.1 | MIT | @footballos/agent-console | prod |
+| set-cookie-parser | 2.7.3 | MIT | @footballos/web | prod |
 | setprototypeof | 1.2.0 | ISC | @footballos/agent-console | prod |
 | shebang-command | 2.0.0 | MIT | @footballos/agent-console | prod |
 | shebang-regex | 3.0.0 | MIT | @footballos/agent-console | prod |
