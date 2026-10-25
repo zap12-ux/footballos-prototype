@@ -1,12 +1,16 @@
 import type { JobError, JobProgress, ProcessingJob } from '../types.ts';
 
 /**
- * Job record held by a JobStore. It is CONTRACTS §5 ProcessingJob plus three
- * runner-internal fields the contract does not have yet (proposed to B):
- * `input` (handler payload), `notBeforeAt` (retry_wait wake-up) and
- * `cancelRequestedAt` (cooperative cancel of a running job).
+ * Job record held by a JobStore. It is CONTRACTS §5 ProcessingJob plus the
+ * store-internal fields adopted in §14.2: `input` (handler payload), `result`
+ * (handler return value), `notBeforeAt` (retry_wait wake-up) and
+ * `cancelRequestedAt` (cooperative cancel of a running job). `kind` is widened
+ * from the contract's `JobKind` enum to `string` so the runner can host kinds
+ * the contract does not list yet; a store that persists `ProcessingJob` rows
+ * narrows it again.
  */
-export interface Job extends ProcessingJob {
+export interface Job extends Omit<ProcessingJob, 'kind'> {
+  kind: string;
   input: unknown;
   result: unknown;
   notBeforeAt: string | null;

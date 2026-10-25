@@ -57,3 +57,36 @@ export const ReportSnapshotSchema = z.object({
   inputsHash: z.string().min(1),
 });
 export type ReportSnapshot = z.infer<typeof ReportSnapshotSchema>;
+
+// §14.6 Computed scouting (v0.3) ---------------------------------------------------------
+
+const idList = z.preprocess(
+  (v) => (typeof v === 'string' ? v.split(',').map((s) => s.trim()).filter(Boolean) : v),
+  z.array(IdSchema),
+);
+
+export const ScoutingQuerySchema = z.object({
+  unit: UnitSchema,
+  reviewBasis: ReviewBasisSchema.default('reviewed_only'),
+  /** Comma-separated game ids; omitted = every game against the opponent. */
+  gameIds: idList.optional(),
+});
+export type ScoutingQuery = z.infer<typeof ScoutingQuerySchema>;
+
+export const ScoutingResponseSchema = z.object({
+  findings: z.array(ScoutingFindingSchema),
+  games: z.array(z.object({ gameId: IdSchema, assetIds: z.array(IdSchema) })),
+  sampleSize: z.number().int().nonnegative(),
+  computedAt: TimestampSchema,
+  computeVersion: z.string().min(1),
+});
+export type ScoutingResponse = z.infer<typeof ScoutingResponseSchema>;
+
+export const CreateSnapshotRequestSchema = z.object({
+  title: z.string().trim().min(1).max(200),
+  /** Omitted = findings for all three units are included. */
+  unit: UnitSchema.optional(),
+  reviewBasis: ReviewBasisSchema.default('reviewed_only'),
+  gameIds: z.array(IdSchema).optional(),
+});
+export type CreateSnapshotRequest = z.infer<typeof CreateSnapshotRequestSchema>;

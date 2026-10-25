@@ -4,8 +4,27 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const packageDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-export const repoRoot = process.env.CONSOLE_REPO_ROOT || path.resolve(packageDir, '..', '..');
-export const dataDir = process.env.CONSOLE_DATA_DIR || process.env.DATA_DIR || path.join(repoRoot, '.data', 'console');
+
+/** Nearest directory above `start` whose package.json declares `workspaces` (the monorepo root), or null. */
+export function findWorkspaceRoot(start) {
+  let dir = path.resolve(start);
+  for (;;) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'));
+      if (parsed && parsed.workspaces !== undefined) return dir;
+    } catch {
+      // keep walking
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+}
+
+export const repoRoot = process.env.CONSOLE_REPO_ROOT ? path.resolve(process.env.CONSOLE_REPO_ROOT) : findWorkspaceRoot(packageDir) ?? path.resolve(packageDir, '..', '..');
+// Same rule as src/config.ts: a relative CONSOLE_DATA_DIR is resolved against the repo root (D-4).
+const rawDataDir = process.env.CONSOLE_DATA_DIR || process.env.DATA_DIR;
+export const dataDir = !rawDataDir ? path.join(repoRoot, '.data', 'console') : path.isAbsolute(rawDataDir) ? path.normalize(rawDataDir) : path.resolve(repoRoot, rawDataDir);
 export const consoleUrl = (process.env.CONSOLE_URL || 'http://127.0.0.1:4800').replace(/\/+$/, '');
 
 /** Parse `--flag value`, `--flag=value`, bare `--flag` (true) and positionals. */

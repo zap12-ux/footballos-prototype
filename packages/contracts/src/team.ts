@@ -238,3 +238,28 @@ export const HealthSchema = z.object({
   now: TimestampSchema,
 });
 export type Health = z.infer<typeof HealthSchema>;
+
+// §14.7 Team settings (v0.3) --------------------------------------------------------------
+
+export const UploadLimitsSchema = z.object({
+  maxUploadBytes: z.number().int().positive(),
+  uploadChunkBytes: z.number().int().positive(),
+  allowedVideoContainers: z.array(z.string().min(1)),
+  uploadTtlHours: z.number().positive(),
+});
+export type UploadLimits = z.infer<typeof UploadLimitsSchema>;
+
+export const TeamSettingsSchema = z.object({
+  /** Days after upload at which originals and proxies are deleted by the worker; null = kept until the head coach deletes (owner decision 2026-10-25). */
+  retentionDays: z.number().int().positive().nullable(),
+  /** Server limits (from the API environment); informational. */
+  uploadLimits: UploadLimitsSchema,
+  version: VersionSchema,
+});
+export type TeamSettings = z.infer<typeof TeamSettingsSchema>;
+
+export const PatchTeamSettingsRequestSchema = z.object({
+  expectedVersion: VersionSchema,
+  retentionDays: z.number().int().min(1).max(3650).nullable().optional(),
+});
+export type PatchTeamSettingsRequest = z.infer<typeof PatchTeamSettingsRequestSchema>;

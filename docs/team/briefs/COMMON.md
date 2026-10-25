@@ -53,7 +53,10 @@ genuine owner decisions, with options and a recommendation; use `--blocking` onl
 truly cannot continue. While waiting for an answer, continue unblocked work and poll with
 `agentctl wait` at natural pauses (its exit code 4 means no answer yet; 3 means the question
 was superseded or expired: stop using it). After receiving an answer, send a status update
-that says what you are doing with it. Finish with `agentctl result` before your handoff
+that says what you are doing with it. When you have nothing else to do after asking, block
+cheaply with `agentctl wait <questionId> --poll-until-answered --ack` (no timeout, one idle
+long-poll per 25 s, stderr heartbeat every 5 min, exit 3 if superseded); otherwise keep
+`--timeout` polling at natural pauses. Finish with `agentctl result` before your handoff
 message; the lead integrates and verifies, you never mark a task integrated.
 
 ## Handoff (your final message must contain exactly these sections)

@@ -37,10 +37,10 @@ works regardless.
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `CONSOLE_PORT` | `4800` | Listening port on 127.0.0.1 (`0` picks a free port). |
-| `CONSOLE_DATA_DIR` | `<repo root>/.data/console` | Holds `console.db` (SQLite, WAL) and `owner-token`. Gitignored. (`DATA_DIR` is accepted as an alias.) |
+| `CONSOLE_DATA_DIR` | `<repo root>/.data/console` | Holds `console.db` (SQLite, WAL) and `owner-token`. Gitignored. (`DATA_DIR` is accepted as an alias.) A **relative** value is resolved against the repo root (the nearest `package.json` with `workspaces` above this package, or `CONSOLE_REPO_ROOT`), never against the cwd or the package dir, so `CONSOLE_DATA_DIR=.data/wt-x npm run start -w tools/agent-console` lands in `<repo root>/.data/wt-x`. The server prints the absolute path in its `CONSOLE_STATE=listening data_dir=…` line; `leadctl` reads `owner-token` from the same place. |
 | `STALE_AFTER_MIN` | `20` | Minutes without an agent/runtime update before a `working`/`reviewing`/`waiting_on_dependency` agent is shown as `disconnected`. |
 | `LEAD_PICKUP_AFTER_SEC` | `90` | Age of an unfetched `submitted` response before it appears in `GET /api/lead/inbox`. |
-| `CONSOLE_REPO_ROOT` | the repo containing this package | Where `git` runs for `GET /api/git/agents/:agentId`. |
+| `CONSOLE_REPO_ROOT` | nearest workspace root above this package | Where `git` runs for `GET /api/git/agents/:agentId`, and the base for a relative `CONSOLE_DATA_DIR`. |
 | `CONSOLE_URL` | `http://127.0.0.1:4800` | Used by the CLIs and the MCP server to reach the console. |
 | `CONSOLE_OWNER_TOKEN` | read from `<DATA_DIR>/owner-token` | Used by `leadctl` and the hook forwarder. |
 | `CONSOLE_AGENT_ID`, `CONSOLE_AGENT_TOKEN` | — | Per-agent credentials issued at registration; used by `agentctl` and the MCP server. |
@@ -91,11 +91,21 @@ $A status --state working --task A1 --message "Scaffolding packages/contracts"
 $A ask --task A1 --question "Tabs or spaces?" --why "..." --options "tabs|spaces" --recommend spaces --blocking
 #   -> { "questionId": "...", "question": {...} }
 $A wait <questionId> --timeout 900 --ack        # long-polls (wait=25 per request) until answered; --ack acknowledges on receipt
+$A wait <questionId> --poll-until-answered --ack # same, but never times out: keeps long-polling and prints a heartbeat on stderr every 5 min
 $A ack <questionId> <responseId>                # if you waited without --ack
 $A result --task A1 --status completed --summary "..." --branch wt/a-frontend --commit <sha> \
       --changed-files a.ts,b.ts --tests-json tests.json --limitations "x|y" --follow-ups "z"
 $A log --message "ran typecheck: clean"
 ```
+
+Protocol note on waiting (from the first live run): answers sat unfetched for longer than
+`LEAD_PICKUP_AFTER_SEC` because agents polled only at natural pauses, so the lead had to nudge
+them. When you have **nothing else to do** after asking, block on the answer with
+`agentctl wait <questionId> --poll-until-answered --ack` instead of returning and polling later:
+it costs one idle HTTP long-poll every 25 s (no tokens), exits as soon as the answer arrives
+(exit 0, answer JSON on stdout), and still exits 3 if the question is superseded or expired.
+The heartbeat line goes to stderr so stdout stays parseable. When you *do* have unblocked work,
+keep using the bounded form (`--timeout`) at natural pauses, as before.
 
 `tests.json` is an array of `{ "command", "passed", "summary" }`. Every create carries an
 auto-generated `clientRequestId`/`clientEventId`; pass `--client-id <id>` to retry the same

@@ -1,126 +1,50 @@
 /**
- * Local structural types mirroring docs/team/CONTRACTS.md §5.
+ * Record types used by this package, imported from `@footballos/contracts`
+ * (authoritative; docs/team/CONTRACTS.md §5, §6). This file only re-exports
+ * them under the names the rest of the package and its tests use, so no
+ * structural copy of a contract lives here any more.
  *
- * `@footballos/contracts` does not exist yet. These declarations use the same
- * field names so the switch is a type-import change; nothing here is exported
- * as a schema. When the contracts package lands, replace these with imports.
+ * Contract gaps noticed while switching (not edited here; `packages/contracts`
+ * is owned by B):
+ * - `ProcessingJob` has no `input`, `result`, `notBeforeAt`, `cancelRequestedAt`
+ *   fields; the job store's `Job` type adds them (see `jobs/types.ts`, §14.2).
+ * - `ProcessingJob.kind` is the closed `JobKind` enum. The runner stays generic
+ *   over kind strings so hosts can register kinds the contract does not list yet.
  */
+import type {
+  EvidenceRef,
+  FootageQuality,
+  JobError,
+  JobKind,
+  JobProgress,
+  JobStatus,
+  MediaAsset,
+  MediaStatus,
+  PlaySegment,
+  ProcessingJob,
+  SegmentOrigin,
+  SegmentReviewStatus,
+  UploadContext,
+} from '@footballos/contracts';
 
-export type MediaAssetStatus =
-  | 'uploading'
-  | 'uploaded'
-  | 'validated'
-  | 'rejected'
-  | 'processing'
-  | 'ready'
-  | 'failed'
-  | 'deleted';
+export type {
+  EvidenceRef,
+  FootageQuality,
+  JobError,
+  JobKind,
+  JobProgress,
+  JobStatus,
+  MediaAsset,
+  MediaStatus,
+  PlaySegment,
+  ProcessingJob,
+  SegmentOrigin,
+  SegmentReviewStatus,
+  UploadContext,
+};
 
-export interface MediaAssetContext {
-  analyzedTeam: 'us' | 'opponent';
-  analyzedUnit: 'offense' | 'defense' | 'special_teams' | 'mixed';
-  perspective: 'sideline_fixed' | 'endzone' | 'broadcast' | 'other';
-  teamCues: string | null;
-}
-
-export interface FootageQuality {
-  stable: boolean | null;
-  lineOfScrimmageVisible: boolean | null;
-  allTwentyTwoVisible: boolean | null;
-  notes: string[];
-  unevaluable: string[];
-}
-
-export interface MediaAsset {
-  id: string;
-  teamId: string;
-  gameId: string;
-  uploadedBy: string;
-  kind: 'game_film' | 'clip' | 'document' | 'image';
-  originalFilename: string;
-  byteSize: number;
-  sha256: string;
-  mimeType: string;
-  durationSec: number | null;
-  width: number | null;
-  height: number | null;
-  fps: number | null;
-  status: MediaAssetStatus;
-  rejectionReason: string | null;
-  context: MediaAssetContext;
-  quality: FootageQuality | null;
-  storageKey: string;
-  proxyStorageKey: string | null;
-  thumbnailSheetKey: string | null;
-  retentionUntil: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export type ProcessingJobKind =
-  | 'validate'
-  | 'proxy'
-  | 'thumbnails'
-  | 'segment'
-  | 'infer_labels'
-  | 'extract_document'
-  | 'reanalyze_segments';
-
-export type ProcessingJobStatus =
-  | 'queued'
-  | 'running'
-  | 'retry_wait'
-  | 'succeeded'
-  | 'failed'
-  | 'canceled';
-
-export interface JobProgress {
-  done: number;
-  total: number | null;
-  message: string;
-}
-
-export interface JobError {
-  code: string;
-  message: string;
-}
-
-export interface ProcessingJob {
-  id: string;
-  teamId: string;
-  assetId: string | null;
-  kind: ProcessingJobKind | string;
-  status: ProcessingJobStatus;
-  progress: JobProgress;
-  attempt: number;
-  maxAttempts: number;
-  leaseExpiresAt: string | null;
-  workerId: string | null;
-  idempotencyKey: string;
-  configVersion: string;
-  error: JobError | null;
-  requestedBy: string;
-  createdAt: string;
-  startedAt: string | null;
-  finishedAt: string | null;
-  canceledAt: string | null;
-}
-
-export type SegmentOrigin = 'proposed' | 'coach_split' | 'coach_merged' | 'coach_created';
-export type SegmentReviewStatus = 'proposed' | 'accepted' | 'rejected';
-
-export interface PlaySegment {
-  id: string;
-  teamId: string;
-  assetId: string;
-  gameId: string;
-  index: number;
-  startSec: number;
-  endSec: number;
-  origin: SegmentOrigin;
-  reviewStatus: SegmentReviewStatus;
-  supersededBy: string[];
-  version: number;
-  createdAt: string;
-  updatedAt: string;
-}
+// Thin aliases kept for Milestone A call sites and tests.
+export type MediaAssetStatus = MediaStatus;
+export type MediaAssetContext = UploadContext;
+export type ProcessingJobKind = JobKind;
+export type ProcessingJobStatus = JobStatus;

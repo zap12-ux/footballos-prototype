@@ -5,6 +5,7 @@ import { basename, dirname, join } from 'node:path';
 import { z } from 'zod';
 import { runFfmpeg } from './ffmpeg.ts';
 import { probe, type ProbeResult } from './probe.ts';
+import { writeThumbnailSidecar } from './thumbs.ts';
 import type { ProxyTimeMapping, ThumbnailSheetMapping } from './timemap.ts';
 
 export interface ProgressInfo {
@@ -150,8 +151,10 @@ export interface ThumbnailSheetResult {
   sheetWidth: number | null;
   sheetHeight: number | null;
   mapping: ThumbnailSheetMapping;
-  /** Directory holding frame-0001.jpg … when keepFrames was set, else null. */
+  /** Directory holding frame-00001.jpg … when keepFrames was set, else null. */
   framesDir: string | null;
+  /** `<path>.json` with the tile geometry, read by `thumbTile` and friends. */
+  sidecarPath: string;
 }
 
 /**
@@ -206,13 +209,17 @@ export async function makeThumbnailSheet(
       { signal },
     );
     const sheet = await probe(out, { signal });
+    const mapping: ThumbnailSheetMapping = { everySec: opts.everySec, firstAtSec: 0, count, columns, rows, tileWidth, tileHeight };
+    const keptFrames = opts.keepFrames ? framesDir : null;
+    const sidecarPath = await writeThumbnailSidecar(out, { mapping, sheetWidth: sheet.width, sheetHeight: sheet.height, framesDir: keptFrames });
     return {
       path: out,
       byteSize: sheet.byteSize,
       sheetWidth: sheet.width,
       sheetHeight: sheet.height,
-      mapping: { everySec: opts.everySec, firstAtSec: 0, count, columns, rows, tileWidth, tileHeight },
-      framesDir: opts.keepFrames ? framesDir : null,
+      mapping,
+      framesDir: keptFrames,
+      sidecarPath,
     };
   } finally {
     if (!opts.keepFrames) await rm(framesDir, { recursive: true, force: true });

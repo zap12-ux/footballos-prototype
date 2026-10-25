@@ -126,3 +126,34 @@ export const ModelProvenanceSchema = z.object({
   completedAt: TimestampSchema,
 });
 export type ModelProvenance = z.infer<typeof ModelProvenanceSchema>;
+
+// §14.5 Inference, corrections, bulk accept (v0.3) --------------------------------------
+
+export const InferRequestSchema = z.object({
+  segmentIds: z.array(IdSchema).min(1).max(2000).optional(),
+  labelKeys: z.array(LabelKeySchema).min(1).optional(),
+});
+export type InferRequest = z.infer<typeof InferRequestSchema>;
+
+/** `PATCH /labels/:labelId` body per CONTRACTS §14.5 (coach correction). */
+export const PatchLabelRequestSchema = z.object({
+  accepted: z.object({
+    value: z.string().max(200).nullable(),
+    status: z.enum(['accepted', 'corrected', 'unknown', 'rejected']),
+  }),
+  reason: z.string().max(1000).optional(),
+  expectedVersion: VersionSchema,
+});
+export type PatchLabelRequest = z.infer<typeof PatchLabelRequestSchema>;
+
+export const BulkAcceptRequestSchema = z.object({
+  segmentIds: z.array(IdSchema).min(1).max(2000),
+  keys: z.array(LabelKeySchema).min(1),
+});
+export type BulkAcceptRequest = z.infer<typeof BulkAcceptRequestSchema>;
+
+export const BulkAcceptResponseSchema = z.object({
+  accepted: z.number().int().nonnegative(),
+  skipped: z.number().int().nonnegative(),
+});
+export type BulkAcceptResponse = z.infer<typeof BulkAcceptResponseSchema>;

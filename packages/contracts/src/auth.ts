@@ -85,6 +85,8 @@ export const AuditActionSchema = z.enum([
   'playbook.approved',
   'roster.edited',
   'settings.changed',
+  'labels.bulk_accepted',
+  'upload.expired',
 ]);
 export type AuditAction = z.infer<typeof AuditActionSchema>;
 

@@ -6,6 +6,7 @@
 //   media.mjs validate <file>
 //   media.mjs proxy <file> [out.mp4] [--height 720]
 //   media.mjs thumbs <file> [out.jpg] [--every 10]
+//   media.mjs frames <file> <outDir> --at 1,2.5,40 [--height 720]
 //   media.mjs segments <file> [--fps 4]
 //   media.mjs quality <file>
 import { resolve, basename } from 'node:path';
@@ -23,8 +24,8 @@ function positional(i) {
   return args[i];
 }
 
-if (!command || !file || !['probe', 'validate', 'proxy', 'thumbs', 'segments', 'quality'].includes(command)) {
-  console.error('usage: media.mjs probe|validate|proxy|thumbs|segments|quality <file> [out] [--height N] [--every N] [--fps N]');
+if (!command || !file || !['probe', 'validate', 'proxy', 'thumbs', 'frames', 'segments', 'quality'].includes(command)) {
+  console.error('usage: media.mjs probe|validate|proxy|thumbs|frames|segments|quality <file> [out] [--height N] [--every N] [--fps N] [--at a,b,c]');
   process.exit(2);
 }
 
@@ -61,6 +62,17 @@ switch (command) {
   case 'thumbs': {
     const out = resolve(positional(0) ?? `${basename(src, '.mp4')}-thumbs.jpg`);
     print(await media.makeThumbnailSheet(src, out, { everySec: flag('every', 10), keepFrames: rest.includes('--keep-frames') }));
+    break;
+  }
+  case 'frames': {
+    const outDir = resolve(positional(0) ?? `${basename(src, '.mp4')}-frames`);
+    const i = rest.indexOf('--at');
+    const at = i >= 0 && rest[i + 1] ? rest[i + 1].split(',').map(Number) : [0, 1, 2];
+    const { mkdir, writeFile } = await import('node:fs/promises');
+    await mkdir(outDir, { recursive: true });
+    const r = await media.extractFramesReport(src, at, { height: flag('height', 720) });
+    for (const f of r.frames) await writeFile(resolve(outDir, `frame-${f.atSec.toFixed(3)}.jpg`), f.jpeg);
+    print({ outDir, frames: r.frames.map(({ atSec, frameSec, width, height, jpeg }) => ({ atSec, frameSec, width, height, bytes: jpeg.length })), missing: r.missing, durationSec: r.durationSec });
     break;
   }
   case 'segments': {

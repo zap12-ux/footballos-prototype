@@ -4,6 +4,8 @@ export { probe, validate, classifyContainer, UploadLimitsSchema, DEFAULT_UPLOAD_
 export type { ProbeResult, UploadLimits, ValidationResult, ContainerKind } from './probe.ts';
 export { makeProxy, makeThumbnailSheet, thumbnailAt, ProxyOptionsSchema, ThumbnailSheetOptionsSchema } from './proxy.ts';
 export type { ProxyOptions, ProxyResult, ThumbnailSheetOptions, ThumbnailSheetResult, ThumbnailAtResult, ProgressInfo } from './proxy.ts';
+export { extractFrames, extractFramesReport, ExtractFramesOptionsSchema, parseShowinfoTimes, jpegDimensions } from './frames.ts';
+export type { ExtractFramesOptions, ExtractedFrame, ExtractFramesReport } from './frames.ts';
 export { toSourceSec, toProxySec, thumbIndexToSourceSec, sourceSecToThumbIndex, thumbRect } from './timemap.ts';
 export type { ProxyTimeMapping, ThumbnailSheetMapping } from './timemap.ts';
 export { motionEnergy, bucketPerSecond, medianFilter, movingAverage, percentile, parseMetadataPrint } from './motion.ts';
@@ -14,4 +16,28 @@ export { splitSegment, mergeSegments, renumber, findOverlaps } from './segment-o
 export type { SplitResult, MergeResult, SegmentOpContext } from './segment-ops.ts';
 export { assessQuality, interpretQuality, defaultWindows } from './quality.ts';
 export type { QualityAssessment, QualityOptions, QualityFrameSample, SampleWindow } from './quality.ts';
+export { thumbTile, thumbTileFromMapping, thumbFramePath, thumbTileJpeg, readThumbnailSidecar, writeThumbnailSidecar, thumbnailSidecarPath, THUMBNAIL_SIDECAR_VERSION } from './thumbs.ts';
+export type { ThumbTile, ThumbnailSheetSidecar } from './thumbs.ts';
+export {
+  createMediaHandlers,
+  asJobHandler,
+  registerMediaHandlers,
+  hasProxy,
+  MediaJobInputSchema,
+  PROXY_FILENAME,
+  THUMBNAIL_SHEET_FILENAME,
+  SEGMENTS_FILENAME,
+} from './handlers.ts';
+export type {
+  MediaJobInput,
+  MediaJob,
+  MediaHandlerContext,
+  MediaHandler,
+  MediaHandlers,
+  MediaHandlerOptions,
+  ValidateJobResult,
+  ProxyJobResult,
+  ThumbnailsJobResult,
+  SegmentJobResult,
+} from './handlers.ts';
 export * from './jobs/index.ts';

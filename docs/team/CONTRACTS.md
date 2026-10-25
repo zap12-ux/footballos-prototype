@@ -362,3 +362,19 @@ Implemented by B in `apps/api`; consumed by A in `apps/web`; library pieces from
   and `applyInference(existing: Label[], segmentId, inferred: InferredLabel[], provenanceId) → { upserts: Label[] }`
   that preserves `accepted` when its status is `accepted`/`corrected`.
 - Both packages import their record types from `@footballos/contracts` from Milestone B on.
+
+### 14.9 Adjustments made during implementation (B, 2026-10-25)
+- `processing_jobs` also carries `depends_on_job_id` (chain ordering; a job is claimable only
+  when its dependency `succeeded`); dependents of a failed or canceled job become
+  `failed` with `error.code = 'upstream_failed'`. `JobError.retryable?` added.
+  `ProcessingJob.notBeforeAt` and `cancelRequestedAt` are optional in the schema.
+- `MediaAsset.sha256` is `null` while `status = 'uploading'`.
+- Every `PlaySegment` is created with one `Label` row per `LabelKey` (12) in
+  `accepted.status = 'unknown'` with `inferred = null`; the UI treats that as "not labeled".
+  Split and merge create fresh `unknown` labels on the new segments; superseded segments keep
+  theirs for audit. Re-running `segment` replaces only proposals no coach has touched.
+- `POST /assets/:id/infer` returns a pending batch when one exists and starts a new generation
+  after a finished one. `GET /teams/:teamId/jobs` cursor is `createdAt|id`.
+- New env: `UPLOAD_TTL_HOURS`, `MEDIA_GRANT_TTL_MIN`, `WORKER_INLINE`, `WORKER_POLL_MS`,
+  `PROXY_HEIGHT`, `THUMBNAIL_EVERY_SEC`; removed `MODEL_ID`, `MAX_FRAMES_PER_SEGMENT` (the
+  `FOOTBALLOS_AI_*` names are authoritative).
