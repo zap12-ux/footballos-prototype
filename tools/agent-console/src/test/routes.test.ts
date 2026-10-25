@@ -353,7 +353,7 @@ describe('UI contract additions', () => {
     const byType = Object.fromEntries(h.service.eventsAfter(s.run.id, 0).map((e) => [e.type, e]));
     expect(byType['run.created']!.payload.run).toMatchObject({ id: s.run.id });
     expect(byType['agent.registered']!.payload.agent).toMatchObject({ id: s.a2.id }); // last registered
-    expect(byType['task.created']!.payload.task).toMatchObject({ id: s.t1.id, status: 'ready' });
+    expect(byType['task.created']!.payload.task).toMatchObject({ id: s.t2.id, status: 'ready' }); // last created
     expect(byType['question.asked']!.payload.question).toMatchObject({ id: q.id, questionVersion: 1 });
     expect(byType['response.submitted']!.payload.response).toMatchObject({ id: r.id, state: 'submitted' });
     expect(byType['response.delivered']!.payload).toMatchObject({ via: 'lead_continuation' });
