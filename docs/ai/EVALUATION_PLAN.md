@@ -111,7 +111,58 @@ is used on a game.
 7. **Only then** raise the budget back to the default and run one asset through
    `POST /assets/:assetId/infer`; review the job's `skipped` list and total `costUsd`.
 
-## 8. Coach-labeled set: the export B's API must produce
+## 8. Recommendation usefulness: a review protocol for coaches (proposal, not a result)
+
+`buildRecommendations` is deterministic, so its accuracy is the accuracy of the underlying
+labels (§4). What it cannot measure about itself is whether the items are **useful** to the
+staff. This protocol is proposed for the first two game weeks in which a staff uses the
+recommendations panel; nothing below has been run.
+
+**Setup.** One opponent with at least two reviewed games of film, an approved playbook with
+installed concepts, personnel entered with availability for the week. Generate once
+(`POST /games/:gameId/recommendations/generate`) and freeze the list for the review.
+
+**Reviewers.** The coordinator of the unit and one position coach, independently, before the
+weekly plan is written. Reviewers see the items exactly as the UI shows them (statement,
+counts, evidence links, limitations, suggested concepts and packages).
+
+**Per item, each reviewer records:**
+
+| Field | Values | Why |
+| --- | --- | --- |
+| Agree with the tendency | yes / no / unsure | Do the counts match what the coach saw on film? Follow two evidence links before answering. |
+| Would act on it | accept as is / accept with edit / reject / defer | Mirrors `POST /recommendations/:id/decide`, so the decision is also the measurement. |
+| Concept suggestions | all apply / some apply / none apply | Tests the matching table in `docs/ai/RECOMMENDATIONS.md` §3. |
+| Package suggestions | right / wrong / not applicable | Tests availability handling. |
+| Limitations | helpful / noise / missing one (free text) | Are the caveats the ones a coach would state? |
+| Minutes spent | number | Time cost of the review. |
+
+**Also recorded per week:** the `blockedReasons` and `skipped` lists shown by the UI, with a
+one-line coach judgement for each ("rightly withheld" / "should have been shown"); items the
+coach added to the plan by hand that the generator did not propose (misses).
+
+**Proposed targets (for the owner to agree or change):**
+
+| Metric | Proposed target | Note |
+| --- | --- | --- |
+| Agreement with tendency (both reviewers) | ≥ 0.80 of items | Below this, the labels or the thresholds are wrong, not the wording |
+| Acted on (accept or edit) | ≥ 0.50 of items | Recommendations are suggestions; half being useful is a strong week |
+| Concept suggestions "none apply" | ≤ 0.20 of items | Higher means the matching table needs team-specific rows |
+| Wrong package suggestions | 0 | A package with an `out` player is a defect |
+| Inter-reviewer agreement on "would act" | ≥ 0.70 | Below this the statements are ambiguous |
+| Review time | ≤ 15 min per unit per week | |
+| "Should have been shown" among withheld | ≤ 0.10 | Tests `minSample` 4 and the 60 % / 25 % thresholds |
+
+**Outputs.** A short table per week under `docs/ai/results/recommendations-<week>.md` with the
+counts above and the free-text misses, plus any threshold or matching-table change proposed
+from it. Changing a threshold or a table row is a code change with a documented reason, not
+a per-game tweak.
+
+**Not measured by this protocol.** Game outcomes: whether a plan "worked" depends on far
+more than these items, and a season of games is too few to separate the two. The protocol
+measures whether coaches found the items true, actionable and honestly caveated.
+
+## 9. Coach-labeled set: the export B's API must produce
 
 The harness scores a **truth** file against a **prediction** file, both JSONL, one row per
 (segment, key). B's export of a reviewed asset or game produces both from stored rows:

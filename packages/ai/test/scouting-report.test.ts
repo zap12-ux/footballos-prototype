@@ -29,6 +29,7 @@ const assets: ReportAsset[] = [
   asset(a4, g3, "opponent", "offense"), // other opponent
   asset(a5, g4, "opponent", "offense"), // filtered out by gameIds in the tests below
   asset(a6, g1, "opponent", "offense", "deleted"),
+  { ...asset(u(27), g1, "opponent", "offense"), gameId: null }, // a document asset (§15.1): no game, never part of a report
 ];
 
 function seg(id: string, assetId: string, gameId: string, extra: Partial<PlaySegment> = {}): PlaySegment {
@@ -87,6 +88,12 @@ describe("buildScoutingReport", () => {
     expect(r).toMatchObject({ teamId: TEAM, opponentId: OPP_X, unit: "offense", reviewBasis: "reviewed_only", computedAt: "2026-10-25T15:00:00.000Z", computeVersion: "stats-0.1.0" });
     expect(r.inputsHash).toMatch(/^[0-9a-f]{64}$/);
     for (const f of r.findings) expect(ScoutingFindingSchema.safeParse(f).success, JSON.stringify(ScoutingFindingSchema.safeParse(f))).toBe(true);
+  });
+
+  it("skips an asset with no game (a playbook document, §15.1) instead of failing", () => {
+    const r = buildScoutingReport({ teamId: TEAM, opponentId: OPP_X, unit: "offense", reviewBasis: "reviewed_only", games, assets, segments: [...segments, seg(s(10), u(27), g1)], labels, now });
+    expect(r.games.flatMap((g) => g.assetIds)).not.toContain(u(27));
+    expect(r.findings.every((f) => !f.includedSegmentIds.includes(s(10)))).toBe(true);
   });
 
   it("honours the gameIds filter and includes_inferred changes the sample", () => {
