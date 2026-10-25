@@ -5,44 +5,25 @@
    has text or a glyph. */
 
 :root {
+  /* Palette values live in styles/tokens.css (semantic tokens, imported before this file).
+     The historical variable names below are aliases so every prototype rule keeps working. */
   color-scheme: dark;
 
   /* surfaces, darkest to lightest */
-  --bg-0: #090d12;        /* page */
-  --bg-1: #0f151d;        /* panel */
-  --bg-2: #151d27;        /* inset / alt panel */
-  --bg-3: #1b2531;        /* hover */
-  --line: #233040;
-  --line-strong: #34455a;
-  --line-soft: #1b2531;
+  --bg-0: var(--surface-0);        /* page */
+  --bg-1: var(--surface-1);        /* panel */
+  --bg-2: var(--surface-2);        /* inset / alt panel */
+  --bg-3: var(--surface-3);        /* hover */
+  /* --line, --line-strong, --line-soft come from tokens.css unchanged */
 
-  /* navy: primary role on a dark base */
-  --navy: #1e3d66;
-  --navy-deep: #142a47;
-  --navy-soft: rgba(58, 108, 176, 0.16);
-  --navy-line: #3f6ba8;
-  --navy-text: #8db6ee;
-
-  --crimson: #e45a68;
-  --crimson-bg: rgba(228, 90, 104, 0.12);
-  --crimson-line: #8f2a39;
-
-  --gold: #e2b457;
-  --gold-bg: rgba(226, 180, 87, 0.10);
-  --gold-line: #a3813a;
-  --gold-text: #f0cf80;
-
-  --ink: #e3e9f0;
-  --ink-soft: #aab6c4;
-  --ink-faint: #7c8896;
+  /* navy: primary role on a dark base; --navy, --navy-deep, --navy-soft, --navy-line,
+     --navy-text, --crimson*, --gold*, --ink*, --focus and --radius come from tokens.css */
 
   --panel: var(--bg-1);
   --panel-alt: var(--bg-2);
   --page: var(--bg-0);
-  --focus: #76b6ff;
-  --radius: 4px;
-  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --mono: var(--font-mono);
+  --sans: var(--font-sans);
 }
 
 * { box-sizing: border-box; }
