@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 
 export const FOOTBALLOS_ENVS = ['development', 'demo', 'research', 'production'] as const;
@@ -39,6 +40,8 @@ const EnvSchema = z.object({
   SIGN_IN_RATE_LIMIT_WINDOW_SEC: z.coerce.number().int().positive().default(900),
   INVITE_TTL_HOURS: z.coerce.number().positive().default(24 * 7),
   RECOVERY_TOKEN_TTL_MINUTES: z.coerce.number().positive().default(60),
+  /** log2 of the scrypt cost parameter N. 17 (OWASP) in real use; tests lower it for speed. */
+  PASSWORD_SCRYPT_LOG2N: z.coerce.number().int().min(10).max(20).default(17),
 });
 
 export type AppConfig = {
@@ -70,6 +73,7 @@ export type AppConfig = {
   signInRateLimit: { max: number; windowSec: number };
   inviteTtlHours: number;
   recoveryTokenTtlMinutes: number;
+  passwordScryptLog2N: number;
 };
 
 /** Loads `apps/api/.env` (or the file named by FOOTBALLOS_ENV_FILE) when present. Existing variables win. */
@@ -82,7 +86,7 @@ export function loadEnvFile(file = process.env.FOOTBALLOS_ENV_FILE ?? path.resol
 
 export function packageDir(): string {
   // src/config.ts -> apps/api ; dist/config.js -> apps/api
-  return path.resolve(new URL('..', import.meta.url).pathname);
+  return path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -129,6 +133,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     signInRateLimit: { max: e.SIGN_IN_RATE_LIMIT_MAX, windowSec: e.SIGN_IN_RATE_LIMIT_WINDOW_SEC },
     inviteTtlHours: e.INVITE_TTL_HOURS,
     recoveryTokenTtlMinutes: e.RECOVERY_TOKEN_TTL_MINUTES,
+    passwordScryptLog2N: e.PASSWORD_SCRYPT_LOG2N,
   };
 }
 

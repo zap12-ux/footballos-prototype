@@ -24,7 +24,7 @@ export async function createUser(ctx: AppContext, input: { email: string; displa
     id: crypto.randomUUID(),
     email: input.email.trim().toLowerCase(),
     displayName: input.displayName,
-    passwordHash: await hashPassword(input.password),
+    passwordHash: await hashPassword(input.password, { N: 1 << ctx.config.passwordScryptLog2N }),
     mfaEnabled: false,
     mfaSecret: null,
     mfaPendingSecret: null,
@@ -37,19 +37,19 @@ export async function createUser(ctx: AppContext, input: { email: string; displa
 
 // A fixed hash so unknown e-mails cost the same as a wrong password (no user enumeration by timing).
 let dummyHash: string | null = null;
-async function getDummyHash(): Promise<string> {
-  dummyHash ??= await hashPassword(crypto.randomUUID());
+async function getDummyHash(ctx: AppContext): Promise<string> {
+  dummyHash ??= await hashPassword(crypto.randomUUID(), { N: 1 << ctx.config.passwordScryptLog2N });
   return dummyHash;
 }
 
 export async function checkPassword(ctx: AppContext, email: string, password: string): Promise<UserRow | null> {
   const user = findUserByEmail(ctx, email);
-  const ok = await verifyPassword(password, user?.passwordHash ?? (await getDummyHash()));
+  const ok = await verifyPassword(password, user?.passwordHash ?? (await getDummyHash(ctx)));
   return ok && user ? user : null;
 }
 
 export async function setPassword(ctx: AppContext, userId: string, password: string): Promise<void> {
-  ctx.db.update(users).set({ passwordHash: await hashPassword(password), updatedAt: ctx.now().toISOString() }).where(eq(users.id, userId)).run();
+  ctx.db.update(users).set({ passwordHash: await hashPassword(password, { N: 1 << ctx.config.passwordScryptLog2N }), updatedAt: ctx.now().toISOString() }).where(eq(users.id, userId)).run();
 }
 
 // MFA ----------------------------------------------------------------------------------------
