@@ -97,13 +97,14 @@ describe("playTypeByFormation", () => {
     expect(f[0]!.excludedReason).toMatchObject({ s3: "unreviewed", s4: "unknown", s5: "rejected", s6: "rejected", s7: "unreviewed", s8: "other_unit" });
     expect(f[0]!.contraryEvidence).toHaveLength(1);
   });
-  it("includes_inferred adds doubles → run 1 of 1 and trips → run 2 of 3", () => {
+  it("includes_inferred adds doubles → run 1 of 1; trips stays 1 of 2 because s5 (rejected play type) and s7 (no play type label) are excluded", () => {
     const f = playTypeByFormation(segments, labels, { ...base, reviewBasis: "includes_inferred" });
     expect(f.map((x) => x.statement.replace(/ \(.*\)\.$/, ""))).toEqual([
       'From "doubles", offense ran "run" on 1 of 1 plays with a known play type',
-      'From "trips", offense ran "pass" on 1 of 3 plays with a known play type',
-      'From "trips", offense ran "run" on 2 of 3 plays with a known play type',
+      'From "trips", offense ran "pass" on 1 of 2 plays with a known play type',
+      'From "trips", offense ran "run" on 1 of 2 plays with a known play type',
     ]);
+    expect(f[1]!.excludedReason).toMatchObject({ s5: "rejected", s7: "unknown", s4: "unknown", s6: "rejected", s8: "other_unit" });
   });
 });
 
