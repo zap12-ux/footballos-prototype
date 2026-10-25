@@ -8,7 +8,7 @@ import { probe } from '../probe.ts';
 const here = dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = resolve(here, '../../../..');
 export const DEMO_FILM_DIR = join(REPO_ROOT, 'apps/web/public/demo-film');
-export const DATA_DIR = join(REPO_ROOT, process.env['FOOTBALLOS_MEDIA_TEST_DIR'] ?? '.data/wt-c2');
+export const DATA_DIR = join(REPO_ROOT, process.env['FOOTBALLOS_MEDIA_TEST_DIR'] ?? '.data/wt-c3');
 export const CLIPS = [1, 2, 3, 4, 5, 6].map((n) => join(DEMO_FILM_DIR, `play-${n}.mp4`));
 
 export const SYNTHETIC_PATH = join(DATA_DIR, 'synthetic-game.mp4');
@@ -105,3 +105,6 @@ export async function readManifest(): Promise<SyntheticManifest> {
 function round3(n: number): number {
   return Math.round(n * 1000) / 1000;
 }
+
+/** Generated demo documents (see `document-fixtures.ts`). */
+export const DOCUMENTS_DIR = join(DATA_DIR, 'documents');

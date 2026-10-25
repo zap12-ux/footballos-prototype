@@ -1,11 +1,14 @@
 # @footballos/media
 
 Film validation, playback proxies, thumbnails, proposed play boundaries, footage-quality
-assessment and store-agnostic job-runner semantics for FootballOS. A library hosted by the
-API job worker (Milestone B); it has no HTTP surface of its own.
+assessment, playbook document extraction (PDF / text / docx pages with offline OCR) and
+store-agnostic job-runner semantics for FootballOS. A library hosted by the API job worker
+(Milestone B); it has no HTTP surface of its own.
 
-Everything runs locally with the bundled `ffmpeg-static` / `ffprobe-static` binaries, invoked
-with `child_process.execFile` and argument arrays. No footage leaves the machine.
+Everything runs locally: film through the bundled `ffmpeg-static` / `ffprobe-static` binaries
+(invoked with `child_process.execFile` and argument arrays), documents through pdfjs-dist,
+@napi-rs/canvas and tesseract.js in-process. No footage, document or text leaves the machine
+and nothing is downloaded at run time.
 
 ## What is implemented
 
@@ -22,13 +25,27 @@ with `child_process.execFile` and argument arrays. No footage leaves the machine
 | Split / merge | `splitSegment(seg, atSec)`, `mergeSegments(a, b)`, `renumber`, `findOverlaps` | Pure; inputs are never mutated; originals come back as copies with `supersededBy` filled and `version + 1`. Coach-made parts default to `reviewStatus: 'accepted'` (override with `reviewStatus`). |
 | Quality | `assessQuality(src)`, `interpretQuality(probe, samples, windows)` (pure) | Resolution/fps class, exposure (mean luma, black-frame share), uncalibrated edge-density sharpness number, camera-stability estimate from whole-frame change statistics, and an explicit `unevaluable[]` list. |
 | Jobs | `JobRunner`, `JobStore` interface, `InMemoryJobStore`, `idempotencyKeyFor`, `NonRetryableError` | claim with lease, heartbeat, progress, complete, fail with exponential backoff until `maxAttempts`, cooperative cancel via `AbortSignal`, lease-expiry recovery, duplicate enqueue returns the existing job. |
-| CLI | `bin/media.mjs probe|validate|proxy|thumbs|frames|segments|quality <file>` | Manual checks on the fixtures. Node ≥ 23.6 runs the TypeScript sources directly; on Node 22 add `--experimental-strip-types`. |
+| Documents (C2-lib) | `extractDocument(path, outDir, { renderDpi: 110, ocr: 'auto' \| 'off' })`, `paginateText`, `documentSourceType`, `DocumentError` | PDF pages rendered to `outDir/pages/page-<n>.png` with pdfjs-dist + @napi-rs/canvas and their text layer read per page; `.txt` / `.md` paged 60 lines at a time; `.docx` converted by mammoth. Pages without a text layer go through offline OCR when available. See "Document extraction". |
+| OCR (C2-lib) | `ocrAvailability()`, `createOcrEngine({ signal })` | tesseract.js with the English model read from the `@tesseract.js-data/eng` package on disk; never fetches. `recognize(png) → { text, confidence: 0..1 }`. |
+| Document handler (C2-lib) | `createDocumentHandlers({ dataDir, renderDpi?, ocr? })`, `asDocumentJobHandler`, `registerDocumentHandlers(runner, handlers)` | `extract_document` in the §14.8 handler shape; writes `pages/` and `pages.json` atomically. |
+| CLI | `bin/media.mjs probe|validate|proxy|thumbs|frames|segments|quality <file>`, `doc <file> <outDir> [--dpi N] [--ocr auto\|off]`, `doc-fixtures <outDir>` | Manual checks on the fixtures. Node ≥ 23.6 runs the TypeScript sources directly; on Node 22 add `--experimental-strip-types`. |
 
 Record types (`MediaAsset`, `FootageQuality`, `ProcessingJob`, `PlaySegment`, `EvidenceRef`, …) are
 imported from `@footballos/contracts` since Milestone B; `src/types.ts` only re-exports them and
 keeps the Milestone A aliases (`MediaAssetStatus`, `MediaAssetContext`, `ProcessingJobKind`,
 `ProcessingJobStatus`). `npm run typecheck` / `npm test` build the contracts package first
 (`pretypecheck` / `pretest`); vitest resolves it from source.
+
+## Package exports and types (for the API)
+
+`package.json` `exports["."]` is `{ types: ./dist/index.d.ts, import: ./src/index.ts, default:
+./src/index.ts }`. Node (≥ 23.6, native type stripping; the workspace symlink resolves to the
+real `packages/media/src` path, so stripping applies) and vitest keep loading the TypeScript
+sources; `tsc` in a consumer with `moduleResolution: NodeNext` resolves the **built**
+declarations. Run `npm run build -w packages/media` (or `build:types`, declarations only;
+`tsconfig.build.json` excludes `src/test`) before type-checking a consumer. With this, the
+`paths` entry for `@footballos/media` in `apps/api/tsconfig.json` is no longer needed: the
+API type-checks cleanly without it (verified locally, trace shows `dist/index.d.ts`).
 
 ## Handler contract (CONTRACTS §14.8)
 
@@ -89,6 +106,86 @@ Behaviour that B relies on:
 - **Runner adapter.** `registerMediaHandlers(runner, handlers)` registers the four kinds on
   this package's `JobRunner` (whose handler shape is `(ctx) => …`); `asJobHandler(h)` is the
   one-handler form. B's worker can use either or call the handlers directly from its own loop.
+
+## Document extraction (CONTRACTS §15.1, §15.5)
+
+```ts
+const r = await extractDocument(path, outDir, { renderDpi: 110, ocr: 'auto', signal?, onProgress? });
+// r = { pageCount, pages: { pageNumber, imagePath, width, height, text, textSource, ocrConfidence }[],
+//       warnings: string[], sourceType: 'pdf' | 'text' | 'docx', ocr: { requested, engine, used } }
+```
+
+| Source | How | `textSource` |
+| --- | --- | --- |
+| `.pdf` | pdfjs-dist (legacy build, in-process fake worker) renders every page to `outDir/pages/page-<n>.png` at `renderDpi` on an @napi-rs/canvas canvas (Letter at 110 dpi = 935×1210 px), then reads the page's text layer (`getTextContent`, items joined in pdfjs order, line breaks where items end a line). | `pdf_text` when the layer has text; otherwise OCR (`ocr`) or `none` |
+| `.txt`, `.md` | UTF-8, BOM stripped, CRLF normalised; one page per 60 lines (`linesPerPage`), original order; each page is also drawn on a white Letter page (10 pt monospace, long lines wrapped, overflow clipped) so every page has an image. | `pdf_text` (the text is authoritative, not recognised); `none` for an empty page |
+| `.docx` | mammoth `extractRawText` (paragraphs separated by a blank line), then paged like `.txt`. Images, tables layout, drawings and headers are not extracted; mammoth's own messages become warnings. A file mammoth cannot open is rejected with `DocumentError('docx_failed')`. | as `.txt` |
+
+Rules that hold for every page: nothing is invented, so a page whose text could not be read
+has `text: null` and `textSource: 'none'`; `ocrConfidence` is `0..1` (tesseract's mean word
+confidence / 100) only for `ocr` pages, else `null`; `imagePath` is `null` only when rendering
+failed (a warning says so); pages keep the document's own order and 1-based numbers.
+`warnings[]` is plain language: password-protected PDF (`pageCount: 0`, nothing extracted),
+pages without a text layer (and whether OCR was off, unavailable or found nothing), render,
+text-layer or OCR failures per page, empty documents. Unsupported extensions, missing files,
+unreadable PDFs and unconvertible `.docx` throw `DocumentError` with a stable `code`
+(`unsupported_type`, `source_missing`, `invalid_pdf`, `pdf_failed`, `docx_failed`, `text_failed`).
+
+Abort: `signal` is checked before every page and before OCR; on abort the images already
+written are removed, the OCR worker is terminated and the call rejects with `MediaToolError`
+code `aborted`. Progress: `onProgress(done, total, message)` once before the first page and
+once per finished page (during OCR, `total` is `Number.MAX_SAFE_INTEGER`, which the handler
+reports as `null`).
+
+Untrusted input: PDFs are opened with pdfjs without scripting or XFA support, fonts are not
+installed into the process (`disableFontFace`), standard fonts and CMaps come from the
+pdfjs-dist package on disk. OCR text and document text are data for the review UI; nothing
+in this package interprets them.
+
+### What OCR can and cannot do
+
+- Engine: tesseract.js 7 (Apache-2.0) running `tesseract.js-core` WASM in a `worker_threads`
+  thread, LSTM-only core. The English model is the `4.0.0_best_int` file (2.9 MB) from the
+  `@tesseract.js-data/eng` npm package (MIT wrapper; the traineddata itself is the Apache-2.0
+  tessdata), read with a local `langPath` and `cacheMethod: 'none'`, so **no CDN download and
+  no cache file** are ever written. `ocrAvailability()` reports `available: false` with a
+  reason when either package is missing, and `extractDocument` then returns scanned pages as
+  `textSource: 'none'` with the warning "OCR engine not available (…)".
+- `ocr: 'auto'` (default) OCRs only pages whose PDF text layer is empty; `ocr: 'off'` never
+  starts the engine (warning "Page n has no text layer; OCR is off.").
+- Measured on the generated scanned fixture (typed 34–48 px text, clean white page): all
+  lines recognised, confidence 0.95, about 1.4 s for the first page including engine start
+  (~1 s), well under a second per page after that.
+- Not measured: real scans (skew, shadows, handwriting, low contrast), photographed pages,
+  rotated pages (no orientation detection: the LSTM-only core cannot run `detect`), small
+  print, tables, and play diagrams. Tesseract reads text only: circles, arrows and routes in
+  a diagram produce nothing or garbage characters, which is why `textSource` and
+  `ocrConfidence` travel with every page so the review UI can show them. English only.
+- OCR runs one page at a time in one worker; a 60-page scanned playbook is roughly one
+  minute. The handler reports progress per page.
+
+### Handler
+
+```ts
+const { extract_document } = createDocumentHandlers({ dataDir, renderDpi: 110, ocr: 'auto' });
+// async (job: { id, input: { assetId, sourcePath, outDir } }, ctx: { signal, progress }) => result
+```
+
+Writes `outDir/pages/page-<n>.png` and `outDir/pages.json` (`PagesFile`: version, assetId,
+sourcePath, sourceType, renderDpi, ocr, pageCount, pages, warnings, extractedAt). Work happens
+in `outDir/.extract-<jobId>.part/`; on success the old `pages/` and `pages.json` are removed
+and the new ones moved into place together, so an abort or crash leaves neither images nor a
+`pages.json` behind (a SIGKILL can leave the `.part` directory, which the next run of the
+same job removes). Result = the `extractDocument` result (with final `imagePath`s) plus
+`pagesPath`, `pagesDir`, `renderDpi`. Errors: `NonRetryableError` `bad_input`,
+`source_missing`, or the `DocumentError` code (`unsupported_type`, `invalid_pdf`, …);
+`MediaToolError('aborted')` on cancel, which the `JobRunner` records as `canceled`.
+`registerDocumentHandlers(runner, handlers)` registers the kind `extract_document`.
+
+For B (§15.1): `PlaybookPage.ocrText` ← `text`, `ocrConfidence` ← `ocrConfidence`,
+`imageKey` ← `imagePath` relative to the asset dir; `textSource` is on every page. A
+password-protected PDF comes back with `pageCount: 0` and a warning rather than a failure,
+so the host decides how to show it.
 
 ## Defaults (confirmed by the owner, 2026-10-25)
 
@@ -196,13 +293,26 @@ is sha256 over canonical JSON).
 
 ## Tests
 
-`npm run typecheck -w packages/media` and `npm test -w packages/media` (79 tests in 7 files,
-about 50 s on a laptop once the derived assets exist). The suite uses the
+`npm run typecheck -w packages/media` and `npm test -w packages/media` (93 tests in 8 files,
+about a minute on a laptop once the derived assets exist). The suite uses the
 six clips at `apps/web/public/demo-film/play-1.mp4 … play-6.mp4` by path (nothing is copied)
-and builds derived assets into `.data/wt-c2/` (override with `FOOTBALLOS_MEDIA_TEST_DIR`) on
+and builds derived assets into `.data/wt-c3/` (override with `FOOTBALLOS_MEDIA_TEST_DIR`) on
 first run: the synthetic game, a "held frame then play" clip (fixed-camera case), a "shaken"
 clip (unstable-camera case) and an `-itsoffset 2.5 -c copy` copy of play-1 whose container
-start time is 2.5 s.
+start time is 2.5 s. The demo documents (`fixtures/documents/README.md`) are regenerated into
+`.data/wt-c3/documents/` on every run.
+
+Milestone C additions: `documents.test.ts` (14 tests): the 3-page text PDF gives three
+`pdf_text` pages at 935×1210 px with the heading, the numbered play list and every
+"Term — definition" line; the image-only PDF gives `textSource: 'none'` / `ocrConfidence:
+null` with the OCR-off warning, and `ocr` with confidence > 0.5 through the offline engine
+when it is installed (the test checks `ocrAvailability()` and asserts the "engine not
+available" warning otherwise); `.txt` paging 60/60/10 with exact line content; `.docx`
+through mammoth; rejections (`unsupported_type`, `source_missing`, `invalid_pdf`,
+`docx_failed`); an empty file; abort after page 1 removes the written image; `paginateText`
+edge cases; the handler through `JobRunner` + `InMemoryJobStore` (result shape, files,
+`pages.json`, no staging left), cancel mid-run leaving an empty `outDir`, non-retryable
+input errors and a re-run that replaces the previous output as a unit.
 
 Milestone B additions: `frames.test.ts` (1 fps over play-1 in reverse order comes back
 ordered with exact `atSec`, 640x360 dimensions and `frameSec` within one frame period; no
@@ -242,6 +352,12 @@ neither `proxy.mp4` nor a `.part` file behind.
 - The proxy handler holds the encode in `proxy.mp4.part-<jobId>`; a worker killed with
   SIGKILL leaves that file until the next run of the same job (which rewrites it) or a host
   sweep of `*.part-*`.
+- Documents: no password-protected PDF fixture exists (pdf-lib cannot encrypt), so the
+  `PasswordException` branch is written from the pdfjs API and not exercised by a test. Large
+  scanned PDFs (hundreds of pages) have not been timed; rendering is in-process and
+  sequential. Text-page images use the system `monospace` face through @napi-rs/canvas: on a
+  server without fonts the PNG would be blank while `text` stays correct. PDF text-layer
+  order is pdfjs's content order, which can interleave columns on multi-column pages.
 
 ## Dependencies
 
@@ -251,4 +367,10 @@ neither `proxy.mp4` nor a `.part` file behind.
 | ffprobe-static | ^3.1.0 | MIT (binary) | probing |
 | zod | ^4.6.7 | MIT | option and limits schemas |
 | @footballos/contracts | 0.1.0 (workspace) | MIT | record types (MediaAsset, ProcessingJob, PlaySegment, …) |
+| pdfjs-dist | ^6.4.299 | Apache-2.0 | PDF page rendering and text layer (`legacy/build/pdf.mjs`; its `standard_fonts`, `cmaps`, `iccs`, `wasm` directories are read from disk) |
+| @napi-rs/canvas | ^1.0.13 | MIT (prebuilt native binary per platform, optional dependency per target) | canvas for pdfjs rendering and text-page images; PNG encoding |
+| tesseract.js | ^7.0.0 | Apache-2.0 | OCR engine (pulls `tesseract.js-core` ^7, Apache-2.0, the WASM build) |
+| @tesseract.js-data/eng | ^1.0.0 | MIT (package); the traineddata inside is Apache-2.0 tessdata | English OCR model read offline from node_modules (13.9 MB unpacked; the 2.9 MB `4.0.0_best_int` file is used) |
+| mammoth | ^1.13.0 | BSD-2-Clause | `.docx` → plain text |
+| pdf-lib | ^1.17.1 (dev) | MIT | generates the PDF test fixtures |
 | vitest, typescript, tsx, @types/node | dev | MIT / Apache-2.0 / MIT / MIT | tests, typecheck |
