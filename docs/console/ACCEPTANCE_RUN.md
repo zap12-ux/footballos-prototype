@@ -35,6 +35,10 @@ proven by the agents' own fetches. The content-carrying continuation (`message.d
 
 ## Defects found
 
+- `leadctl answer <questionId> ...` fails with `unknown command "answer <id>"` (positional
+  argument parsing); the owner API itself works (used directly with curl, HTTP 201). Owner:
+  console runtime. Status: open.
+
 - Owner reported they could not select a queued question in their console window (Frontend question
   44759ff5, 2026-10-25 ~16:55 UTC). The lead relayed the question in chat and submitted the
   owner's answer through the owner API (`leadctl answer`, source `owner`), recorded as a
