@@ -68,21 +68,27 @@ export function getLabel(ctx: AppContext, labelId: string): LabelRow | undefined
   return ctx.db.select().from(labels).where(eq(labels.id, labelId)).get();
 }
 
-/** Coach correction (§14.5): new `accepted` block, version bump, one LabelRevision. */
-export function correctLabel(ctx: AppContext, userId: string, label: LabelRow, body: PatchLabelRequest): LabelRow {
+/**
+ * Coach correction (§14.5): new `accepted` block, version bump, one LabelRevision. A PATCH whose
+ * `accepted` value and status equal the current ones is a no-op (§14.10, QA D-5): nothing is
+ * written and `changed` is false. The version check still applies first.
+ */
+export function correctLabel(ctx: AppContext, userId: string, label: LabelRow, body: PatchLabelRequest): { label: LabelRow; changed: boolean } {
   if (label.version !== body.expectedVersion) {
     throw errors.conflict(`Label version ${body.expectedVersion} expected, current is ${label.version}`, { currentVersion: label.version });
   }
-  const nowIso = ctx.now().toISOString();
   const value = body.accepted.status === 'rejected' || body.accepted.status === 'unknown' ? null : body.accepted.value;
+  if (label.accepted.status === body.accepted.status && label.accepted.value === value) return { label, changed: false };
+  const nowIso = ctx.now().toISOString();
   const accepted = { value, status: body.accepted.status, byUserId: userId, at: nowIso };
-  return ctx.db.transaction((tx) => {
+  const updated = ctx.db.transaction((tx) => {
     tx.insert(labelRevisions).values({
       id: crypto.randomUUID(), labelId: label.id, previousValue: label.accepted.value, newValue: value, previousStatus: label.accepted.status,
       newStatus: body.accepted.status, byUserId: userId, at: nowIso, reason: body.reason ?? null,
     }).run();
     return tx.update(labels).set({ accepted, version: label.version + 1, updatedAt: nowIso }).where(eq(labels.id, label.id)).returning().get()!;
   });
+  return { label: updated, changed: true };
 }
 
 export function listRevisions(ctx: AppContext, labelId: string): RevisionRow[] {

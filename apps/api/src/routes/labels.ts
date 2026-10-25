@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { BulkAcceptRequestSchema, IdSchema, InferRequestSchema, PatchLabelRequestSchema } from '@footballos/contracts';
+import { BulkAcceptRequestSchema, IdSchema, InferRequestSchema, PatchLabelRequestSchema, type PatchLabelResponse } from '@footballos/contracts';
 import type { AppContext } from '../context.js';
 import { errors } from '../errors.js';
 import { zv } from '../http/validate.js';
@@ -48,7 +48,9 @@ export function labelRoutes(ctx: AppContext) {
       if (!l || !teamIdsOf(c.var.auth).includes(l.teamId)) throw errors.notFound('Label');
       const m = requireMembership(c.var.auth, l.teamId);
       assert(policy.canUploadOrCorrect(m), 'Viewers cannot correct labels');
-      return c.json({ label: serializeLabel(correctLabel(ctx, c.var.auth.user.id, l, c.req.valid('json'))) }, 200);
+      const r = correctLabel(ctx, c.var.auth.user.id, l, c.req.valid('json'));
+      const body: PatchLabelResponse = { label: serializeLabel(r.label), changed: r.changed };
+      return c.json(body, 200);
     })
     .get('/labels/:labelId/revisions', zv('param', labelParam), (c) => {
       const { labelId } = c.req.valid('param');

@@ -81,11 +81,18 @@ describe('§14.5 corrections, inference persistence, bulk accept', () => {
     expect((await call(t, 'PATCH', `/api/v1/labels/${l.id}`, body, beta.hc.cookie)).status).toBe(404);
     const ok = await call(t, 'PATCH', `/api/v1/labels/${l.id}`, body, alpha.pc.cookie);
     expect(ok.status).toBe(200);
+    expect(ok.body.changed).toBe(true);
     expect(ok.body.label.version).toBe(2);
     expect(ok.body.label.accepted).toMatchObject({ value: 'trips right', status: 'corrected', byUserId: alpha.pc.user.id });
     const stale = await call(t, 'PATCH', `/api/v1/labels/${l.id}`, body, alpha.pc.cookie);
     expect(stale.status).toBe(409);
     expect(stale.body.error.details.currentVersion).toBe(2);
+    // §14.10 (QA D-5): an identical accepted block is a no-op: same version, no revision, changed:false
+    const same = await call(t, 'PATCH', `/api/v1/labels/${l.id}`, { ...body, reason: 'same value again', expectedVersion: 2 }, alpha.oc.cookie);
+    expect(same.status).toBe(200);
+    expect(same.body.changed).toBe(false);
+    expect(same.body.label.version).toBe(2);
+    expect(same.body.label.accepted).toEqual(ok.body.label.accepted); // byUserId/at untouched too
     const revs = await call(t, 'GET', `/api/v1/labels/${l.id}/revisions`, undefined, alpha.vw.cookie);
     expect(revs.body.items).toHaveLength(1);
     expect(revs.body.items[0]).toMatchObject({ previousValue: null, newValue: 'trips right', previousStatus: 'unknown', newStatus: 'corrected', byUserId: alpha.pc.user.id, reason: 'three receivers to the field' });
