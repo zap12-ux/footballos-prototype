@@ -268,3 +268,97 @@ coordinators without MFA. Media (`packages/media`) and AI (`packages/ai`) curren
 structural copies of §5–§7/§10 types; swapping them for package imports is a Milestone B
 chore. Proposed job-table fields from C: `input`, `result`, `notBeforeAt`,
 `cancelRequestedAt` (store-internal until adopted here).
+
+## 14. Milestone B addendum (v0.3, 2026-10-25) — film workflow API and job hosting
+
+Implemented by B in `apps/api`; consumed by A in `apps/web`; library pieces from C
+(`packages/media`) and D (`packages/ai`). Everything here is authoritative for Milestone B.
+
+### 14.1 Resumable uploads
+- `POST /games/:gameId/uploads` `{ filename, byteSize, mimeType, sha256?, context: MediaAsset.context }`
+  → `201 { upload: Upload, asset: MediaAsset(status:'uploading') }`. If `sha256` is given and an
+  asset with that hash exists in the team → `409 conflict`, `details.existingAssetId`.
+  Limits from env (`MAX_UPLOAD_BYTES`, `ALLOWED_VIDEO_CONTAINERS`) → `413` / `400`.
+- `PUT /uploads/:uploadId` with `Content-Range: bytes <start>-<end>/<total>` and a raw body of at
+  most `UPLOAD_CHUNK_BYTES` → `200 { receivedBytes }`. Chunks must be contiguous (`start ==
+  receivedBytes`), otherwise `409 conflict` with `details.receivedBytes` (client resumes from it).
+- `GET /uploads/:uploadId` → `{ upload }` (for resume after reload). Uploads expire after
+  `UPLOAD_TTL_HOURS` (default 24) and are garbage-collected with their partial file.
+- `POST /uploads/:uploadId/complete` → server computes sha256 of the stored file; mismatch with a
+  client-provided hash → `400`; duplicate of an existing asset → `409` with `existingAssetId` and
+  the partial file is deleted; otherwise asset `uploaded`, a job chain is enqueued
+  (`validate` → `proxy` → `thumbnails` → `segment`, each idempotent by
+  `idempotencyKey = sha256(kind + assetId + configVersion)`) → `200 { asset, jobs: ProcessingJob[] }`.
+- `GET /games/:gameId/assets` → `{ items: MediaAsset[] }`; `GET /assets/:assetId` → `{ asset }`;
+  `DELETE /assets/:assetId` (head coach; retention action; audit) → `204`.
+
+### 14.2 Jobs and the worker
+- `GET /teams/:teamId/jobs?assetId=&status=&limit=&cursor=` → paginated `ProcessingJob`.
+- `GET /jobs/:jobId` → `{ job }`; `POST /jobs/:jobId/cancel` → `{ job }` (`cancelRequestedAt`
+  set; running handlers see `signal.aborted`); `POST /jobs/:jobId/retry` → `{ job }` (allowed from
+  `failed`/`canceled`; resets attempt counter; same idempotency key).
+- Job table adds the store-internal fields proposed by C: `input` (json), `result` (json),
+  `notBeforeAt`, `cancelRequestedAt`. B implements `SqliteJobStore` against
+  `packages/media/src/jobs/types.ts` (`JobStore`).
+- Worker: `npm run worker -w apps/api` runs the `JobRunner` from `packages/media` with
+  `WORKER_CONCURRENCY`, `JOB_LEASE_SECONDS`, `JOB_MAX_ATTEMPTS`; `WORKER_INLINE=true` runs it inside
+  the API process for development. On start it calls `recoverExpiredLeases()`.
+- Handlers registered by B: `validate`, `proxy`, `thumbnails`, `segment` from
+  `createMediaHandlers()` (C) and `infer_labels` from `createInferLabelsHandler()` (D). B persists
+  each handler's result into `MediaAsset` (quality, proxy/thumbnail keys, status) or
+  `PlaySegment`/`Label` rows inside one transaction per job completion.
+
+### 14.3 Media delivery
+- `GET /assets/:assetId/grant` → `{ streamUrl, thumbUrlTemplate, expiresAt }` where URLs carry an
+  HMAC token (`MEDIA_GRANT_TTL_MIN`, default 15) bound to team + asset.
+- `GET /media/:assetId/stream?token=` serves the proxy when present, else the original, with HTTP
+  `Range` support; `GET /media/:assetId/thumb/:n?token=` serves tile `n` of the thumbnail sheet
+  (or a single frame file). Expired/foreign token → `401`.
+
+### 14.4 Segments
+- `GET /assets/:assetId/segments` → `{ items: PlaySegment[] }` (non-superseded, ordered).
+- `POST /segments/:segmentId/split { atSec, expectedVersion }` → `{ segments: [a, b], superseded }`.
+- `POST /segments/merge { segmentIds: [..], expectedVersion: { [id]: n } }` → `{ segment, superseded }`.
+- `PATCH /segments/:segmentId { reviewStatus?, startSec?, endSec?, expectedVersion }` → `{ segment }`.
+- `POST /assets/:assetId/segments { startSec, endSec }` (coach-created) → `201 { segment }`.
+
+### 14.5 Labels, corrections, inference
+- `POST /assets/:assetId/infer { segmentIds?: string[], labelKeys?: LabelKey[] }` → `202 { jobs }`.
+  One `infer_labels` job per batch of at most `FOOTBALLOS_AI_MAX_SEGMENTS_PER_JOB` segments.
+  `MODEL_PROVIDER=none` → the job fails immediately with
+  `error.code='provider_unavailable'`, `retryable:false`, message "No model provider is
+  configured"; manual labeling stays available. Reprocessing writes a new `inferred` block and a
+  new `ModelProvenance`; it never changes `accepted` when `accepted.status ∈ {accepted, corrected}`.
+- `GET /segments/:segmentId/labels` → `{ items: Label[] }`; `GET /assets/:assetId/labels` →
+  `{ items: Label[] }` (all segments, for review tables).
+- `PATCH /labels/:labelId { accepted: { value, status: 'accepted'|'corrected'|'unknown'|'rejected' }, reason?, expectedVersion }`
+  → `{ label }`; writes a `LabelRevision`; `GET /labels/:labelId/revisions` → `{ items }`.
+- `POST /assets/:assetId/labels/bulk-accept { segmentIds, keys }` → `{ accepted: n, skipped: n }`;
+  only labels whose `accepted.status === 'inferred'` and `inferred.abstained === false` change.
+- `GET /assets/:assetId/provenance` → `{ items: ModelProvenance[] }`.
+
+### 14.6 Scouting (computed, never stored except snapshots)
+- `GET /teams/:teamId/opponents/:opponentId/scouting?unit=&reviewBasis=reviewed_only|includes_inferred&gameIds=`
+  → `{ findings: ScoutingFinding[], games: { gameId, assetIds }[], sampleSize, computedAt, computeVersion }`
+  computed with `packages/ai` `computeFindings` over stored segments and labels of assets whose
+  `context.analyzedTeam === 'opponent'` for that opponent's games.
+- `POST …/scouting/snapshots { title }` → `201 { snapshot: ReportSnapshot }`;
+  `GET …/scouting/snapshots` → `{ items }`.
+
+### 14.7 Team settings (proposed route adopted)
+- `GET /teams/:teamId/settings` → `{ settings: { retentionDays: number|null, uploadLimits, version } }`;
+  `PATCH` with `expectedVersion` (head coach).
+
+### 14.8 Library interfaces owed by C and D (for B to host)
+- C: `extractFrames(src, timestampsSec: number[], { height?: 720 }) → Promise<{ atSec, jpeg: Buffer, width, height }[]>`;
+  `createMediaHandlers({ dataDir, limits, proxy: { height }, thumbnails: { everySec } }) →
+  { validate, proxy, thumbnails, segment }`, each `async (job: { id, input }, ctx: { signal, progress(done,total,message) }) => result`
+  with `input = { assetId, sourcePath, outDir }` and results: `validate → { ok, reasons, probe, quality }`,
+  `proxy → { proxyPath, mapping, durationDriftSec }`, `thumbnails → { sheetPath, everySec, count, framesDir? }`,
+  `segment → { segments: PlaySegment-shaped[], confidenceNote }`.
+- D: `createInferLabelsHandler({ labeler, extractFrames, budgetUsd, maxFramesPerSegment }) →
+  async (job: { id, input: { assetId, sourcePath, context, labelKeys, segments: { id, startSec, endSec, fps }[] } }, ctx) =>
+  { perSegment: { segmentId, labels: InferredLabel[], provenance: ModelProvenance }[], skipped: { segmentId, reason }[], costUsd }`
+  and `applyInference(existing: Label[], segmentId, inferred: InferredLabel[], provenanceId) → { upserts: Label[] }`
+  that preserves `accepted` when its status is `accepted`/`corrected`.
+- Both packages import their record types from `@footballos/contracts` from Milestone B on.
