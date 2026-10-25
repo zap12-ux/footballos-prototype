@@ -600,6 +600,8 @@ export function createMockApi(options: MockApiOptions = {}): Api {
           streamUrl: `${base.replace(/\/$/, '')}/demo-film/play-${clip}.mp4?demo-grant=${newId('tok')}`,
           thumbUrlTemplate: DEMO_THUMB_TEMPLATE,
           expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
+          thumbEverySec: 10,
+          thumbCount: Math.ceil((asset.durationSec ?? 0) / 10),
         });
       },
       async jobs(teamId, query = {}) {

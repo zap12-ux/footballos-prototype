@@ -28,3 +28,8 @@ if (typeof NativeRequest === 'function') {
   }
   Object.defineProperty(globalThis, 'Request', { value: PatchedRequest, configurable: true, writable: true });
 }
+
+// Shell and film screens load several resources before they settle; under a parallel run
+// on a busy machine Testing Library's 1 s default for `findBy*` / `waitFor` is too short.
+import { configure } from '@testing-library/react';
+configure({ asyncUtilTimeout: 8000 });

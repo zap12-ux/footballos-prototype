@@ -9,6 +9,7 @@ import { SignInPage } from '../pages/SignInPage';
 import { DashboardPage } from '../pages/DashboardPage';
 import { SchedulePage } from '../pages/SchedulePage';
 import { FilmPage } from '../pages/FilmPage';
+import { AssetPage } from '../pages/AssetPage';
 import { ScoutingPage } from '../pages/ScoutingPage';
 import { PlansPage } from '../pages/PlansPage';
 import { PlaybookPage } from '../pages/PlaybookPage';
@@ -39,6 +40,7 @@ export const routes: RouteObject[] = [
           { index: true, element: <DashboardPage /> },
           { path: 'schedule', element: <SchedulePage /> },
           { path: 'film', element: <FilmPage /> },
+          { path: 'film/:assetId', element: <AssetPage /> },
           { path: 'scouting', element: <ScoutingPage /> },
           { path: 'plans', element: <PlansPage /> },
           { path: 'playbook', element: <PlaybookPage /> },

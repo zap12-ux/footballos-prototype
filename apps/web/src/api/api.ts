@@ -117,6 +117,13 @@ export interface LabelCorrection {
   expectedVersion: number;
 }
 
+/**
+ * `GET /assets/:id/grant` (§14.3). `thumbEverySec` / `thumbCount` are a frontend proposal: the
+ * thumbnail job knows its `everySec`, the grant is the only place the client learns it. Until
+ * the API returns them the strip assumes 10 s per tile and says so.
+ */
+export type MediaGrantInfo = MediaGrant & { thumbEverySec?: number; thumbCount?: number };
+
 /** `GET /teams/:teamId/opponents/:opponentId/scouting` (§14.6): computed, never stored. */
 export interface ScoutingReport {
   findings: ScoutingFinding[];
@@ -188,7 +195,7 @@ export interface Api {
     completeUpload(uploadId: string): Promise<{ asset: MediaAsset; jobs: ProcessingJob[] }>;
     deleteAsset(assetId: string): Promise<void>;
     /** §14.3: expiring, team-scoped URLs for the proxy stream and thumbnail tiles. */
-    grant(assetId: string): Promise<MediaGrant>;
+    grant(assetId: string): Promise<MediaGrantInfo>;
     jobs(teamId: string, query?: JobQuery): Promise<ProcessingJob[]>;
     job(jobId: string): Promise<ProcessingJob>;
     cancelJob(jobId: string): Promise<ProcessingJob>;

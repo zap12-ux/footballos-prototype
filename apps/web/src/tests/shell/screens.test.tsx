@@ -89,18 +89,22 @@ describe('workspace screens on the mock API', () => {
     expect(screen.getByRole('heading', { level: 3, name: /^Approved \(5\)/ })).toBeInTheDocument();
   });
 
-  it('film: upload context form, processing progress, rejection reason and a segment list', async () => {
+  it('film: upload context form, processing progress, rejection reason, and the asset view with its segment counts', async () => {
     const user = userEvent.setup();
-    renderApp('/app/film?game=game-w10', { signedInAs: HEAD });
+    const { router } = renderApp('/app/film?game=game-w10', { signedInAs: HEAD });
     await screen.findByRole('heading', { level: 1, name: /^Our Team Film$/ });
     expect(await screen.findByText(/Proposing play boundaries/)).toBeInTheDocument();
     expect(screen.getAllByRole('progressbar').length).toBeGreaterThan(0);
     expect(screen.getByText(/no video stream that ffprobe can read/)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /Show proposed plays/ }));
-    expect(await screen.findByText(/plays proposed/)).toHaveTextContent(/48 plays proposed · 31 accepted · 16 awaiting review · 1 rejected/);
     // Submitting without a file is a recoverable validation error.
     await user.click(screen.getByRole('button', { name: /Start upload/ }));
     expect(await screen.findByText(/Choose a video file first/)).toHaveAttribute('role', 'alert');
+    // The asset view lists every live play with its review state.
+    await user.click(screen.getAllByRole('link', { name: /Open plays and labels/ })[0]);
+    await waitFor(() => expect(router.state.location.pathname).toBe('/app/film/asset-westmoor-1'));
+    await screen.findByTestId('segment-counts');
+    await waitFor(() => expect(screen.getByTestId('segment-counts')).toHaveTextContent(/16 proposed · 31 accepted · 1 rejected · 16 in the review queue/));
+    expect(screen.getByTestId('unevaluable')).toHaveTextContent(/Jersey numbers on the far side/);
   });
 
   it('personnel and staff: depth chart, packages with availability, members and an invite', async () => {
