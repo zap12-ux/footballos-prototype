@@ -25,6 +25,11 @@ describe('routing: every route renders from a direct URL', () => {
     expect(document.body.textContent).not.toMatch(/Georgetown|MPIM|Module 7/);
     expect(document.body.textContent).not.toMatch(/\d+\s?%/);
     expect(document.body.textContent).not.toMatch(/customers|testimonial/i);
+    // The hero montage is manifest-driven; with no clips shipped it shows the poster only
+    // and never references the prototype's credited demo clips.
+    expect(screen.getByTestId('montage-poster')).toBeInTheDocument();
+    expect(screen.queryByTestId('montage-video')).not.toBeInTheDocument();
+    expect(document.body.innerHTML).not.toMatch(/demo-film\//);
   });
 
   it('renders /sign-in', async () => {

@@ -101,7 +101,7 @@ export function SettingsPage() {
           <dt>Multi-factor sign-in</dt>
           <dd>{me.user.mfaEnabled ? 'On' : 'Off'}</dd>
         </dl>
-        <p className="small muted">MFA set-up and recovery codes are managed on the server (`/auth/mfa/setup`); the screen for it arrives with the API.</p>
+        <p className="small muted">MFA set-up and recovery codes are managed on the server (<code>/auth/mfa/setup</code>); the screen for it arrives with the API.</p>
       </section>
     </>
   );

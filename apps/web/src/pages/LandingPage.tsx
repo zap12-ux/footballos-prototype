@@ -1,9 +1,6 @@
 import { Link } from 'react-router';
 import { FocusOnNavigate } from '../app/FocusOnNavigate';
-import { Montage } from '../components/shell/Montage';
-import { DEMO_FILM_CLIPS, DEMO_FILM_CREDIT } from '../data/demoFilm';
-
-const POSTER = `${import.meta.env.BASE_URL}landing/montage-poster.svg`;
+import { Montage, useMontageManifest } from '../components/shell/Montage';
 
 const STEPS = [
   { title: 'Upload game film', body: 'Sideline or end-zone film goes into the game it belongs to. The upload asks four questions once: whose film, which unit, which camera, how to tell the teams apart.' },
@@ -20,7 +17,7 @@ const TRUST = [
 ];
 
 export function LandingPage() {
-  const clips = Object.values(DEMO_FILM_CLIPS).map((c) => c.src);
+  const manifest = useMontageManifest();
   return (
     <main id="main" tabIndex={-1} className="public-main pub-landing">
       <FocusOnNavigate title="FootballOS — game week, organized" />
@@ -46,23 +43,7 @@ export function LandingPage() {
             The demo is the film-review prototype: simulated evaluations on six real snaps, no account needed.
           </p>
         </div>
-        <Montage
-          clips={clips}
-          poster={POSTER}
-          credit={
-            <>
-              Footage: <em>{DEMO_FILM_CREDIT.title}</em>, {DEMO_FILM_CREDIT.holder},{' '}
-              <a href={DEMO_FILM_CREDIT.sourceUrl} target="_blank" rel="noreferrer">
-                source
-              </a>
-              ,{' '}
-              <a href={DEMO_FILM_CREDIT.licenseUrl} target="_blank" rel="noreferrer">
-                {DEMO_FILM_CREDIT.license}
-              </a>
-              . Trimmed and re-encoded; audio removed.
-            </>
-          }
-        />
+        <Montage manifest={manifest} />
       </section>
 
       <section className="pub-section" aria-labelledby="how-heading">

@@ -1,12 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Montage } from '../../components/shell/Montage';
+import { Montage, resolveAssetPath, type MontageManifest } from '../../components/shell/Montage';
 import { stubMatchMedia, stubMediaPlayback } from './harness';
 
-const clips = ['/demo-film/play-1.mp4', '/demo-film/play-2.mp4'];
+const withClips: MontageManifest = {
+  poster: 'montage/poster.svg',
+  clips: [
+    { src: 'montage/clip-1.mp4', credit: 'Generated clip 1' },
+    { src: 'montage/clip-2.mp4' },
+  ],
+};
+const posterOnly: MontageManifest = { poster: 'montage/poster.svg', clips: [] };
 
-describe('landing montage', () => {
+describe('landing montage (manifest-driven)', () => {
   let media: ReturnType<typeof stubMediaPlayback>;
   beforeEach(() => {
     media = stubMediaPlayback();
@@ -16,14 +23,23 @@ describe('landing montage', () => {
     media.pause.mockRestore();
   });
 
-  it('plays muted inline with a visible credit, and the control pauses and resumes it', async () => {
+  it('with an empty clip list renders the poster only: no video, no control, no autoplay', () => {
+    render(<Montage manifest={posterOnly} />);
+    expect(screen.getByTestId('montage-poster')).toHaveAttribute('src', '/montage/poster.svg');
+    expect(screen.queryByTestId('montage-video')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    expect(media.play).not.toHaveBeenCalled();
+  });
+
+  it('with clips plays muted inline with the clip credit, and the control pauses and resumes', async () => {
     const user = userEvent.setup();
-    render(<Montage clips={clips} poster="/landing/montage-poster.svg" credit={<>Credit line</>} />);
+    render(<Montage manifest={withClips} />);
     const video = screen.getByTestId('montage-video') as HTMLVideoElement;
     expect(video.muted).toBe(true);
     expect(video).toHaveAttribute('playsinline');
-    expect(video).toHaveAttribute('poster', '/landing/montage-poster.svg');
-    expect(screen.getByText('Credit line')).toBeInTheDocument();
+    expect(video).toHaveAttribute('poster', '/montage/poster.svg');
+    expect(video.getAttribute('src')).toBe('/montage/clip-1.mp4');
+    expect(screen.getByText('Generated clip 1')).toBeInTheDocument();
 
     const control = screen.getByRole('button', { name: /Pause montage/ });
     expect(control).toHaveAttribute('aria-pressed', 'true');
@@ -35,31 +51,35 @@ describe('landing montage', () => {
     expect(screen.getByRole('button', { name: /Pause montage/ })).toBeInTheDocument();
   });
 
-  it('chains the clips: when one ends the next one loads, and the sequence wraps', () => {
-    render(<Montage clips={clips} poster="/p.svg" credit="c" />);
-    const first = screen.getByTestId('montage-video') as HTMLVideoElement;
-    expect(first.getAttribute('src')).toBe(clips[0]);
-    fireEvent(first, new Event('ended'));
-    expect((screen.getByTestId('montage-video') as HTMLVideoElement).getAttribute('src')).toBe(clips[1]);
+  it('chains the clips in manifest order and loops the sequence', () => {
+    render(<Montage manifest={withClips} />);
     fireEvent(screen.getByTestId('montage-video'), new Event('ended'));
-    expect((screen.getByTestId('montage-video') as HTMLVideoElement).getAttribute('src')).toBe(clips[0]);
+    expect(screen.getByTestId('montage-video').getAttribute('src')).toBe('/montage/clip-2.mp4');
+    expect(screen.queryByText('Generated clip 1')).not.toBeInTheDocument();
+    fireEvent(screen.getByTestId('montage-video'), new Event('ended'));
+    expect(screen.getByTestId('montage-video').getAttribute('src')).toBe('/montage/clip-1.mp4');
   });
 
   it('honours prefers-reduced-motion: poster only, no autoplay, playback on request', async () => {
     const restore = stubMatchMedia(true);
     try {
       const user = userEvent.setup();
-      render(<Montage clips={clips} poster="/landing/montage-poster.svg" credit="c" />);
-      expect(screen.getByTestId('montage-poster')).toHaveAttribute('src', '/landing/montage-poster.svg');
+      render(<Montage manifest={withClips} />);
+      expect(screen.getByTestId('montage-poster')).toBeInTheDocument();
       expect(screen.queryByTestId('montage-video')).not.toBeInTheDocument();
       expect(screen.getByTestId('montage-reduced-motion')).toHaveTextContent(/Reduced motion/);
       expect(media.play).not.toHaveBeenCalled();
       await user.click(screen.getByRole('button', { name: /Play montage/ }));
-      const video = screen.getByTestId('montage-video') as HTMLVideoElement;
-      expect(video).not.toHaveAttribute('autoplay');
+      expect(screen.getByTestId('montage-video')).not.toHaveAttribute('autoplay');
       expect(media.play).toHaveBeenCalled();
     } finally {
       restore();
     }
+  });
+
+  it('resolves manifest paths against BASE_URL and leaves absolute URLs alone', () => {
+    expect(resolveAssetPath('montage/poster.svg', '/footballos-prototype/')).toBe('/footballos-prototype/montage/poster.svg');
+    expect(resolveAssetPath('/already/absolute.mp4', '/base/')).toBe('/already/absolute.mp4');
+    expect(resolveAssetPath('https://cdn.example/clip.mp4', '/base/')).toBe('https://cdn.example/clip.mp4');
   });
 });

@@ -1,12 +1,55 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
-export interface MontageProps {
-  /** Clip URLs played in order, then repeated. */
-  clips: string[];
+/**
+ * Ordered montage manifest (`public/montage/manifest.json`). Paths are relative to Vite's
+ * `BASE_URL` unless absolute. The hero is source-agnostic: it plays whatever clips the
+ * owner drops in; with no clips it shows the poster only.
+ */
+export interface MontageClip {
+  src: string;
+  poster?: string;
+  credit?: string;
+}
+
+export interface MontageManifest {
   poster: string;
-  /** Visible credit line (licence requirement). */
-  credit: React.ReactNode;
-  label?: string;
+  clips: MontageClip[];
+}
+
+export function resolveAssetPath(path: string, baseUrl: string = import.meta.env.BASE_URL): string {
+  if (/^(https?:)?\/\//.test(path) || path.startsWith('/') || path.startsWith('data:') || path.startsWith('blob:')) return path;
+  return `${baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`}${path}`;
+}
+
+export const DEFAULT_MANIFEST: MontageManifest = { poster: 'montage/poster.svg', clips: [] };
+
+function isManifest(value: unknown): value is MontageManifest {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as Partial<MontageManifest>;
+  return typeof v.poster === 'string' && Array.isArray(v.clips) && v.clips.every((c) => c && typeof c === 'object' && typeof (c as MontageClip).src === 'string');
+}
+
+/** Load the manifest; any failure falls back to the poster-only default. */
+export function useMontageManifest(url: string = resolveAssetPath('montage/manifest.json')): MontageManifest {
+  const [manifest, setManifest] = useState<MontageManifest>(DEFAULT_MANIFEST);
+  useEffect(() => {
+    let active = true;
+    if (typeof fetch !== 'function') return undefined;
+    (async () => {
+      try {
+        const response = await fetch(url, { headers: { Accept: 'application/json' } });
+        if (!response.ok) return;
+        const json: unknown = await response.json();
+        if (active && isManifest(json)) setManifest(json);
+      } catch {
+        /* poster-only fallback */
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [url]);
+  return manifest;
 }
 
 export function prefersReducedMotion(): boolean {
@@ -18,16 +61,27 @@ export function prefersReducedMotion(): boolean {
   }
 }
 
+export interface MontageProps {
+  manifest: MontageManifest;
+  label?: string;
+  /** Shown under the frame when no clip carries its own credit. */
+  caption?: ReactNode;
+}
+
 /**
- * Hero montage: one muted, inline video element that chains the credited clips and loops
+ * Hero montage: one muted, inline video element that chains the manifest's clips and loops
  * the sequence. With `prefers-reduced-motion` only the poster is shown and nothing
- * autoplays; the coach can still start it. A visible control pauses and resumes.
+ * autoplays; the coach can still start it. A visible control pauses and resumes. With an
+ * empty clip list the poster is shown alone.
  */
-export function Montage({ clips, poster, credit, label = 'Football montage' }: MontageProps) {
+export function Montage({ manifest, label = 'Football montage', caption }: MontageProps) {
   const reduced = useRef(prefersReducedMotion()).current;
+  const clips = manifest.clips;
   const [playing, setPlaying] = useState(!reduced);
   const [index, setIndex] = useState(0);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const poster = resolveAssetPath(manifest.poster);
+  const clip = clips[index % Math.max(clips.length, 1)];
 
   const safePlay = useCallback(() => {
     const video = videoRef.current;
@@ -35,7 +89,7 @@ export function Montage({ clips, poster, credit, label = 'Football montage' }: M
     try {
       const result = video.play() as unknown;
       if (result && typeof (result as Promise<void>).catch === 'function') {
-        (result as Promise<void>).catch(() => setPlaying(false)); // autoplay blocked: show the control state truthfully
+        (result as Promise<void>).catch(() => setPlaying(false)); // autoplay blocked: say so truthfully
       }
     } catch {
       setPlaying(false);
@@ -55,17 +109,19 @@ export function Montage({ clips, poster, credit, label = 'Football montage' }: M
     }
   }, [playing, index, safePlay]);
 
-  const showVideo = !reduced || playing;
+  const hasClips = clips.length > 0;
+  const showVideo = hasClips && (!reduced || playing);
+  const credit = clip?.credit ?? null;
 
   return (
-    <figure className="montage">
+    <figure className="montage" data-testid="montage">
       <div className="montage-frame">
-        {showVideo ? (
+        {showVideo && clip ? (
           <video
             ref={videoRef}
-            key={clips[index]}
-            src={clips[index]}
-            poster={poster}
+            key={clip.src}
+            src={resolveAssetPath(clip.src)}
+            poster={clip.poster ? resolveAssetPath(clip.poster) : poster}
             muted
             playsInline
             loop={clips.length === 1}
@@ -78,16 +134,18 @@ export function Montage({ clips, poster, credit, label = 'Football montage' }: M
         ) : (
           <img src={poster} alt="" className="montage-poster" data-testid="montage-poster" />
         )}
-        <button type="button" className="montage-control" onClick={() => setPlaying((p) => !p)} aria-pressed={playing}>
-          {playing ? 'Pause montage' : 'Play montage'}
-        </button>
-        {reduced ? (
+        {hasClips ? (
+          <button type="button" className="montage-control" onClick={() => setPlaying((p) => !p)} aria-pressed={playing}>
+            {playing ? 'Pause montage' : 'Play montage'}
+          </button>
+        ) : null}
+        {hasClips && reduced ? (
           <span className="montage-note" data-testid="montage-reduced-motion">
             Reduced motion is on: the montage will not start on its own.
           </span>
         ) : null}
       </div>
-      <figcaption className="montage-credit">{credit}</figcaption>
+      {credit || caption ? <figcaption className="montage-credit">{credit ?? caption}</figcaption> : null}
     </figure>
   );
 }
