@@ -124,7 +124,8 @@ export class AnthropicVisionLabeler implements VisionLabeler {
       },
     };
 
-    const reservation = this.budget.reserve(
+    const budget = input.budget ?? this.budget;
+    const reservation = budget.reserve(
       estimateCallCostUsd({
         model: this.config.anthropicModel,
         frames: input.frames.map((f) => ({ width: f.width ?? null, height: f.height ?? null })),
@@ -149,8 +150,19 @@ export class AnthropicVisionLabeler implements VisionLabeler {
       cacheReadInputTokens: message.usage.cache_read_input_tokens ?? 0,
       outputTokens: message.usage.output_tokens,
     };
-    const costUsd = computeCostUsd(message.model, usage);
+    // Price by the model that served the request; when the API reports a dated snapshot id
+    // that is not in the table, fall back to the requested id (an alias is billed at the
+    // same rate). `reserve` already refused any requested model that is unpriced.
+    const costUsd = computeCostUsd(message.model, usage) ?? computeCostUsd(this.config.anthropicModel, usage);
     reservation.settle(costUsd);
+    if (costUsd === null) {
+      throw new ProviderUnavailableError({
+        provider: "anthropic",
+        reason: "unknown",
+        retryable: false,
+        message: `neither served model ${JSON.stringify(message.model)} nor requested model ${JSON.stringify(this.config.anthropicModel)} is in the price table; cost cannot be recorded`,
+      });
+    }
 
     if (message.stop_reason === "refusal") {
       const category = message.stop_details?.category;

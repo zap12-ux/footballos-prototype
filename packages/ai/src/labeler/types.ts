@@ -1,4 +1,5 @@
-import type { AssetContext, InferredLabel, LabelKey, ModelProvenance, PlaySegmentRef } from "../types.js";
+import type { JobBudget } from "../cost/budget.js";
+import type { AssetContext, InferredLabel, LabelKey, ModelProvenance, PlaySegment } from "../types.js";
 
 /** One JPEG frame extracted by `@footballos/media` at a planned timestamp. */
 export interface LabelFrame {
@@ -12,7 +13,7 @@ export interface LabelFrame {
 }
 
 export interface LabelSegmentInput {
-  segment: Pick<PlaySegmentRef, "id" | "assetId" | "gameId" | "startSec" | "endSec">;
+  segment: Pick<PlaySegment, "id" | "assetId" | "startSec" | "endSec"> & { gameId?: string | null };
   /** Ordered frames; each carries its timestamp into the prompt text. */
   frames: LabelFrame[];
   context: AssetContext;
@@ -24,6 +25,12 @@ export interface LabelSegmentInput {
   samplingFps?: number | null;
   /** e.g. "1280x720"; "unknown" when not supplied. */
   resolution?: string;
+  /**
+   * Shared per-job spending ledger (one `JobBudget` per job, CONTRACTS §14.8). Adapters that
+   * can estimate a call reserve against it before sending; when absent the adapter uses its
+   * own budget.
+   */
+  budget?: JobBudget;
 }
 
 export interface LabelSegmentOutput {
