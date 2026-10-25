@@ -10,7 +10,11 @@ import type {
   GamePlan,
   GamePlanVersion,
   Invite,
+  Label,
+  LabelKey,
+  LabelRevision,
   MediaAsset,
+  ModelProvenance,
   Opponent,
   PersonnelPackage,
   PlanComment,
@@ -20,6 +24,7 @@ import type {
   Player,
   PlaySegment,
   ProcessingJob,
+  ReportSnapshot,
   ScheduledGame,
   ScoutingFinding,
   Season,
@@ -73,7 +78,7 @@ export const memberships: StaffMembership[] = [
 ];
 
 export const invites: Invite[] = [
-  { id: 'inv-1', teamId: T, email: 'wr.coach@winchester-hawks.demo', role: 'position_coach', unit: 'offense', expiresAt: '2026-11-01T00:00:00.000Z', acceptedAt: null, createdBy: 'user-head' },
+  { id: 'inv-1', teamId: T, email: 'wr.coach@winchester-hawks.demo', role: 'position_coach', unit: 'offense', expiresAt: '2026-11-01T00:00:00.000Z', acceptedAt: null, createdBy: 'user-head', createdAt: '2026-10-25T00:00:00.000Z' },
 ];
 
 export const opponents: Opponent[] = [
@@ -164,6 +169,15 @@ export const assets: MediaAsset[] = [
     storageKey: 'demo/northgate', proxyStorageKey: 'demo/northgate/proxy', thumbnailSheetKey: 'demo/northgate/thumbs', retentionUntil: '2027-10-17T00:00:00.000Z',
     createdAt: '2026-10-17T14:00:00.000Z', updatedAt: '2026-10-17T16:20:00.000Z',
   },
+  {
+    id: 'asset-northgate-opp', teamId: T, gameId: 'game-w8', uploadedBy: 'user-analyst', kind: 'game_film',
+    originalFilename: 'northgate_offense_cutups.mp4', byteSize: 1_410_000_000, sha256: 'demo-sha-5', mimeType: 'video/mp4',
+    durationSec: 2710.0, width: 1280, height: 720, fps: 29.97, status: 'ready', rejectionReason: null,
+    context: { analyzedTeam: 'opponent', analyzedUnit: 'offense', perspective: 'endzone', teamCues: 'Northgate in black jerseys' },
+    quality: { stable: null, lineOfScrimmageVisible: true, allTwentyTwoVisible: false, notes: ['End-zone cut-ups: each play starts a second before the snap.'], unevaluable: ['Camera stability (cuts between plays)', 'Field position (no yard markers in frame)'] },
+    storageKey: 'demo/northgate-opp', proxyStorageKey: 'demo/northgate-opp/proxy', thumbnailSheetKey: 'demo/northgate-opp/thumbs', retentionUntil: null,
+    createdAt: '2026-10-18T09:00:00.000Z', updatedAt: '2026-10-18T10:30:00.000Z',
+  },
 ];
 
 export const jobs: ProcessingJob[] = [
@@ -185,6 +199,36 @@ export const jobs: ProcessingJob[] = [
     attempt: 3, maxAttempts: 3, leaseExpiresAt: null, workerId: 'worker-demo', idempotencyKey: 'demo-key-3', configVersion: 'ai-0.1',
     error: { code: 'provider_unavailable', message: 'No model provider is configured for this team. Labels can be entered by a coach.' },
     requestedBy: 'user-analyst', createdAt: '2026-10-21T19:45:00.000Z', startedAt: '2026-10-21T19:46:00.000Z', finishedAt: '2026-10-21T19:52:00.000Z', canceledAt: null,
+  },
+  ...(['validate', 'proxy', 'thumbnails', 'segment'] as const).map((kind, i): ProcessingJob => ({
+    id: `job-w1-${kind}`, teamId: T, assetId: 'asset-westmoor-1', kind, status: 'succeeded',
+    progress: { done: 1, total: 1, message: kind === 'segment' ? '48 play boundaries proposed' : 'Done' },
+    attempt: 1, maxAttempts: 3, leaseExpiresAt: null, workerId: 'worker-demo', idempotencyKey: `demo-key-w1-${kind}`, configVersion: 'media-0.1',
+    error: null, requestedBy: 'user-analyst', createdAt: '2026-10-21T18:30:00.000Z', startedAt: `2026-10-21T18:${31 + i * 15}:00.000Z`, finishedAt: `2026-10-21T18:${40 + i * 15}:00.000Z`, canceledAt: null,
+  })),
+  {
+    id: 'job-w2-validate', teamId: T, assetId: 'asset-westmoor-2', kind: 'validate', status: 'succeeded',
+    progress: { done: 1, total: 1, message: 'Readable H.264 stream, 98 min' },
+    attempt: 1, maxAttempts: 3, leaseExpiresAt: null, workerId: 'worker-demo', idempotencyKey: 'demo-key-w2-validate', configVersion: 'media-0.1',
+    error: null, requestedBy: 'user-analyst', createdAt: '2026-10-25T10:20:00.000Z', startedAt: '2026-10-25T10:21:00.000Z', finishedAt: '2026-10-25T10:22:00.000Z', canceledAt: null,
+  },
+  {
+    id: 'job-w2-proxy', teamId: T, assetId: 'asset-westmoor-2', kind: 'proxy', status: 'succeeded',
+    progress: { done: 5890, total: 5890, message: '720p proxy written' },
+    attempt: 1, maxAttempts: 3, leaseExpiresAt: null, workerId: 'worker-demo', idempotencyKey: 'demo-key-w2-proxy', configVersion: 'media-0.1',
+    error: null, requestedBy: 'user-analyst', createdAt: '2026-10-25T10:20:00.000Z', startedAt: '2026-10-25T10:22:00.000Z', finishedAt: '2026-10-25T11:30:00.000Z', canceledAt: null,
+  },
+  {
+    id: 'job-w2-thumbs', teamId: T, assetId: 'asset-westmoor-2', kind: 'thumbnails', status: 'retry_wait',
+    progress: { done: 240, total: 589, message: 'ffmpeg exited with code 137 (out of memory); retrying in 30 s' },
+    attempt: 2, maxAttempts: 3, leaseExpiresAt: null, workerId: null, idempotencyKey: 'demo-key-w2-thumbs', configVersion: 'media-0.1',
+    error: null, requestedBy: 'user-analyst', createdAt: '2026-10-25T10:20:00.000Z', startedAt: '2026-10-25T11:31:00.000Z', finishedAt: null, canceledAt: null,
+  },
+  {
+    id: 'job-ng-infer', teamId: T, assetId: 'asset-northgate-us', kind: 'infer_labels', status: 'canceled',
+    progress: { done: 3, total: 40, message: 'Canceled by a coach after 3 of 40 segments' },
+    attempt: 1, maxAttempts: 3, leaseExpiresAt: null, workerId: 'worker-demo', idempotencyKey: 'demo-key-ng-infer', configVersion: 'ai-0.1',
+    error: null, requestedBy: 'user-head', createdAt: '2026-10-17T16:30:00.000Z', startedAt: '2026-10-17T16:31:00.000Z', finishedAt: '2026-10-17T16:33:00.000Z', canceledAt: '2026-10-17T16:33:00.000Z',
   },
 ];
 
@@ -406,4 +450,115 @@ export const packages: PersonnelPackage[] = [
   { id: 'pkg-dime', teamId: T, seasonId: S, unit: 'defense', name: 'Dime', playerIds: ['p-90', 'p-94', 'p-44', 'p-21', 'p-24', 'p-3', 'p-9', 'p-11'], description: 'Six defensive backs for third and long.', version: 1 },
 ];
 
-export const settings: TeamSettings = { teamId: T, retentionDays: 365, autoDeleteOriginals: false, version: 1 };
+export const settings: TeamSettings = {
+  retentionDays: 365,
+  uploadLimits: { maxUploadBytes: 8 * 1024 ** 3, chunkBytes: 8 * 1024 ** 2, allowedVideoContainers: ['mp4', 'mov'] },
+  version: 1,
+};
+
+// §6 labels, provenance and revisions for the reviewed Westmoor film ----------------------
+//
+// Demo story: the first 12 of 48 segments were labeled by a model during an evaluation run
+// (provenance below); the provider was then removed from the team's configuration, so the
+// `infer_labels` job above stopped with `provider_unavailable`. Segments 13–48 have label
+// rows without an inferred block (`accepted.status: 'unknown'`) so a coach can fill them in.
+
+/** Keys the demo labels cover, in review-table order. */
+export const DEMO_LABEL_KEYS: LabelKey[] = ['unit', 'play_type', 'formation_family', 'personnel_estimate', 'alignment', 'hash', 'motion', 'situation_down'];
+
+const INFERRED_SEGMENTS = 12;
+const LABELED_AT = '2026-10-21T19:50:00.000Z';
+const REVIEWED_AT = '2026-10-22T13:00:00.000Z';
+
+const FORMATIONS = ['trips_right', 'trips_left', 'doubles', 'ace', 'i_form', 'empty'];
+const PLAY_TYPES: (string | null)[] = ['run', 'pass', 'pass', 'run', 'run', 'pass', 'other', 'run', 'pass', 'run', 'pass', 'run'];
+
+function inferredFor(segmentIndex: number, key: LabelKey): Label['inferred'] {
+  const i = segmentIndex - 1;
+  const at = 120 + i * 128.5;
+  const evidence = (note: string) => [{ assetId: 'asset-westmoor-1', atSec: Math.round((at + 1.2) * 10) / 10, toSec: Math.round((at + 4.0) * 10) / 10, frameIndex: null, note }];
+  switch (key) {
+    case 'unit':
+      return { value: 'offense', abstained: false, rationale: 'Eleven players set on the line of scrimmage facing the camera; quarterback under centre or in shotgun.', evidence: evidence('Pre-snap alignment'), uncertainty: 'low' };
+    case 'play_type': {
+      const value = PLAY_TYPES[i % PLAY_TYPES.length];
+      if (i === 6) return { value: null, abstained: true, rationale: 'Ball carrier hidden behind the far-side linemen; neither a handoff nor a throw is visible in the sampled frames.', evidence: evidence('Frames 2–5'), uncertainty: null };
+      return { value, abstained: false, rationale: value === 'run' ? 'Handoff visible at frame 3; linemen fire out.' : 'Quarterback drops; linemen set in pass protection.', evidence: evidence('Snap plus two frames'), uncertainty: i % 5 === 0 ? 'medium' : 'low' };
+    }
+    case 'formation_family':
+      return { value: FORMATIONS[i % FORMATIONS.length], abstained: false, rationale: 'Receiver count and backfield set in the pre-snap frame.', evidence: evidence('Pre-snap frame'), uncertainty: i % 4 === 3 ? 'high' : 'low' };
+    case 'personnel_estimate':
+      if (i % 6 === 5) return { value: null, abstained: true, rationale: 'Far-side receivers outside the frame; tight-end count cannot be established.', evidence: evidence('Pre-snap frame'), uncertainty: null };
+      return { value: i % 3 === 0 ? '12' : '11', abstained: false, rationale: 'One back and the visible tight ends counted in the pre-snap frame.', evidence: evidence('Pre-snap frame'), uncertainty: 'medium' };
+    case 'alignment':
+      return { value: i % 2 === 0 ? 'strength_right' : 'strength_left', abstained: false, rationale: 'Tight end and the extra receiver aligned to that side.', evidence: evidence('Pre-snap frame'), uncertainty: 'low' };
+    case 'hash':
+      if (i % 4 === 1) return { value: null, abstained: true, rationale: 'Hash marks not visible from this framing.', evidence: evidence('Pre-snap frame'), uncertainty: null };
+      return { value: i % 3 === 0 ? 'left' : i % 3 === 1 ? 'middle' : 'right', abstained: false, rationale: 'Ball placed relative to the visible hash marks.', evidence: evidence('Pre-snap frame'), uncertainty: 'medium' };
+    case 'motion':
+      return { value: i % 3 === 2 ? 'yes' : 'no', abstained: false, rationale: i % 3 === 2 ? 'A receiver crosses the formation before the snap.' : 'No pre-snap movement in the sampled frames.', evidence: evidence('Frames before the snap'), uncertainty: 'low' };
+    case 'situation_down':
+      // Evidence-only key (CONTRACTS §6): no down marker or scoreboard in frame → abstain.
+      return { value: null, abstained: true, rationale: 'No down marker or scoreboard graphic visible; down is never inferred from play context.', evidence: [], uncertainty: null };
+    default:
+      return null;
+  }
+}
+
+/** Coach actions on the inferred labels so the review table shows every status. */
+function acceptedFor(segmentIndex: number, key: LabelKey, inferred: Label['inferred']): Label['accepted'] {
+  const i = segmentIndex - 1;
+  if (!inferred) return { value: null, status: 'unknown', byUserId: null, at: null };
+  // Segments 1–4 were fully reviewed by the analyst.
+  if (i < 4) {
+    if (inferred.abstained) return { value: key === 'situation_down' ? (i === 0 ? '1' : null) : null, status: key === 'situation_down' && i === 0 ? 'corrected' : 'unknown', byUserId: 'user-analyst', at: REVIEWED_AT };
+    if (key === 'formation_family' && i === 1) return { value: 'doubles', status: 'corrected', byUserId: 'user-analyst', at: REVIEWED_AT };
+    if (key === 'play_type' && i === 2) return { value: 'pass', status: 'corrected', byUserId: 'user-oc', at: REVIEWED_AT };
+    return { value: inferred.value, status: 'accepted', byUserId: 'user-analyst', at: REVIEWED_AT };
+  }
+  // Segment 5: one label rejected as unusable.
+  if (i === 4 && key === 'hash') return { value: null, status: 'rejected', byUserId: 'user-analyst', at: REVIEWED_AT };
+  // Everything else is still the model's proposal.
+  return { value: inferred.value, status: 'inferred', byUserId: null, at: null };
+}
+
+export const provenance: ModelProvenance[] = Array.from({ length: INFERRED_SEGMENTS }, (_, i) => {
+  const start = 120 + i * 128.5;
+  const frames = Array.from({ length: 6 }, (_, f) => Math.round((start + 0.5 + f * 1.2) * 10) / 10);
+  return {
+    id: `prov-westmoor-1-${i + 1}`, provider: 'anthropic', model: 'claude-demo-vision', modelRevision: '2026-10-01', promptId: 'label-v1', promptHash: 'sha256:3f9a1c…demo',
+    preprocessing: { samplingFps: 1, frameCount: frames.length, clipSec: 7.4, resolution: '1280x720' },
+    inspected: { fromSec: frames[0], toSec: frames[frames.length - 1], frameTimestampsSec: frames },
+    analysisVersion: 'ai-0.1', inputTokens: 5400 + i * 37, outputTokens: 310 + i * 3, costUsd: Math.round((0.0162 + i * 0.0001) * 1e6) / 1e6, latencyMs: 4200 + i * 110,
+    requestedAt: `2026-10-21T19:46:${String(i * 4).padStart(2, '0')}.000Z`, completedAt: `2026-10-21T19:46:${String(i * 4 + 3).padStart(2, '0')}.500Z`,
+  };
+});
+
+export const labels: Label[] = segments.flatMap((segment) =>
+  DEMO_LABEL_KEYS.map((key): Label => {
+    const inferred = segment.index <= INFERRED_SEGMENTS ? inferredFor(segment.index, key) : null;
+    const accepted = acceptedFor(segment.index, key, inferred);
+    return {
+      id: `label-${segment.index}-${key}`, teamId: T, segmentId: segment.id, key, inferred, accepted,
+      provenanceId: inferred ? `prov-westmoor-1-${segment.index}` : null,
+      version: accepted.status === 'inferred' || accepted.status === 'unknown' ? 1 : 2,
+      createdAt: inferred ? LABELED_AT : '2026-10-21T19:40:00.000Z', updatedAt: accepted.at ?? (inferred ? LABELED_AT : '2026-10-21T19:40:00.000Z'),
+    };
+  }),
+);
+
+export const labelRevisions: LabelRevision[] = labels
+  .filter((l) => l.accepted.status !== 'inferred' && l.accepted.status !== 'unknown')
+  .map((l) => ({
+    id: `rev-${l.id}`, labelId: l.id, previousValue: l.inferred?.value ?? null, newValue: l.accepted.value, previousStatus: 'inferred', newStatus: l.accepted.status,
+    byUserId: l.accepted.byUserId ?? 'user-analyst', at: l.accepted.at ?? REVIEWED_AT,
+    reason: l.accepted.status === 'corrected' ? (l.key === 'situation_down' ? 'Down marker visible on the far sideline at the snap.' : 'Far-side receiver was stacked, not split.') : l.accepted.status === 'rejected' ? 'Camera pans during the snap; hash cannot be read.' : null,
+  }));
+
+export const snapshots: ReportSnapshot[] = [
+  {
+    id: 'snap-westmoor-off-1', teamId: T, opponentId: 'opp-westmoor', title: 'Westmoor offense — Tuesday install (demo)',
+    findings: findings.filter((f) => f.opponentId === 'opp-westmoor' && f.unit === 'offense' && f.reviewBasis === 'reviewed_only'),
+    generatedBy: 'user-dc', generatedAt: '2026-10-24T09:05:00.000Z', inputsHash: 'sha256:demo-snapshot-1',
+  },
+];

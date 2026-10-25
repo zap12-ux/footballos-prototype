@@ -24,13 +24,20 @@ describe('workspace screens on the mock API', () => {
   });
 
   it('scouting: every finding shows its denominator and review basis; uncertain findings are separated', async () => {
+    const user = userEvent.setup();
     renderApp('/app/scouting?unit=offense&game=game-w10', { signedInAs: HEAD });
     await screen.findByRole('heading', { level: 1, name: /^Opponent Scouting$/ });
-    const counts = await screen.findAllByTestId('finding-count');
-    expect(counts.map((c) => c.textContent)).toEqual(expect.arrayContaining([expect.stringMatching(/19 of 54 snaps \(35\.2%\)/), expect.stringMatching(/9 of 11 snaps/)]));
-    const bases = screen.getAllByTestId('review-basis').map((b) => b.textContent);
-    expect(bases).toContain('Reviewed labels only');
-    expect(bases).toContain('Includes unreviewed labels');
+    // Default basis: reviewed labels only; the report says so and every finding agrees.
+    let counts = await screen.findAllByTestId('finding-count');
+    expect(counts.map((c) => c.textContent)).toEqual(expect.arrayContaining([expect.stringMatching(/19 of 54 snaps \(35\.2%\)/)]));
+    expect(screen.getAllByTestId('review-basis').map((b) => b.textContent)).toEqual(expect.arrayContaining(['Reviewed labels only']));
+    expect(screen.getAllByTestId('review-basis').map((b) => b.textContent)).not.toContain('Includes unreviewed labels');
+    expect(screen.getByTestId('report-meta')).toHaveTextContent(/reviewed labels only/);
+    // Including unreviewed labels brings in the findings that depend on them.
+    await user.click(screen.getByRole('radio', { name: /Include unreviewed/ }));
+    await waitFor(() => expect(screen.getAllByTestId('review-basis').map((b) => b.textContent)).toContain('Includes unreviewed labels'));
+    counts = screen.getAllByTestId('finding-count');
+    expect(counts.map((c) => c.textContent)).toEqual(expect.arrayContaining([expect.stringMatching(/9 of 11 snaps/)]));
     const uncertain = screen.getByRole('region', { name: /Uncertain \(1\)/ });
     expect(within(uncertain).getByRole('heading', { level: 3, name: /may favour screens on third and long/ })).toBeInTheDocument();
     expect(within(uncertain).getByTestId('finding-count')).toHaveTextContent(/3 of 7 snaps .* too small to call/);
@@ -122,7 +129,7 @@ describe('workspace screens on the mock API', () => {
     await user.type(field, '180');
     // Someone else saves first: the next write must report a conflict, not overwrite.
     await api.teams.updateSettings('team-winchester-demo', { retentionDays: 90, expectedVersion: 1 });
-    await user.click(screen.getByRole('button', { name: /Save retention/ }));
+    await user.click(screen.getByRole('button', { name: /Save settings/ }));
     expect(await screen.findByRole('alert')).toHaveTextContent(/version 1 expected, current is 2/);
   });
 });

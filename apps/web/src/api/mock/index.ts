@@ -10,20 +10,41 @@ import type {
   Concept,
   GamePlanVersion,
   Invite,
+  Label,
+  LabelRevision,
   MediaAsset,
   PlanComment,
+  PlanSectionKey,
+  PlaySegment,
   ProcessingJob,
+  ReportSnapshot,
   ScheduleImport,
   ScheduledGame,
   StaffMembership,
   Unit,
+  Upload,
   User,
 } from '../contracts';
 import { PLAN_SECTION_TEMPLATES } from '../contracts';
 import * as demo from './data';
-import { DEMO_MFA_CODE, DEMO_NOW } from './data';
+import { DEMO_LABEL_KEYS, DEMO_MFA_CODE, DEMO_NOW } from './data';
 
 export { DEMO_MFA_CODE, DEMO_NOW };
+
+/** Demo clips that stand in for a proxy stream in mock mode (credited CC BY-NC footage, see README). */
+const DEMO_CLIP_COUNT = 6;
+
+/**
+ * Thumbnail tiles in mock mode: an SVG data URL that keeps the `{n}` placeholder, so the
+ * client's template substitution produces a tile that names its own index. Nothing is
+ * pretending to be a frame of the film.
+ */
+const DEMO_THUMB_TEMPLATE = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="90" viewBox="0 0 160 90"><rect width="160" height="90" fill="#151d27"/><rect x="0.5" y="0.5" width="159" height="89" fill="none" stroke="#34455a"/><text x="80" y="40" fill="#aab6c4" font-family="ui-monospace, monospace" font-size="11" text-anchor="middle">demo tile</text><text x="80" y="62" fill="#e2b457" font-family="ui-monospace, monospace" font-size="16" text-anchor="middle">#TILE#</text></svg>',
+).replace('%23TILE%23', '{n}')}`;
+
+/** Simulated worker: how many polls a mock job takes from `running` to done. */
+const SIMULATED_STEPS = 2;
 
 export interface MockApiOptions {
   latencyMs?: number;
@@ -82,8 +103,16 @@ export function createMockApi(options: MockApiOptions = {}): Api {
     depthCharts: clone(demo.depthCharts),
     packages: clone(demo.packages),
     settings: clone(demo.settings),
+    labels: clone(demo.labels),
+    provenance: clone(demo.provenance),
+    labelRevisions: clone(demo.labelRevisions),
+    snapshots: clone(demo.snapshots),
     imports: [] as ScheduleImport[],
+    uploads: [] as Upload[],
   };
+  /** Jobs created in this session whose progress the mock worker simulates on every poll. */
+  const simulated = new Set<string>();
+  const uploadSha = new Map<string, string | undefined>();
 
   let session: MockSession | null = options.signedInAs ? { userId: options.signedInAs, mfaVerified: true } : readSession();
   let pendingMfaUser: string | null = null;
@@ -165,6 +194,130 @@ export function createMockApi(options: MockApiOptions = {}): Api {
     return memberships.some((m) => m.role === 'head_coach' || ((m.role === 'coordinator' || m.role === 'position_coach') && m.units.includes(unit)));
   }
 
+  /** Upload film and correct labels: every role except viewer (CONTRACTS §3). */
+  function requireLabeler() {
+    const { user, memberships } = requireUser();
+    if (!memberships.some((m) => m.role !== 'viewer')) fail('forbidden', 'Viewers cannot upload film or change labels.', 403);
+    return user;
+  }
+
+  function assetOrFail(assetId: string): MediaAsset {
+    const asset = db.assets.find((a) => a.id === assetId && a.status !== 'deleted');
+    if (!asset) fail('not_found', 'Asset not found.', 404);
+    requireTeam(asset.teamId);
+    return asset;
+  }
+
+  function segmentOrFail(segmentId: string): PlaySegment {
+    const segment = db.segments.find((s) => s.id === segmentId);
+    if (!segment) fail('not_found', 'Segment not found.', 404);
+    requireTeam(segment.teamId);
+    if (segment.supersededBy.length) fail('conflict', 'This segment was split or merged; reload the timeline.', 409, { supersededBy: segment.supersededBy });
+    return segment;
+  }
+
+  function labelOrFail(labelId: string): Label {
+    const label = db.labels.find((l) => l.id === labelId);
+    if (!label) fail('not_found', 'Label not found.', 404);
+    requireTeam(label.teamId);
+    return label;
+  }
+
+  /** Live (non-superseded) segments of an asset, ordered and re-indexed by start time. */
+  function liveSegments(assetId: string): PlaySegment[] {
+    const live = db.segments.filter((s) => s.assetId === assetId && s.supersededBy.length === 0).sort((a, b) => a.startSec - b.startSec);
+    live.forEach((s, i) => {
+      s.index = i + 1;
+    });
+    return live;
+  }
+
+  function newSegment(base: Pick<PlaySegment, 'teamId' | 'assetId' | 'gameId'>, startSec: number, endSec: number, origin: PlaySegment['origin'], reviewStatus: PlaySegment['reviewStatus']): PlaySegment {
+    const ts = nowIso();
+    const segment: PlaySegment = { id: newId('seg'), teamId: base.teamId, assetId: base.assetId, gameId: base.gameId, index: 0, startSec, endSec, origin, reviewStatus, supersededBy: [], version: 1, createdAt: ts, updatedAt: ts };
+    db.segments.push(segment);
+    // A new segment gets empty label rows so a coach can label it by hand (status `unknown`).
+    for (const key of DEMO_LABEL_KEYS) {
+      db.labels.push({ id: newId('label'), teamId: base.teamId, segmentId: segment.id, key, inferred: null, accepted: { value: null, status: 'unknown', byUserId: null, at: null }, provenanceId: null, version: 1, createdAt: ts, updatedAt: ts });
+    }
+    return segment;
+  }
+
+  function newJob(asset: MediaAsset, kind: ProcessingJob['kind'], message: string, configVersion: string): ProcessingJob {
+    const ts = nowIso();
+    const job: ProcessingJob = {
+      id: newId('job'), teamId: asset.teamId, assetId: asset.id, kind, status: 'queued', progress: { done: 0, total: null, message }, attempt: 0, maxAttempts: 3,
+      leaseExpiresAt: null, workerId: null, idempotencyKey: newId('idem'), configVersion, error: null, requestedBy: session!.userId, createdAt: ts, startedAt: null, finishedAt: null, canceledAt: null,
+    };
+    db.jobs.unshift(job);
+    simulated.add(job.id);
+    return job;
+  }
+
+  /**
+   * The mock worker. Called on every job read: advances the oldest queued/running simulated
+   * job of each asset one step, so polling shows a chain complete in order. `infer_labels`
+   * fails truthfully: the mock has no model provider and never invents a label.
+   */
+  function advanceJobs() {
+    const byAsset = new Map<string, ProcessingJob[]>();
+    for (const job of [...db.jobs].reverse()) {
+      if (!simulated.has(job.id) || !job.assetId) continue;
+      if (job.status !== 'queued' && job.status !== 'running') continue;
+      const list = byAsset.get(job.assetId) ?? [];
+      list.push(job);
+      byAsset.set(job.assetId, list);
+    }
+    for (const [assetId, chain] of byAsset) {
+      const job = chain[0];
+      const asset = db.assets.find((a) => a.id === assetId);
+      if (!asset) continue;
+      const ts = nowIso();
+      if (job.status === 'queued') {
+        Object.assign(job, { status: 'running', attempt: 1, startedAt: ts, workerId: 'worker-demo', leaseExpiresAt: new Date(Date.now() + 60_000).toISOString(), progress: { done: 0, total: SIMULATED_STEPS, message: `${humanKind(job.kind)} started` } });
+        if (job.kind !== 'infer_labels' && asset.status !== 'ready') asset.status = 'processing';
+        continue;
+      }
+      job.progress = { ...job.progress, done: job.progress.done + 1 };
+      if (job.kind === 'infer_labels') {
+        Object.assign(job, { status: 'failed', finishedAt: ts, leaseExpiresAt: null, progress: { done: 0, total: job.progress.total, message: 'Stopped before any segment was labeled' }, error: { code: 'provider_unavailable', message: 'No model provider is configured for this team. Labels can be entered by a coach.' } });
+        continue;
+      }
+      if (job.progress.done < SIMULATED_STEPS) {
+        job.progress.message = `${humanKind(job.kind)} ${job.progress.done} of ${SIMULATED_STEPS}`;
+        continue;
+      }
+      Object.assign(job, { status: 'succeeded', finishedAt: ts, leaseExpiresAt: null, progress: { done: SIMULATED_STEPS, total: SIMULATED_STEPS, message: 'Done' } });
+      asset.updatedAt = ts;
+      if (job.kind === 'validate') {
+        // Demo probe: values are simulated and say so; a real validate job reads them with ffprobe.
+        Object.assign(asset, { status: 'validated', durationSec: Math.max(30, Math.round(asset.byteSize / 400_000)), width: 1280, height: 720, fps: 29.97, quality: { stable: null, lineOfScrimmageVisible: null, allTwentyTwoVisible: null, notes: ['Demo validation: the stream was not probed; duration is estimated from file size.'], unevaluable: ['Camera stability', 'Line of scrimmage', 'All 22 players'] } });
+      } else if (job.kind === 'proxy') asset.proxyStorageKey = `demo/${asset.id}/proxy`;
+      else if (job.kind === 'thumbnails') asset.thumbnailSheetKey = `demo/${asset.id}/thumbs`;
+      else if (job.kind === 'segment') {
+        const duration = asset.durationSec ?? 60;
+        const count = Math.min(6, Math.max(1, Math.floor(duration / 10)));
+        for (let i = 0; i < count; i += 1) {
+          const start = Math.round(((i + 0.5) * duration) / count - 3);
+          newSegment({ teamId: asset.teamId, assetId: asset.id, gameId: asset.gameId }, Math.max(0, start), Math.min(duration, start + 7), 'proposed', 'proposed');
+        }
+        liveSegments(asset.id);
+        job.progress.message = `${count} play boundaries proposed (demo heuristic)`;
+        asset.status = 'ready';
+      }
+    }
+  }
+
+  function humanKind(kind: string): string {
+    return kind.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
+  }
+
+  function writeRevision(label: Label, next: Label['accepted'], reason: string | null, byUserId: string): LabelRevision {
+    const revision: LabelRevision = { id: newId('rev'), labelId: label.id, previousValue: label.accepted.value, newValue: next.value, previousStatus: label.accepted.status, newStatus: next.status, byUserId, at: next.at ?? nowIso(), reason };
+    db.labelRevisions.push(revision);
+    return revision;
+  }
+
   const api: Api = {
     mode: 'mock',
     auth: {
@@ -239,7 +392,7 @@ export function createMockApi(options: MockApiOptions = {}): Api {
         }
         const invite: Invite = {
           id: newId('inv'), teamId, email: input.email, role: input.role, unit: input.unit,
-          expiresAt: new Date(Date.now() + 7 * 86_400_000).toISOString(), acceptedAt: null, createdBy: actor.userId,
+          expiresAt: new Date(Date.now() + 7 * 86_400_000).toISOString(), acceptedAt: null, createdBy: actor.userId, createdAt: nowIso(),
         };
         db.invites.push(invite);
         return delay(invite);
@@ -259,7 +412,10 @@ export function createMockApi(options: MockApiOptions = {}): Api {
         requireHeadCoach(teamId);
         checkVersion(db.settings.version, patch.expectedVersion, 'Settings');
         const { expectedVersion: _expected, ...rest } = patch;
-        const next: TeamSettings = { ...db.settings, ...rest, teamId, version: db.settings.version + 1 };
+        if (rest.retentionDays !== undefined && rest.retentionDays !== null && (!Number.isInteger(rest.retentionDays) || rest.retentionDays < 30)) {
+          fail('validation_error', 'Retention must be blank (keep until deleted) or at least 30 days.', 400);
+        }
+        const next: TeamSettings = { ...db.settings, ...rest, uploadLimits: { ...db.settings.uploadLimits, ...(rest.uploadLimits ?? {}) }, version: db.settings.version + 1 };
         db.settings = next;
         return delay(next);
       },
@@ -304,7 +460,7 @@ export function createMockApi(options: MockApiOptions = {}): Api {
         const header = lines[0].split(',').map((h) => h.trim().toLowerCase());
         const col = (name: string) => header.indexOf(name);
         const errors: ScheduleImport['errors'] = [];
-        const rows: NonNullable<ScheduleImport['previewRows']> = [];
+        const rows: ScheduleImport['rows'] = [];
         lines.slice(1).forEach((line, i) => {
           const cells = line.split(',').map((c) => c.trim());
           const week = col('week') >= 0 ? Number(cells[col('week')]) : NaN;
@@ -313,13 +469,14 @@ export function createMockApi(options: MockApiOptions = {}): Api {
           const location = locationRaw === 'home' || locationRaw === 'away' || locationRaw === 'neutral' ? locationRaw : null;
           const dateRaw = col('date') >= 0 ? cells[col('date')] : '';
           const scheduledAt = dateRaw && !Number.isNaN(Date.parse(dateRaw)) ? new Date(dateRaw).toISOString() : null;
-          if (dateRaw && !scheduledAt) errors.push({ row: i + 2, message: `Date "${dateRaw}" could not be read.` });
-          if (!opponentName && locationRaw !== 'bye') errors.push({ row: i + 2, message: 'No opponent and not marked as a bye.' });
-          rows.push({ week: Number.isNaN(week) ? null : week, kind: locationRaw === 'bye' || !opponentName ? 'bye' : 'regular', location, scheduledAt, opponentName });
+          if (dateRaw && !scheduledAt) errors.push({ row: i + 1, column: 'date', message: `Date "${dateRaw}" could not be read.` });
+          if (!opponentName && locationRaw !== 'bye') errors.push({ row: i + 1, column: 'opponent', message: 'No opponent and not marked as a bye.' });
+          rows.push({ row: i + 1, week: Number.isNaN(week) ? null : week, kind: locationRaw === 'bye' || !opponentName ? 'bye' : 'regular', location, scheduledAt, opponentName, notes: '' });
         });
         const record: ScheduleImport = {
           id: newId('imp'), teamId, seasonId, filename: file.name, status: 'previewed',
-          mapping: Object.fromEntries(header.map((h) => [h, h])), rowCount: rows.length, errors, createdAt: nowIso(), previewRows: rows,
+          mapping: Object.fromEntries(header.map((h) => [h, (['week', 'date', 'time', 'opponent', 'location', 'kind', 'notes'] as const).find((f) => f === h) ?? 'ignore'])),
+          rowCount: rows.length, errors, createdAt: nowIso(), rows,
         };
         db.imports.push(record);
         return delay(record);
@@ -331,7 +488,7 @@ export function createMockApi(options: MockApiOptions = {}): Api {
         if (record.status !== 'previewed') fail('conflict', 'This import was already applied or discarded.', 409);
         if (record.errors.length) fail('validation_error', 'Fix the listed rows before applying.', 400, { issues: record.errors });
         const ts = nowIso();
-        const created = (record.previewRows ?? []).map((row): ScheduledGame => {
+        const created = record.rows.map((row): ScheduledGame => {
           let opponentId: string | null = null;
           if (row.opponentName) {
             const existing = db.opponents.find((o) => o.shortName.toLowerCase() === row.opponentName!.toLowerCase());
@@ -356,49 +513,274 @@ export function createMockApi(options: MockApiOptions = {}): Api {
     media: {
       async assets(gameId) {
         gameOrFail(gameId);
-        return delay(db.assets.filter((a) => a.gameId === gameId));
+        return delay(db.assets.filter((a) => a.gameId === gameId && a.status !== 'deleted'));
+      },
+      async asset(assetId) {
+        return delay(assetOrFail(assetId));
       },
       async createUpload(gameId, input) {
         const game = gameOrFail(gameId);
-        const { memberships } = requireUser();
-        if (!memberships.some((m) => m.role !== 'viewer')) fail('forbidden', 'Viewers cannot upload film.', 403);
-        if (!input.mimeType.startsWith('video/')) fail('validation_error', 'Choose a video file (MP4 or MOV).', 400);
-        if (input.byteSize > 8 * 1024 ** 3) fail('payload_too_large', 'Files above 8 GB are not accepted.', 413);
-        const duplicate = db.assets.find((a) => a.gameId === gameId && a.originalFilename === input.filename && a.byteSize === input.byteSize);
-        if (duplicate) fail('conflict', 'This file was already uploaded for this game.', 409, { existingAssetId: duplicate.id });
+        const user = requireLabeler();
+        const ext = input.filename.toLowerCase().split('.').pop() ?? '';
+        if (!input.mimeType.startsWith('video/') || !db.settings.uploadLimits.allowedVideoContainers.includes(ext)) {
+          fail('validation_error', `Choose a video file (${db.settings.uploadLimits.allowedVideoContainers.map((c) => c.toUpperCase()).join(' or ')}).`, 400);
+        }
+        if (input.byteSize > db.settings.uploadLimits.maxUploadBytes) fail('payload_too_large', `Files above ${Math.round(db.settings.uploadLimits.maxUploadBytes / 1024 ** 3)} GB are not accepted.`, 413);
+        if (input.sha256) {
+          const duplicate = db.assets.find((a) => a.teamId === game.teamId && a.sha256 === input.sha256 && a.status !== 'deleted');
+          if (duplicate) fail('conflict', 'This exact file is already in the team library.', 409, { existingAssetId: duplicate.id });
+        }
         const ts = nowIso();
         const asset: MediaAsset = {
-          id: newId('asset'), teamId: game.teamId, gameId, uploadedBy: session!.userId, kind: 'game_film', originalFilename: input.filename,
-          byteSize: input.byteSize, sha256: 'pending', mimeType: input.mimeType, durationSec: null, width: null, height: null, fps: null,
+          id: newId('asset'), teamId: game.teamId, gameId, uploadedBy: user.id, kind: 'game_film', originalFilename: input.filename,
+          byteSize: input.byteSize, sha256: input.sha256 ?? 'pending', mimeType: input.mimeType, durationSec: null, width: null, height: null, fps: null,
           status: 'uploading', rejectionReason: null, context: input.context, quality: null, storageKey: `demo/${gameId}/${input.filename}`,
           proxyStorageKey: null, thumbnailSheetKey: null, retentionUntil: null, createdAt: ts, updatedAt: ts,
         };
         db.assets.unshift(asset);
-        const job: ProcessingJob = {
-          id: newId('job'), teamId: game.teamId, assetId: asset.id, kind: 'validate', status: 'queued',
-          progress: { done: 0, total: null, message: 'Waiting for the upload to finish' }, attempt: 0, maxAttempts: 3, leaseExpiresAt: null,
-          workerId: null, idempotencyKey: newId('idem'), configVersion: 'media-0.1', error: null, requestedBy: session!.userId, createdAt: ts,
-          startedAt: null, finishedAt: null, canceledAt: null,
+        const upload: Upload = {
+          id: newId('upload'), assetId: asset.id, teamId: game.teamId, chunkSizeBytes: db.settings.uploadLimits.chunkBytes, receivedBytes: 0, totalBytes: input.byteSize,
+          expiresAt: new Date(Date.now() + 24 * 3_600_000).toISOString(), completedAt: null,
         };
-        db.jobs.unshift(job);
-        return delay(asset);
+        db.uploads.push(upload);
+        uploadSha.set(upload.id, input.sha256);
+        return delay({ upload, asset });
       },
-      async jobs(teamId) {
+      async putChunk(uploadId, range, body) {
+        requireLabeler();
+        const upload = db.uploads.find((u) => u.id === uploadId);
+        if (!upload) fail('not_found', 'Upload not found or expired.', 404);
+        if (upload.completedAt) fail('conflict', 'This upload is already complete.', 409);
+        if (range.total !== upload.totalBytes) fail('validation_error', 'Content-Range total does not match the upload.', 400);
+        if (range.end - range.start + 1 > upload.chunkSizeBytes) fail('payload_too_large', `Chunks may be at most ${upload.chunkSizeBytes} bytes.`, 413);
+        if (range.end - range.start + 1 !== body.size) fail('validation_error', 'Body length does not match Content-Range.', 400);
+        if (range.start !== upload.receivedBytes) fail('conflict', 'Chunks must be contiguous.', 409, { receivedBytes: upload.receivedBytes });
+        upload.receivedBytes = range.end + 1;
+        return delay({ receivedBytes: upload.receivedBytes });
+      },
+      async getUpload(uploadId) {
+        requireUser();
+        const upload = db.uploads.find((u) => u.id === uploadId);
+        if (!upload) fail('not_found', 'Upload not found or expired.', 404);
+        return delay(upload);
+      },
+      async completeUpload(uploadId) {
+        requireLabeler();
+        const upload = db.uploads.find((u) => u.id === uploadId);
+        if (!upload) fail('not_found', 'Upload not found or expired.', 404);
+        if (upload.receivedBytes !== upload.totalBytes) fail('conflict', `Only ${upload.receivedBytes} of ${upload.totalBytes} bytes were received.`, 409, { receivedBytes: upload.receivedBytes });
+        const asset = db.assets.find((a) => a.id === upload.assetId)!;
+        const ts = nowIso();
+        upload.completedAt = ts;
+        // The server would hash the stored file here; the mock keeps the client hash or a demo marker.
+        asset.sha256 = uploadSha.get(uploadId) ?? `demo-sha-${asset.id}`;
+        asset.status = 'uploaded';
+        asset.updatedAt = ts;
+        const jobs = [
+          newJob(asset, 'validate', 'Waiting for a worker', 'media-0.1'),
+          newJob(asset, 'proxy', 'Waiting for validation', 'media-0.1'),
+          newJob(asset, 'thumbnails', 'Waiting for the proxy', 'media-0.1'),
+          newJob(asset, 'segment', 'Waiting for thumbnails', 'media-0.1'),
+        ];
+        return delay({ asset, jobs });
+      },
+      async deleteAsset(assetId) {
+        const asset = assetOrFail(assetId);
+        requireHeadCoach(asset.teamId);
+        asset.status = 'deleted';
+        asset.updatedAt = nowIso();
+        return delay(undefined);
+      },
+      async grant(assetId) {
+        const asset = assetOrFail(assetId);
+        if (asset.status !== 'ready' && asset.status !== 'processing' && asset.status !== 'validated') fail('conflict', 'No playable file for this asset yet.', 409);
+        const clip = (db.assets.filter((a) => a.status !== 'deleted').findIndex((a) => a.id === assetId) % DEMO_CLIP_COUNT) + 1;
+        const base = (typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL) || '/';
+        return delay({
+          streamUrl: `${base.replace(/\/$/, '')}/demo-film/play-${clip}.mp4?demo-grant=${newId('tok')}`,
+          thumbUrlTemplate: DEMO_THUMB_TEMPLATE,
+          expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
+        });
+      },
+      async jobs(teamId, query = {}) {
         requireTeam(teamId);
-        return delay(db.jobs);
+        advanceJobs();
+        return delay(db.jobs.filter((j) => j.teamId === teamId && (!query.assetId || j.assetId === query.assetId) && (!query.status || j.status === query.status)));
+      },
+      async job(jobId) {
+        const job = db.jobs.find((j) => j.id === jobId);
+        if (!job) fail('not_found', 'Job not found.', 404);
+        requireTeam(job.teamId);
+        advanceJobs();
+        return delay(job);
+      },
+      async cancelJob(jobId) {
+        const job = db.jobs.find((j) => j.id === jobId);
+        if (!job) fail('not_found', 'Job not found.', 404);
+        requireTeam(job.teamId);
+        if (job.status !== 'queued' && job.status !== 'running' && job.status !== 'retry_wait') fail('conflict', `A ${job.status} job cannot be canceled.`, 409);
+        const ts = nowIso();
+        Object.assign(job, { status: 'canceled', canceledAt: ts, finishedAt: ts, leaseExpiresAt: null, progress: { ...job.progress, message: 'Canceled by a coach' } });
+        return delay(job);
+      },
+      async retryJob(jobId) {
+        const job = db.jobs.find((j) => j.id === jobId);
+        if (!job) fail('not_found', 'Job not found.', 404);
+        requireTeam(job.teamId);
+        if (job.status !== 'failed' && job.status !== 'canceled') fail('conflict', `Only failed or canceled jobs can be retried (this one is ${job.status}).`, 409);
+        Object.assign(job, { status: 'queued', attempt: 0, error: null, startedAt: null, finishedAt: null, canceledAt: null, progress: { done: 0, total: null, message: 'Queued again' } });
+        simulated.add(job.id);
+        return delay(job);
       },
       async segments(assetId) {
-        const asset = db.assets.find((a) => a.id === assetId);
-        if (!asset) fail('not_found', 'Asset not found.', 404);
-        requireTeam(asset.teamId);
-        return delay(db.segments.filter((s) => s.assetId === assetId));
+        assetOrFail(assetId);
+        return delay(liveSegments(assetId));
+      },
+      async splitSegment(segmentId, input) {
+        requireLabeler();
+        const original = segmentOrFail(segmentId);
+        checkVersion(original.version, input.expectedVersion, 'Segment');
+        if (!(input.atSec > original.startSec + 0.5 && input.atSec < original.endSec - 0.5)) fail('validation_error', 'Split point must be at least half a second inside the play.', 400);
+        const a = newSegment(original, original.startSec, input.atSec, 'coach_split', original.reviewStatus);
+        const b = newSegment(original, input.atSec, original.endSec, 'coach_split', original.reviewStatus);
+        original.supersededBy = [a.id, b.id];
+        original.version += 1;
+        original.updatedAt = nowIso();
+        liveSegments(original.assetId);
+        return delay({ segments: [a, b], superseded: original });
+      },
+      async mergeSegments(input) {
+        requireLabeler();
+        if (input.segmentIds.length < 2) fail('validation_error', 'Choose at least two adjacent plays to merge.', 400);
+        const parts = input.segmentIds.map((id) => segmentOrFail(id)).sort((x, y) => x.startSec - y.startSec);
+        for (const part of parts) checkVersion(part.version, input.expectedVersion[part.id] ?? -1, `Segment ${part.index}`);
+        const live = liveSegments(parts[0].assetId);
+        const first = live.findIndex((s) => s.id === parts[0].id);
+        for (let i = 1; i < parts.length; i += 1) if (live[first + i]?.id !== parts[i].id) fail('validation_error', 'Only adjacent plays can be merged.', 400);
+        const merged = newSegment(parts[0], parts[0].startSec, parts[parts.length - 1].endSec, 'coach_merged', parts.every((p) => p.reviewStatus === 'accepted') ? 'accepted' : 'proposed');
+        const ts = nowIso();
+        for (const part of parts) {
+          part.supersededBy = [merged.id];
+          part.version += 1;
+          part.updatedAt = ts;
+        }
+        liveSegments(merged.assetId);
+        return delay({ segment: merged, superseded: parts });
+      },
+      async updateSegment(segmentId, patch) {
+        requireLabeler();
+        const segment = segmentOrFail(segmentId);
+        checkVersion(segment.version, patch.expectedVersion, 'Segment');
+        const { expectedVersion: _expected, ...rest } = patch;
+        const startSec = rest.startSec ?? segment.startSec;
+        const endSec = rest.endSec ?? segment.endSec;
+        if (endSec <= startSec) fail('validation_error', 'A play must end after it starts.', 400);
+        Object.assign(segment, rest, { version: segment.version + 1, updatedAt: nowIso() });
+        liveSegments(segment.assetId);
+        return delay(segment);
+      },
+      async createSegment(assetId, input) {
+        requireLabeler();
+        const asset = assetOrFail(assetId);
+        if (input.endSec <= input.startSec) fail('validation_error', 'A play must end after it starts.', 400);
+        const segment = newSegment({ teamId: asset.teamId, assetId: asset.id, gameId: asset.gameId }, input.startSec, input.endSec, 'coach_created', 'accepted');
+        liveSegments(assetId);
+        return delay(segment);
+      },
+    },
+    labels: {
+      async forAsset(assetId) {
+        assetOrFail(assetId);
+        const live = new Set(liveSegments(assetId).map((s) => s.id));
+        return delay(db.labels.filter((l) => live.has(l.segmentId)));
+      },
+      async forSegment(segmentId) {
+        const segment = db.segments.find((s) => s.id === segmentId);
+        if (!segment) fail('not_found', 'Segment not found.', 404);
+        requireTeam(segment.teamId);
+        return delay(db.labels.filter((l) => l.segmentId === segmentId));
+      },
+      async correct(labelId, input) {
+        const user = requireLabeler();
+        const label = labelOrFail(labelId);
+        checkVersion(label.version, input.expectedVersion, 'Label');
+        if (input.accepted.status === 'accepted' && !label.inferred) fail('validation_error', 'There is no inferred value to accept; enter a value as a correction instead.', 400);
+        if (input.accepted.status === 'accepted' && label.inferred?.abstained) fail('validation_error', 'The model abstained on this label; there is no value to accept.', 400);
+        const next: Label['accepted'] = {
+          value: input.accepted.status === 'accepted' ? (label.inferred?.value ?? null) : input.accepted.status === 'corrected' ? input.accepted.value : null,
+          status: input.accepted.status, byUserId: user.id, at: nowIso(),
+        };
+        if (next.status === 'corrected' && (next.value === null || next.value.trim() === '')) fail('validation_error', 'A correction needs a value; use "unknown" when it cannot be established.', 400);
+        writeRevision(label, next, input.reason?.trim() || null, user.id);
+        label.accepted = next;
+        label.version += 1;
+        label.updatedAt = next.at!;
+        return delay(label);
+      },
+      async revisions(labelId) {
+        labelOrFail(labelId);
+        return delay(db.labelRevisions.filter((r) => r.labelId === labelId).sort((a, b) => a.at.localeCompare(b.at)));
+      },
+      async bulkAccept(assetId, input) {
+        const user = requireLabeler();
+        assetOrFail(assetId);
+        const segmentIds = new Set(input.segmentIds);
+        const keys = new Set(input.keys);
+        let accepted = 0;
+        let skipped = 0;
+        const at = nowIso();
+        for (const label of db.labels) {
+          if (!segmentIds.has(label.segmentId) || !keys.has(label.key)) continue;
+          // §14.5: only the model's own proposals, and never an abstention.
+          if (label.accepted.status === 'inferred' && label.inferred && !label.inferred.abstained) {
+            const next: Label['accepted'] = { value: label.inferred.value, status: 'accepted', byUserId: user.id, at };
+            writeRevision(label, next, 'Bulk accept', user.id);
+            label.accepted = next;
+            label.version += 1;
+            label.updatedAt = at;
+            accepted += 1;
+          } else skipped += 1;
+        }
+        return delay({ accepted, skipped });
+      },
+      async provenance(assetId) {
+        assetOrFail(assetId);
+        const ids = new Set(db.labels.filter((l) => db.segments.some((s) => s.id === l.segmentId && s.assetId === assetId)).map((l) => l.provenanceId));
+        return delay(db.provenance.filter((p) => ids.has(p.id)));
+      },
+      async infer(assetId, input = {}) {
+        requireLabeler();
+        const asset = assetOrFail(assetId);
+        if (asset.status !== 'ready') fail('conflict', 'Inference needs a processed asset with proposed plays.', 409);
+        const wanted = input.segmentIds?.length ? input.segmentIds.length : liveSegments(assetId).length;
+        const job = newJob(asset, 'infer_labels', `Queued for ${wanted} segment${wanted === 1 ? '' : 's'}`, 'ai-0.1');
+        return delay([job]);
       },
     },
     scouting: {
-      async findings(teamId, opponentId, unit) {
+      async report(teamId, opponentId, query) {
         requireTeam(teamId);
         if (!db.opponents.some((o) => o.id === opponentId)) fail('not_found', 'Opponent not found.', 404);
-        return delay(db.findings.filter((f) => f.opponentId === opponentId && f.unit === unit));
+        // The mock keeps precomputed demo findings; the API recomputes from stored labels.
+        // `reviewed_only` drops every finding that needed unreviewed labels.
+        const findings = db.findings.filter((f) => f.opponentId === opponentId && f.unit === query.unit && (query.reviewBasis === 'includes_inferred' || f.reviewBasis === 'reviewed_only'));
+        const gameIds = new Set(findings.flatMap((f) => f.gameIds));
+        const games = db.games
+          .filter((g) => g.opponentId === opponentId && (gameIds.size === 0 || gameIds.has(g.id)))
+          .map((g) => ({ gameId: g.id, assetIds: db.assets.filter((a) => a.gameId === g.id && a.context.analyzedTeam === 'opponent' && a.status === 'ready').map((a) => a.id) }));
+        return delay({ findings, games, sampleSize: Math.max(0, ...findings.map((f) => f.sampleSize)), computedAt: nowIso(), computeVersion: 'stats-0.1' });
+      },
+      async snapshots(teamId, opponentId) {
+        requireTeam(teamId);
+        return delay(db.snapshots.filter((s) => s.opponentId === opponentId).sort((a, b) => b.generatedAt.localeCompare(a.generatedAt)));
+      },
+      async saveSnapshot(teamId, opponentId, input) {
+        requireTeam(teamId);
+        if (!input.title.trim()) fail('validation_error', 'Give the snapshot a title.', 400);
+        const findings = db.findings.filter((f) => f.opponentId === opponentId && f.unit === input.unit && (input.reviewBasis === 'includes_inferred' || f.reviewBasis === 'reviewed_only'));
+        const snapshot: ReportSnapshot = { id: newId('snap'), teamId, opponentId, title: input.title.trim(), findings: clone(findings), generatedBy: session!.userId, generatedAt: nowIso(), inputsHash: newId('sha256:demo') };
+        db.snapshots.push(snapshot);
+        return delay(snapshot);
       },
     },
     plans: {
@@ -472,7 +854,7 @@ export function createMockApi(options: MockApiOptions = {}): Api {
       async comment(versionId, input) {
         versionOrFail(versionId);
         if (!input.body.trim()) fail('validation_error', 'Write a comment first.', 400);
-        const comment: PlanComment = { id: newId('pc'), versionId, sectionKey: input.sectionKey, itemId: input.itemId, authorUserId: session!.userId, body: input.body.trim(), createdAt: nowIso(), resolvedAt: null };
+        const comment: PlanComment = { id: newId('pc'), versionId, sectionKey: input.sectionKey as PlanSectionKey | null, itemId: input.itemId, authorUserId: session!.userId, body: input.body.trim(), createdAt: nowIso(), resolvedAt: null };
         db.planComments.push(comment);
         return delay(comment);
       },

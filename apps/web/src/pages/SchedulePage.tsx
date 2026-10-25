@@ -255,7 +255,7 @@ function ImportPanel() {
                 </tr>
               </thead>
               <tbody>
-                {(preview.previewRows ?? []).map((r, i) => (
+                {preview.rows.map((r, i) => (
                   <tr key={i}>
                     <td>{r.week ?? '—'}</td>
                     <td>{r.opponentName ?? (r.kind === 'bye' ? 'Bye' : '—')}</td>
