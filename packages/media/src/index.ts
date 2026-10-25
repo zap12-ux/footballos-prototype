@@ -16,4 +16,28 @@ export { splitSegment, mergeSegments, renumber, findOverlaps } from './segment-o
 export type { SplitResult, MergeResult, SegmentOpContext } from './segment-ops.ts';
 export { assessQuality, interpretQuality, defaultWindows } from './quality.ts';
 export type { QualityAssessment, QualityOptions, QualityFrameSample, SampleWindow } from './quality.ts';
+export { thumbTile, thumbTileFromMapping, thumbFramePath, thumbTileJpeg, readThumbnailSidecar, writeThumbnailSidecar, thumbnailSidecarPath, THUMBNAIL_SIDECAR_VERSION } from './thumbs.ts';
+export type { ThumbTile, ThumbnailSheetSidecar } from './thumbs.ts';
+export {
+  createMediaHandlers,
+  asJobHandler,
+  registerMediaHandlers,
+  hasProxy,
+  MediaJobInputSchema,
+  PROXY_FILENAME,
+  THUMBNAIL_SHEET_FILENAME,
+  SEGMENTS_FILENAME,
+} from './handlers.ts';
+export type {
+  MediaJobInput,
+  MediaJob,
+  MediaHandlerContext,
+  MediaHandler,
+  MediaHandlers,
+  MediaHandlerOptions,
+  ValidateJobResult,
+  ProxyJobResult,
+  ThumbnailsJobResult,
+  SegmentJobResult,
+} from './handlers.ts';
 export * from './jobs/index.ts';
