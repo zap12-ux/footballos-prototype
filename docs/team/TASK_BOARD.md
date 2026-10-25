@@ -31,19 +31,23 @@ Last updated: 2026-10-25 (session 1). Execution mode: lead + parallel subagents 
 | A8 | SQLite online backup and verified restore tools (`@footballos/ops`), restore drill on synthetic data | F (session footballos-11) | Verified | — | `tools/ops/**`, `scripts/**`, `deploy/**` | Backup integrity-checked with sha256 sidecar; restore verifies, refuses without force, moves WAL/SHM; drill recorded | Lead re-ran `npm test -w tools/ops`: 8/8 pass on integration cd435a2; `npm run licenses`: 186 packages, 0 violations; full application restore drill still not performed |
 | A7 | CI for monorepo (typecheck, tests, build for all workspaces), environment templates, dependency + license inventory script | F (session footballos-11) | Integrated (merge 1 of 2; rerun inventory after A5) | A5 for the rerun | `.github/**`, `deploy/**`, `scripts/**` | CI green on `integration`; inventory committed | — |
 
-## Milestone B — First real end-to-end workflow (not started)
+## Milestone B — First real end-to-end workflow (started 2026-10-25)
 
 sign in → upload film (resumable) → validate/proxy/thumbnails → segment → infer labels
 (or truthful provider-unavailable) → inspect evidence → correct labels → tendencies.
+Contract: `docs/team/CONTRACTS.md` §14. Briefs: `docs/team/briefs/*-milestone-b.md`, `K5-console-fixes.md`.
 
-| ID | Task | Owner | Status | Depends on |
-| --- | --- | --- | --- | --- |
-| B1 | Upload API (resumable ranges, duplicate detection by sha256, limits) + job enqueue | B | Ready | A5 |
-| B2 | Job worker hosting `packages/media` + `packages/ai` jobs in `apps/api` | C | Ready | A5, B1 |
-| B3 | Our Team Film / Opponent Scouting screens: upload with context form, progress, segment list with split/merge, label review with bulk accept, evidence player seeking the proxy | A | Ready | A5, B1 |
-| B4 | Label inference job, correction persistence across reprocessing, provenance display | D | Ready | B2 |
-| B5 | Tendency report from stored labels; denominators; review-basis flag | D | Ready | B4 |
-| B6 | QA: interrupted upload, worker restart, provider failure, correction persistence, counts | E | Ready | B1–B5 |
+| ID | Task | Owner | Status | Depends on | Allowed paths |
+| --- | --- | --- | --- | --- | --- |
+| B1 | Upload API (resumable ranges, sha256 dedupe, limits, TTL), assets, media grants/streaming, schema `0001` | B (subagent `backend` #2) | In progress | A5 | `apps/api/**`, `packages/contracts/**` |
+| B2 | `SqliteJobStore` + worker hosting media and AI handlers; cancel/retry/restart; usage/cost cap | B (same agent) | In progress | B1, B2-lib, B4-lib | `apps/api/**` |
+| B2-lib | `extractFrames`, `createMediaHandlers`, contracts types in `packages/media` | C (subagent `media` #2) | In progress | A5 | `packages/media/**` |
+| B3 | Film page (chunked upload, jobs, segments split/merge, proxy player), label review with bulk accept, scouting page, typed `hc<AppType>` client | A (subagent `frontend` #2) | In progress | §14 (code against contract) | `apps/web/**` |
+| B4-lib | `createInferLabelsHandler`, `applyInference` (corrections survive reprocessing), `bulkAcceptPlan` | D (subagent `ai` #2) | In progress | A5 | `packages/ai/**`, `docs/ai/**` |
+| B4 / B5 | Label routes, inference enqueue, scouting route and snapshots in the API | B (same agent) | In progress | B4-lib, B5-lib | `apps/api/**` |
+| B5-lib | `buildScoutingReport`, `snapshotFromReport` | D (same agent) | In progress | — | `packages/ai/**` |
+| B6 | QA: interrupted upload, worker restart, provider failure, correction persistence, counts, a11y of A2/B3 | E | Ready | B1–B5 integrated | `tests/e2e/**`, `docs/qa/**` |
+| K5 | Console defects D-1..D-4, `agentctl wait --poll-until-answered` | console-fix (subagent) | Ready (launches when a slot frees; cap = 4) | K4 | `tools/agent-console/**`, `tools/agent-console-ui/**` |
 
 ## Milestones C–E
 
