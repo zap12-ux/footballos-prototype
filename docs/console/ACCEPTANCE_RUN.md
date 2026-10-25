@@ -36,6 +36,15 @@ proven by the agents' own fetches. The content-carrying continuation (`message.d
 
 ## Defects found
 
+- QA D-1 (console runtime, medium): `leadctl answer` and `leadctl git` unusable (switch key is
+  `"<cmd> <sub>"`). Open.
+- QA D-2 (console UI, medium): `.app { min-width: 1024px }` keeps the drawer at x 664–1024, so in
+  windows narrower than about 1012 px the Close control is hidden and below 664 px a queue click
+  shows nothing. This most likely explains the owner's report. Open; owner window width unconfirmed.
+- QA D-3 (console UI, low): queue-opened card scrolls under the sticky drawer header. Open.
+- QA D-4 (console runtime docs, low): relative `CONSOLE_DATA_DIR` resolves against the package dir
+  under `npm run start -w`. Open.
+
 - `leadctl answer <questionId> ...` fails with `unknown command "answer <id>"` (positional
   argument parsing); the owner API itself works (used directly with curl, HTTP 201). Owner:
   console runtime. Status: open.
@@ -45,8 +54,9 @@ proven by the agents' own fetches. The content-carrying continuation (`message.d
   owner's answer through the owner API (`leadctl answer`, source `owner`), recorded as a
   `lead.note`. Repro steps not yet captured (browser, window size). Owner: console UI. Status: open, for QA.
 
-- Malformed bearer token returns 400 `validation_error` instead of 401 `unauthorized`. Access is
-  still refused. Owner: console runtime. Status: open.
+- Malformed bearer token returns 400 instead of 401: **closed, not reproduced** by QA (15 header
+  variants all gave 401; only an invalid header *name* yields a Node-parser 400). The lead's
+  original observation most likely came from a malformed curl header. Access was refused either way.
 
 ## Event log (seq ≥ 46)
 
