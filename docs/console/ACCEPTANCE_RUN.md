@@ -35,6 +35,11 @@ proven by the agents' own fetches. The content-carrying continuation (`message.d
 
 ## Defects found
 
+- Owner reported they could not select a queued question in their console window (Frontend question
+  44759ff5, 2026-10-25 ~16:55 UTC). The lead relayed the question in chat and submitted the
+  owner's answer through the owner API (`leadctl answer`, source `owner`), recorded as a
+  `lead.note`. Repro steps not yet captured (browser, window size). Owner: console UI. Status: open, for QA.
+
 - Malformed bearer token returns 400 `validation_error` instead of 401 `unauthorized`. Access is
   still refused. Owner: console runtime. Status: open.
 
