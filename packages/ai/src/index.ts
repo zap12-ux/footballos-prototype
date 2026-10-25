@@ -13,6 +13,7 @@ export { OpenAIVisionLabeler } from "./labeler/openai.js";
 export { NullLabeler } from "./labeler/null.js";
 export { createVisionLabeler, type ProviderChoice } from "./labeler/factory.js";
 export { planFrameSampling, type FramePlan, type FramePlanInput, type CoverageGap } from "./frames/plan.js";
+export * from "./jobs/infer-labels.js";
 export * from "./stats/resolve.js";
 export * from "./stats/findings.js";
 export * from "./eval/types.js";

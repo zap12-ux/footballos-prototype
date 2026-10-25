@@ -124,7 +124,8 @@ export class AnthropicVisionLabeler implements VisionLabeler {
       },
     };
 
-    const reservation = this.budget.reserve(
+    const budget = input.budget ?? this.budget;
+    const reservation = budget.reserve(
       estimateCallCostUsd({
         model: this.config.anthropicModel,
         frames: input.frames.map((f) => ({ width: f.width ?? null, height: f.height ?? null })),
