@@ -217,46 +217,61 @@ describe('§14.5 inference without a provider, §14.2 cost accounting', () => {
   });
 });
 
-describe('monthly cap with a configured provider', () => {
-  it('refuses to start infer_labels with budget_exceeded when the cap is reached, and reports no_api_key truthfully under the cap', async () => {
-    const capped = makeTestApp({ MODEL_PROVIDER: 'anthropic', MONTHLY_COST_CAP_USD: '0' });
+describe('§14.10 (QA D-4) provider check before the cost cap', () => {
+  async function failedInfer(app: TestApp) {
+    const staff = await seedTeamWithStaff(app, 'Gamma (demo)');
+    const g = await seedGame(app, staff.hc.cookie, staff.team.id, staff.season.id);
+    const r = await uploadFile(app, staff.hc.cookie, g.gameId, FIXTURE_CLIPS[0]!, { chunkSize: 2_000_000 });
+    const assetId = r.complete.body.asset.id;
+    app.ctx.db.update(mediaAssets).set({ status: 'validated', durationSec: 6.3, fps: 29.97 }).where(eq(mediaAssets.id, assetId)).run();
+    expect((await call(app, 'POST', `/api/v1/assets/${assetId}/segments`, { startSec: 0, endSec: 3 }, staff.hc.cookie)).status).toBe(201);
+    const infer = await call(app, 'POST', `/api/v1/assets/${assetId}/infer`, { labelKeys: ['play_type'] }, staff.hc.cookie);
+    expect(infer.status).toBe(202);
+    // the chain's validate job is older; cancel it so the infer job is reached without doing the ffmpeg work
+    for (const k of ['validate', 'proxy', 'thumbnails', 'segment']) await call(app, 'POST', `/api/v1/jobs/${r.complete.body.jobs.find((j: any) => j.kind === k).id}/cancel`, undefined, staff.hc.cookie);
+    const j = await app.ctx.runner.runOnce();
+    expect(j?.kind).toBe('infer_labels');
+    expect(j?.status).toBe('failed');
+    expect(j?.error?.retryable).toBe(false);
+    expect((await call(app, 'GET', `/api/v1/assets/${assetId}/provenance`, undefined, staff.hc.cookie)).body.items).toHaveLength(0);
+    return j!;
+  }
+
+  it('MODEL_PROVIDER=anthropic without a key: provider_unavailable naming no_api_key and ANTHROPIC_API_KEY, even with the cap left at 0', async () => {
+    const saved = process.env.ANTHROPIC_API_KEY;
+    delete process.env.ANTHROPIC_API_KEY;
+    const app = makeTestApp({ MODEL_PROVIDER: 'anthropic', MONTHLY_COST_CAP_USD: '0' });
     try {
-      const staff = await seedTeamWithStaff(capped, 'Gamma (demo)');
-      const g = await seedGame(capped, staff.hc.cookie, staff.team.id, staff.season.id);
-      const r = await uploadFile(capped, staff.hc.cookie, g.gameId, FIXTURE_CLIPS[0]!, { chunkSize: 2_000_000 });
-      const assetId = r.complete.body.asset.id;
-      capped.ctx.db.update(mediaAssets).set({ status: 'validated', durationSec: 6.3, fps: 29.97 }).where(eq(mediaAssets.id, assetId)).run();
-      expect((await call(capped, 'POST', `/api/v1/assets/${assetId}/segments`, { startSec: 0, endSec: 3 }, staff.hc.cookie)).status).toBe(201);
-      const infer = await call(capped, 'POST', `/api/v1/assets/${assetId}/infer`, { labelKeys: ['play_type'] }, staff.hc.cookie);
-      expect(infer.status).toBe(202);
-      // the chain's validate job is older; run until the infer job is reached without doing the ffmpeg work
-      for (const k of ['validate', 'proxy', 'thumbnails', 'segment']) await call(capped, 'POST', `/api/v1/jobs/${r.complete.body.jobs.find((j: any) => j.kind === k).id}/cancel`, undefined, staff.hc.cookie);
-      const j = await capped.ctx.runner.runOnce();
-      expect(j?.kind).toBe('infer_labels');
-      expect(j?.status).toBe('failed');
-      expect(j?.error?.code).toBe('budget_exceeded');
-      expect(j?.error?.retryable).toBe(false);
+      const j = await failedInfer(app);
+      expect(j.error?.code).toBe('provider_unavailable');
+      expect(j.error?.message).toContain('no_api_key');
+      expect(j.error?.message).toContain('ANTHROPIC_API_KEY');
+      expect(j.error?.message).not.toContain('No model provider is configured');
+    } finally {
+      app.close();
+      if (saved !== undefined) process.env.ANTHROPIC_API_KEY = saved;
+    }
+  });
+
+  it('with a key configured and the cap reached: budget_exceeded before any call; MODEL_PROVIDER=none keeps its own sentence', async () => {
+    const saved = process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY = 'test-key-not-real'; // never sent: the cap check fails the job before any request
+    const capped = makeTestApp({ MODEL_PROVIDER: 'anthropic', MONTHLY_COST_CAP_USD: '0', ANTHROPIC_API_KEY: 'test-key-not-real' });
+    try {
+      const j = await failedInfer(capped);
+      expect(j.error?.code).toBe('budget_exceeded');
+      expect(j.error?.message).toContain('MONTHLY_COST_CAP_USD');
     } finally {
       capped.close();
+      if (saved === undefined) delete process.env.ANTHROPIC_API_KEY; else process.env.ANTHROPIC_API_KEY = saved;
     }
-    const under = makeTestApp({ MODEL_PROVIDER: 'anthropic', MONTHLY_COST_CAP_USD: '5', ANTHROPIC_API_KEY: '' });
+    const none = makeTestApp({ MODEL_PROVIDER: 'none', MONTHLY_COST_CAP_USD: '0' });
     try {
-      const staff = await seedTeamWithStaff(under, 'Delta (demo)');
-      const g = await seedGame(under, staff.hc.cookie, staff.team.id, staff.season.id);
-      const r = await uploadFile(under, staff.hc.cookie, g.gameId, FIXTURE_CLIPS[0]!, { chunkSize: 2_000_000 });
-      const assetId = r.complete.body.asset.id;
-      under.ctx.db.update(mediaAssets).set({ status: 'validated' }).where(eq(mediaAssets.id, assetId)).run();
-      await call(under, 'POST', `/api/v1/assets/${assetId}/segments`, { startSec: 0, endSec: 3 }, staff.hc.cookie);
-      await call(under, 'POST', `/api/v1/assets/${assetId}/infer`, {}, staff.hc.cookie);
-      for (const k of ['validate', 'proxy', 'thumbnails', 'segment']) await call(under, 'POST', `/api/v1/jobs/${r.complete.body.jobs.find((j: any) => j.kind === k).id}/cancel`, undefined, staff.hc.cookie);
-      const j = await under.ctx.runner.runOnce();
-      expect(j?.kind).toBe('infer_labels');
-      expect(j?.status).toBe('failed');
-      expect(j?.error?.code).toBe('provider_unavailable');
-      expect(j?.error?.retryable).toBe(false);
-      expect(j?.error?.message).toMatch(/No model provider is configured|no_api_key|API key/i);
+      const j = await failedInfer(none);
+      expect(j.error?.code).toBe('provider_unavailable');
+      expect(j.error?.message).toBe('No model provider is configured');
     } finally {
-      under.close();
+      none.close();
     }
   });
 });

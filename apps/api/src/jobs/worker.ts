@@ -61,22 +61,31 @@ export function registerJobHandlers(ctx: AppContext): void {
     .register('thumbnails', asJobHandler(guarded(media.thumbnails)))
     .register('segment', asJobHandler(guarded(media.segment)))
     .register<InferLabelsJobInput, InferLabelsResult>('infer_labels', async (h: HandlerContext<InferLabelsJobInput>) => {
-      // §14.5: no provider → fail immediately and truthfully; manual labeling stays available.
-      if (ctx.config.modelProvider === 'none') throw new NonRetryableError('provider_unavailable', 'No model provider is configured');
+      // §14.5 / §14.10 (QA D-4): the provider is checked before the cost cap so the error names the
+      // real cause, and every failure here happens before any frame is extracted or any call is made.
+      // Manual labeling stays available in all of these cases.
+      const provider = ctx.config.modelProvider;
+      if (provider === 'none') throw new NonRetryableError('provider_unavailable', 'No model provider is configured');
+      const labeler = createVisionLabeler(provider, { config: ctx.config.ai });
+      if (!labeler.isAvailable()) {
+        const keyVar = provider === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY';
+        throw new NonRetryableError('provider_unavailable', `no_api_key: MODEL_PROVIDER=${provider} but ${keyVar} is not set; manual labeling remains available`);
+      }
       const cap = ctx.config.limits.monthlyCostCapUsd;
       const spent = monthlyCostUsd(ctx, h.job.teamId, ctx.now());
       if (spent >= cap) {
         throw new NonRetryableError('budget_exceeded', `Month-to-date model spend $${spent.toFixed(4)} has reached the monthly cap $${cap.toFixed(2)} (MONTHLY_COST_CAP_USD)`);
       }
-      const labeler = createVisionLabeler(ctx.config.modelProvider, { config: ctx.config.ai });
       const handler = createInferLabelsHandler({ labeler, extractFrames, budgetUsd: ctx.config.ai.jobBudgetUsd, maxFramesPerSegment: ctx.config.ai.maxFramesPerSegment });
       try {
         return await handler({ id: h.job.id, input: h.input }, { signal: h.signal, progress: (done, total, message) => h.progress({ done, total, message }) });
       } catch (err) {
-        // C's runner retries everything except NonRetryableError; D's adapter says whether a retry can help.
+        // C's runner retries everything except NonRetryableError; D's adapter says whether a retry can
+        // help. The adapter's `reason` (no_api_key, auth, rate_limited, refusal, ...) is kept in the message.
         if (isProviderUnavailable(err)) {
-          if (!err.retryable) throw new NonRetryableError(err.reason === 'budget_exceeded' ? 'budget_exceeded' : 'provider_unavailable', err.message);
-          throw Object.assign(new Error(err.message), { code: 'provider_unavailable' });
+          const message = err.toJobError().message;
+          if (!err.retryable) throw new NonRetryableError(err.reason === 'budget_exceeded' ? 'budget_exceeded' : 'provider_unavailable', message);
+          throw Object.assign(new Error(message), { code: 'provider_unavailable' });
         }
         throw err;
       }
