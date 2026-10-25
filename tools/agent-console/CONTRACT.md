@@ -68,7 +68,7 @@ Error envelope: `{ error: { code, message, details? } }` with codes `validation_
 
 | Method & path | Body → result |
 | --- | --- |
-| `GET /api/state?runId=` | Full snapshot `{ run, agents[], tasks[], questions[], responses[], verifications[], lastRuntimeEventAt, serverTime }` |
+| `GET /api/state?runId=` | Full snapshot `{ run, agents[], tasks[], questions[], responses[], verifications[], lastRuntimeEventAt, serverTime, lastSeq, plannedRoles[], staleAfterMin }` |
 | `GET /api/runs` | `{ runs[] }` |
 | `POST /api/runs` | `{ kind, label }` → run (lead) |
 | `POST /api/agents` | `{ runId, name, role, worktree?, branch?, runtimeAgentId? }` → `{ agent, agentToken }` (token returned once) |
@@ -109,13 +109,15 @@ event: <type>
 data: {"id":"…","seq":123,"runId":"…","ts":"…","type":"…","source":"agent|runtime|owner|lead|system","agentId":…,"taskId":…,"questionId":…,"responseId":…,"payload":{…}}
 ```
 
-A comment heartbeat `: hb <serverTimeIso>` every 15 s. Clients de-duplicate by `id`,
+A comment heartbeat `: hb <serverTimeIso>` every 15 s. Event payloads wrap the entity under its name (`{ task }`, `{ question }`, `{ response }`, `{ verification }`, `{ agent }`, `{ result }`); `agent.status` carries `{ state, taskId?, message }`, `agent.log` `{ message }`, `response.delivered` `{ via, deliveredAt }`; every `response.*` and `message.delivered` event carries top-level `responseId` and `questionId`. Clients de-duplicate by `id`,
 order by `seq`, and on reconnect pass the last seen `seq`. Event types:
 
 `run.created, agent.registered, agent.status, agent.log, agent.spawned, agent.completed,
 agent.failed, agent.resumed, task.created, task.updated, task.result, question.asked,
 question.superseded, question.expired, response.submitted, response.delivered,
 response.acknowledged, message.delivered, verification.recorded, lead.note`.
+
+Entity fields (v1.1): Agent `{ execState (derived), selfReportedState, lastUpdateAt, lastMessage, createdAt, updatedAt }`; Task `{ status, result?, verificationId? }`; Question `{ status, questionVersion, createdAt, updatedAt }`; Response `{ state, deliveredAt?, via?, acknowledgedAt?, resumedAfterAck, option?, text?, createdAt, updatedAt }`; Verification `{ id, createdAt, recordedBy }`. `POST /api/questions/:id/responses` returns `{ response }`. Git commits are `{ sha, subject }`.
 
 ## 6. Response lifecycle
 
