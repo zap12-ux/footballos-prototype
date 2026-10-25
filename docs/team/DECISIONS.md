@@ -91,3 +91,12 @@ workers launch (brief §1). Contract: `tools/agent-console/CONTRACT.md`.
 direction in `.worktrees/f-deploy` (`wt/f-deploy`), paths `.github/**`, `deploy/**`,
 `scripts/**`. It is the third of at most four concurrent specialists and will be registered
 as a console node when the console is live.
+
+## D-009 · 2026-10-25 · Hosting target (provisional, owner confirmation pending)
+**Decision (provisional).** Deployment documentation targets one small cloud VM with a
+persistent volume (Node 22, SQLite and `FOOTBALLOS_DATA_DIR` on the volume, off-host backups
+to object storage), with the single local Mac as the documented fallback. Provider is not
+chosen; F documents two or three options with dated official pricing. Nothing is provisioned
+or paid for without the owner's explicit authorization in the lead's session.
+**Why.** The owner indicated a simple cloud hosting location (relayed from session
+footballos-11; to be confirmed directly with the lead).
