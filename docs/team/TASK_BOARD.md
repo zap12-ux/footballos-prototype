@@ -50,9 +50,24 @@ Contract: `docs/team/CONTRACTS.md` §14. Briefs: `docs/team/briefs/*-milestone-b
 | B7 | Fix QA B6 defects D-1..D-5, D-7 (CONTRACTS §14.10) | B (subagent `backend` #3) | In progress | B6 | `apps/api/**`, `packages/contracts/**` |
 | K5 | Console defects D-1..D-4, `agentctl wait --poll-until-answered` | console-fix (subagent) | Verified (console 45/45 on re-run after one load-related timing failure, ui 41/41, fixture 52/52 on integration) | K4 | `tools/agent-console/**`, `tools/agent-console-ui/**` |
 
-## Milestones C–E
+## Milestone C — Coaching workflow (prepared 2026-10-25; launches after B7)
 
-Defined in the brief; tasks will be cut when B is integrated. Not started.
+schedule/game workspace → approved playbook and personnel → grounded recommendation →
+collaborative unit plan → coordinator approval → authorized sharing.
+Contract: `docs/team/CONTRACTS.md` §15. Briefs: `B3-backend-milestone-c.md`, `C3-media-milestone-c.md`,
+`D3-ai-milestone-c.md`, `A3-frontend-milestone-c.md`.
+
+| ID | Task | Owner | Status | Depends on | Allowed paths |
+| --- | --- | --- | --- | --- | --- |
+| C1 | Schema `0002_coaching`; playbook intake/review, personnel, recommendations, plans, approval, sharing, exports in the API | B (subagent `backend` #4) | Ready | B7 | `apps/api/**`, `packages/contracts/**` |
+| C2-lib | `extractDocument`, `createDocumentHandlers`, OCR if offline-installable, media `types` export | C (subagent `media` #3) | Ready | B7 | `packages/media/**`, `fixtures/documents/**` |
+| C3-lib | `proposeFromPages`, `buildRecommendations`, `recommendationInputsHash`, `planReviewFlags`, grounding doc | D (subagent `ai` #3) | Ready | B7 | `packages/ai/**`, `docs/ai/**` |
+| C4 | Playbook, Personnel, Game Plans (editor, approvals, comments, sharing, print/PDF), Recommendations panel, shared read-only route | A (subagent `frontend` #3) | Ready | B7 (code against §15) | `apps/web/**` |
+| C5 | QA: authorization matrix for approvals/overrides/sharing, concurrent plan edits, stale flags, exports, playbook proposal honesty, a11y of B3/C4 pages | E | Ready | C1–C4 integrated | `tests/e2e/**`, `docs/qa/**` |
+
+## Milestones D–E
+
+Defined in the brief; tasks will be cut when C is integrated. Not started.
 
 ## Blocked items and owner input needed
 
