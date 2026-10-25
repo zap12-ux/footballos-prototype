@@ -36,18 +36,15 @@ proven by the agents' own fetches. The content-carrying continuation (`message.d
 
 ## Defects found
 
-- QA D-1 (console runtime, medium): `leadctl answer` and `leadctl git` unusable (switch key is
-  `"<cmd> <sub>"`). Open.
+- QA D-1 (console runtime, medium): `leadctl answer` and `leadctl git` unusable. **Fixed in K5** (dispatch on the command alone; CLI end-to-end tests; fixture acceptance 52/52).
 - QA D-2 (console UI, medium): `.app { min-width: 1024px }` keeps the drawer at x 664–1024, so in
   windows narrower than about 1012 px the Close control is hidden and below 664 px a queue click
-  shows nothing. This most likely explains the owner's report. Open; owner window width unconfirmed.
-- QA D-3 (console UI, low): queue-opened card scrolls under the sticky drawer header. Open.
-- QA D-4 (console runtime docs, low): relative `CONSOLE_DATA_DIR` resolves against the package dir
-  under `npm run start -w`. Open.
+  shows nothing. This most likely explains the owner's report. **Fixed in K5**: no min-width; overlay drawer below 1180 px with dialog semantics, collapsed queue below 960 px; measured at 1280, 1024, 800 and 720 px.
+- QA D-3 (console UI, low): queue-opened card scrolls under the sticky drawer header. **Fixed in K5** (scroll-margin from the measured header height).
+- QA D-4 (console runtime, low): relative `CONSOLE_DATA_DIR` resolved against the package dir. **Fixed in K5** (resolves against the workspace root; tests).
+- K5 extra: drawer crashed (React error #31) on `changedFiles: [{status, path}]` from the git route; fixed and covered by tests.
 
-- `leadctl answer <questionId> ...` fails with `unknown command "answer <id>"` (positional
-  argument parsing); the owner API itself works (used directly with curl, HTTP 201). Owner:
-  console runtime. Status: open.
+- `leadctl answer <questionId> ...` failed with `unknown command` (positional argument parsing); the owner API itself worked. **Fixed in K5.**
 
 - Owner reported they could not select a queued question in their console window (Frontend question
   44759ff5, 2026-10-25 ~16:55 UTC). The lead relayed the question in chat and submitted the
