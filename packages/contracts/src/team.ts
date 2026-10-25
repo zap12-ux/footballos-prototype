@@ -185,6 +185,7 @@ export const PatchGameRequestSchema = z.object({
 export type PatchGameRequest = z.infer<typeof PatchGameRequestSchema>;
 
 export const ScheduleImportPreviewRequestSchema = z.object({
+  seasonId: IdSchema,
   filename: z.string().trim().min(1).max(255),
   /** Raw CSV text (UTF-8). `.xlsx` is not accepted yet; export the sheet as CSV. */
   content: z.string().min(1).max(2_000_000),
