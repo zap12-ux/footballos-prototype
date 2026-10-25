@@ -1,6 +1,6 @@
 # @footballos/ai
 
-Applied-AI library for FootballOS (tasks A4, B4-lib, B5-lib). It provides:
+Applied-AI library for FootballOS (tasks A4, B4-lib, B5-lib, C3-lib). It provides:
 
 - a replaceable **`VisionLabeler`** adapter with the **Anthropic Messages API** as the
   primary implementation, an **OpenAI stub** and a **`NullLabeler`**;
@@ -12,6 +12,13 @@ Applied-AI library for FootballOS (tasks A4, B4-lib, B5-lib). It provides:
   **scouting report** body of CONTRACTS §14.6 and its `ReportSnapshot`;
 - the **`infer_labels` job handler** (CONTRACTS §14.8) that B's worker hosts, plus
   `applyInference` (coach corrections survive reprocessing) and `bulkAcceptPlan`;
+- **playbook proposals** (`proposeFromPages`, CONTRACTS §15.1/§15.5): text heuristics on
+  extracted pages, and a `PageLabeler` (Anthropic implementation, versioned `playbook-page`
+  prompt) for image-only pages that abstains and records provenance; nothing is proposed
+  from a diagram without a model result;
+- **grounded recommendations** (`buildRecommendations`, §15.3), `recommendationInputsHash`
+  and `planReviewFlags` (§15.4): deterministic, cite findings and evidence, reference only
+  installed approved concepts and available packages; rules in `docs/ai/RECOMMENDATIONS.md`;
 - an **evaluation harness** for coach-labeled footage with a held-out-by-game split;
 - documentation: `docs/ai/MODEL_CANDIDATES.md` (official-doc comparison with URLs and
   access dates) and `docs/ai/EVALUATION_PLAN.md` (proposed acceptance targets).
@@ -46,6 +53,19 @@ packages/ai/src
 ├── labels/apply.ts     applyInference(existing, segmentId, inferred, provenanceId), bulkAcceptPlan
 ├── stats/              resolve.ts (effective value per review basis), findings.ts
 ├── scouting/report.ts  buildScoutingReport(...) → §14.6 body; snapshotFromReport(...) → ReportSnapshot
+├── playbook/
+│   ├── types.ts        ProposalPage, ProposedConcept/Term, PageLabeler, ProposeResult
+│   ├── vocabulary.ts   DEFAULT_CONCEPT_VOCABULARY, guessKind (team vocabulary merged over it)
+│   ├── heuristics.ts   headings / numbered plays → concepts; "Term — definition" → terms
+│   ├── schema.ts       JSON schema + zod for the page model output, validatePageResponse
+│   ├── anthropic-page-labeler.ts  AnthropicPageLabeler (one page image per call, budgeted)
+│   └── propose.ts      proposeFromPages(pages, { labeler?, vocabulary?, loadImage?, budget? })
+├── recommendations/
+│   ├── matching.ts     REPORT_UNIT_FOR_PLAN_UNIT, CONCEPT_KINDS_BY_RECOMMENDATION, classifyFinding
+│   ├── build.ts        buildRecommendations(...) → { items, blockedReasons, inputsHash, skipped, packages, types }
+│   ├── hash.ts         recommendationInputsHash / recommendationInputHashes (labels, playbook, personnel)
+│   └── flags.ts        planReviewFlags({ version, recommendations, currentHashes, baselineHashes? })
+├── prompts/playbook-page.v1.md   document prompt (sha256 → promptHash)
 └── eval/               jsonl.ts, split.ts, metrics.ts, segmentation.ts, cli.ts
 bin/eval.mjs            CLI (needs `npm run build` first)
 ```
@@ -152,6 +172,54 @@ else the asset's `analyzedUnit` unless that is `mixed`, else unknown (excluded, 
 can be compared with a recomputation. Finding ids are deterministic UUIDs (RFC 9562 v8 over a
 sha256 of the finding's inputs).
 
+## Playbook proposals (C3-lib)
+
+```ts
+import { proposeFromPages, AnthropicPageLabeler } from "@footballos/ai";
+
+// pages: C's extractDocument(...).pages, or PlaybookPage rows mapped to { pageNumber, text, textSource, imagePath }
+const labeler = new AnthropicPageLabeler();          // isAvailable() false without ANTHROPIC_API_KEY
+const r = await proposeFromPages(pages, { labeler, vocabulary: team.conceptVocabulary });
+// r = { concepts: ProposedConcept[], terms: ProposedTerm[], basis: 'text'|'model'|'none', note, pages: PageOutcome[], provenance: ModelProvenance[] }
+```
+
+- Pages with text (`textSource: 'pdf_text' | 'ocr'`) go through the heuristics: a short
+  Title-Case/ALL-CAPS line is a concept heading, `1. Name — description` is a numbered play,
+  `Term — definition` / `Term: definition` is a term. Section headings ("Run Game",
+  "Protections", "Terms") set the kind of what follows and are not themselves concepts;
+  install-day, week and title lines are ignored. `kind` is guessed from the team vocabulary
+  merged over `DEFAULT_CONCEPT_VOCABULARY` (longest phrase wins), else the section's kind,
+  else `other`. Every text proposal cites `{ pageNumber, excerpt }` and `basis: 'text'`.
+- Pages with `textSource: 'none'` are sent as an image **only** when a `labeler` is given and
+  `isAvailable()`; the model may abstain. Model proposals carry `basis: 'model'`, the page
+  number only (`excerpt: null`) and a note naming the model; `provenance[]` holds one
+  `ModelProvenance` per call (for a page, `preprocessing.frameCount` is 1 and `inspected` is
+  zeroed: a page has no timestamps). Without a labeler the page yields nothing and
+  `pages[i].note` says so. A page-local provider error skips the page; `budget_exceeded`,
+  `no_api_key`, `auth` stop further calls.
+- Persisting (B): `ProposedConcept` → `Concept { status:'proposed', installed:false, sources:
+  sources.map(s => ({ documentId, pageNumber: s.pageNumber, bbox: null, excerpt: s.excerpt })) }`;
+  `basis` and `note` are the §15.1 fields on the proposal.
+
+## Recommendations (C3-lib)
+
+```ts
+import { buildRecommendations, recommendationInputHashes, planReviewFlags } from "@footballos/ai";
+
+const { items, blockedReasons, inputsHash, skipped, packages } = buildRecommendations({
+  report,                                   // buildScoutingReport(..., reviewBasis: 'reviewed_only') on the OPPONENT unit
+  playbook: { versionId, status, concepts }, // the approved version and its concepts (any status)
+  personnel: { players, packages, depthChart, week },
+  unit: "defense", gameId,
+});
+const hashes = recommendationInputHashes({ report, playbook, personnel, unit, gameId }); // { inputsHash, labelsHash, playbookHash, personnelHash }
+const flags = planReviewFlags({ version, recommendations, currentHashes: hashes, baselineHashes });
+```
+
+Rules, thresholds (`minSample` 4, tendency 60 %, formation share 25 %) and the matching table
+are in `docs/ai/RECOMMENDATIONS.md`. `Player.availability` and `ReviewFlag` are typed in this
+package (`PlayerAvailability`, `ReviewFlag`) until the contracts package carries them.
+
 ## Cost controls
 
 | Control | Default | Env |
@@ -206,3 +274,12 @@ npm test -w packages/ai
   attempt (the result is only returned on completion); per-segment checkpointing is a
   follow-up for the job runner.
 - `extractFrames` is injected; the handler has not been run against C's real implementation.
+- The playbook heuristics are rules, not understanding: a Title-Case sentence fragment can
+  become a concept and a schedule-like "X: Y" line a term. The coach's review is the filter.
+  No real playbook PDF has been processed (none exists in the repository, board X1).
+- `AnthropicPageLabeler` has only been exercised against a fake transport; the same
+  first-live-call caution as for the segment labeler applies.
+- `buildRecommendations` reads a finding's dimensions (formation, play type, situation) back
+  from the statement `stats/findings.ts` wrote; a finding from another compute version is
+  skipped, not guessed. A structured field on `ScoutingFinding` is proposed to the contracts
+  owner.

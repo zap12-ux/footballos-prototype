@@ -140,3 +140,8 @@ typechecker, Vite and ffprobe read empty files and blanked the web app mid-verif
 **Consequences.** Historical documents (QA report, change summary) keep the old absolute paths
 as written at the time. Recovery trick kept in WORKFLOW knowledge: for an evicted tracked
 file, `rm` it and `git checkout -- <file>`.
+
+## D-013 · 2026-10-25 · Share-link lifetime cap is 72 hours
+**Decision.** Plan share links expire at most 72 hours after creation (owner answer to the
+Backend question in Milestone C; the contract's 168 h was lowered). Shorter requests are
+allowed; longer ones are rejected with 400.

@@ -11,8 +11,11 @@ import type { Label, PlaySegment, ReportSnapshot, ReviewBasis, ScoutingFinding, 
 
 /** The parts of a game the report needs. */
 export type ReportGame = Pick<ScheduledGame, "id" | "opponentId">;
-/** The parts of an asset the report needs. */
-export type ReportAsset = Pick<MediaAsset, "id" | "gameId" | "status" | "context">;
+/**
+ * The parts of an asset the report needs. `gameId` is nullable (CONTRACTS §15.1: playbook
+ * documents are assets without a game); such assets never feed a report.
+ */
+export type ReportAsset = Pick<MediaAsset, "id" | "status" | "context"> & { gameId: string | null };
 
 export interface BuildScoutingReportInput {
   teamId: string;
@@ -101,7 +104,7 @@ export function buildScoutingReport(input: BuildScoutingReportInput): ScoutingRe
 
   const assetsById = new Map<string, ReportAsset>();
   for (const a of input.assets) {
-    if (!gameIds.has(a.gameId)) continue;
+    if (a.gameId === null || !gameIds.has(a.gameId)) continue;
     if (a.context.analyzedTeam !== "opponent") continue;
     if (UNUSABLE_ASSET_STATUSES.has(a.status)) continue;
     assetsById.set(a.id, a);
