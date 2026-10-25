@@ -5,7 +5,8 @@
   "description": "FootballOS: private AI-assisted coaching workspace for one football staff. npm-workspaces monorepo.",
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "packages/*",
+    "tools/*"
   ],
   "engines": {
     "node": ">=22"
@@ -14,6 +15,7 @@
     "dev:web": "npm run dev -w apps/web",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm test --workspaces --if-present",
-    "build": "npm run build --workspaces --if-present"
+    "build": "npm run build --workspaces --if-present",
+    "console": "npm run start -w tools/agent-console"
   }
 }
