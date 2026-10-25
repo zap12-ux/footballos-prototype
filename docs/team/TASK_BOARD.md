@@ -53,7 +53,8 @@ Defined in the brief; tasks will be cut when B is integrated. Not started.
 
 | ID | Blocked item | Needs | Default if no answer |
 | --- | --- | --- | --- |
-| X1 | Full-game footage, playbook PDF, roster CSV with rights to use | Owner to provide files or approve download of a specific openly-licensed full game (candidates in `docs/DEMO_FOOTAGE_SOURCES.md`) | Continue on the six credited SWOSU clips; mark montage and full-game processing open |
+| X1 | Full-game footage, playbook PDF, roster CSV with rights to use | Owner to provide files or approve download of a specific openly-licensed full game (candidates in `docs/DEMO_FOOTAGE_SOURCES.md`) | Continue on the six credited SWOSU clips as processing fixtures; full-game processing open |
+| X5 | Landing montage asset: AI-generated football action clips (D-011) | Owner to choose the generation route and authorize any cost; clips delivered to `apps/web/public/montage/` | Hero shows the designed poster only; montage requirement open |
 | X2 | Model API access and budget | Owner-provided Anthropic and/or OpenAI API key with billing, and a monthly cap (suggest $25 dev evaluation cap) | Adapter built and tested with a fake transport; no paid call |
 | X3 | Hosting target and staff roster | Single Mac on staff LAN vs small VPS; head coach + coordinators list | Design for single host; demo team seeded with fictional staff |
 | X4 | Acceptance targets for model and operations | Owner agreement before evaluation results decide release readiness | Propose targets in `docs/ai/EVALUATION_PLAN.md`; not used for release decisions until agreed |

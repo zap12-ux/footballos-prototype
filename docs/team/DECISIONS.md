@@ -119,3 +119,14 @@ module so any overwrite is recoverable with git.
 **Consequences.** The console shows the lead's own status; a long silence from the lead means
 it is waiting on agent notifications, not stopped. Four `agent.resumed` events posted by the
 fork at ~12:53 are annotated as disregarded.
+
+## D-011 · 2026-10-25 · Landing montage uses AI-generated football action, not evaluation footage
+**Decision.** The public landing hero montage will be built from AI-generated clips of
+football players tackling and making plays. The credited SWOSU clips stay inside the
+prototype demo flow only. Until generated clips exist the hero shows a designed poster
+with no video, driven by `apps/web/public/montage/manifest.json`.
+**Why.** Owner instruction (2026-10-25). Keeps evaluation footage out of marketing use and
+removes the CC BY-NC question for the public site.
+**Consequences.** The montage requirement stays **open** until the generated asset exists,
+its generation terms permit this use, and playback is verified (brief §4). Generation route
+and any cost need the owner's authorization (D-004 rule on paid provisioning applies).
