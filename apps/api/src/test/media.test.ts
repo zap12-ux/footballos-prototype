@@ -136,7 +136,7 @@ describe('§14.1 resumable uploads', () => {
     expect(fs.existsSync(part)).toBe(true);
     t.clock.advanceMs(2 * 3_600_000); // UPLOAD_TTL_HOURS=1
     expect((await call(t, 'GET', `/api/v1/uploads/${create.body.upload.id}`, undefined, alpha.oc.cookie)).status).toBe(404);
-    const r = runMaintenance(t.ctx);
+    const r = await runMaintenance(t.ctx);
     expect(r.expiredUploads).toBeGreaterThanOrEqual(1);
     expect(fs.existsSync(part)).toBe(false);
     expect(t.ctx.db.select().from(uploads).where(eq(uploads.id, create.body.upload.id)).get()).toBeUndefined();
@@ -316,7 +316,7 @@ describe('§14.7 settings and retention', () => {
     const live = list.body.items.filter((a: any) => a.status !== 'deleted');
     expect(live.every((a: any) => a.retentionUntil !== null)).toBe(true);
     t.clock.advanceMs(2 * 86_400_000);
-    const r = runMaintenance(t.ctx);
+    const r = await runMaintenance(t.ctx);
     expect(r.retentionDeleted).toBe(live.length);
     // sessions idled out while the clock moved two days; sign in again
     alpha.hc.cookie = await signIn(t, alpha.hc.user.email, alpha.hc.totpSecret);

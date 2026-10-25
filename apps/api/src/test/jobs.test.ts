@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import { call, makeTestApp, seedTeamWithStaff, type TestApp } from './helpers.js';
 import { CONTEXT, FIXTURE_CLIPS, seedGame, uploadFile } from './media-helpers.js';
 import { mediaAssets, modelProvenance, processingJobs } from '../db/schema.js';
+import { runMaintenance } from '../jobs/worker.js';
 
 let t: TestApp;
 let alpha: Awaited<ReturnType<typeof seedTeamWithStaff>>;
@@ -137,24 +138,38 @@ describe('§14.2 jobs: cancel, retry, recovery', () => {
     expect((await call(t, 'GET', `/api/v1/assets/${B.assetId}`, undefined, alpha.oc.cookie)).body.asset.status).toBe('ready');
   });
 
-  it('restart recovery: a job whose worker died (expired lease) is re-queued by recover() and claimed again', async () => {
+  it('restart recovery (§14.10, QA D-2): an orphaned running job is re-claimed once its lease expires, recovered by the maintenance tick, and failed when no attempts remain', async () => {
     const past = new Date(t.clock.now.getTime() - 60_000).toISOString();
+    // (a) claim() takes a `running` row whose lease has expired: no recover(), no worker restart.
     t.ctx.db.update(processingJobs).set({ status: 'running', workerId: 'dead-worker', attempt: 1, leaseExpiresAt: past, startedAt: past }).where(eq(processingJobs.id, C.jobs.validate!)).run();
     expect((await job(C.jobs.validate!)).status).toBe('running');
-    expect(await t.ctx.runner.runOnce()).toBeNull(); // nothing claimable while the (expired) lease is still recorded as running
-    const recovered = await t.ctx.runner.recover();
-    expect(recovered.map((j) => j.id)).toEqual([C.jobs.validate]);
-    expect(recovered[0]!.status).toBe('queued');
-    expect(recovered[0]!.error?.code).toBe('lease_expired');
+    const reclaimed = await t.ctx.runner.runOnce();
+    expect(reclaimed?.id).toBe(C.jobs.validate);
+    expect(reclaimed?.status).toBe('succeeded');
+    expect(reclaimed?.attempt).toBe(2);
+    expect(reclaimed?.workerId).toBe(t.ctx.runner.workerId);
+    // (b) a lease still in the future is not claimable; when the injected clock passes it, the maintenance tick re-queues the job.
+    const future = new Date(t.clock.now.getTime() + 90_000).toISOString();
+    t.ctx.db.update(processingJobs).set({ status: 'running', workerId: 'dead-worker', attempt: 1, leaseExpiresAt: future, startedAt: past }).where(eq(processingJobs.id, C.jobs.proxy!)).run();
+    expect(await t.ctx.runner.runOnce()).toBeNull();
+    expect((await runMaintenance(t.ctx)).recoveredLeases).toBe(0);
+    t.clock.advanceMs(91_000);
+    expect((await runMaintenance(t.ctx)).recoveredLeases).toBe(1);
+    const requeued = await job(C.jobs.proxy!);
+    expect(requeued.status).toBe('queued');
+    expect(requeued.workerId).toBeNull();
+    expect(requeued.error.code).toBe('lease_expired');
     const again = await t.ctx.runner.runOnce();
-    expect(again?.id).toBe(C.jobs.validate);
+    expect(again?.id).toBe(C.jobs.proxy);
     expect(again?.status).toBe('succeeded');
     expect(again?.attempt).toBe(2);
-    // a second expiry with no attempts left ends `failed`
-    t.ctx.db.update(processingJobs).set({ status: 'running', workerId: 'dead-worker', attempt: 2, leaseExpiresAt: past }).where(eq(processingJobs.id, C.jobs.proxy!)).run();
+    // (c) an expiry with no attempts left (JOB_MAX_ATTEMPTS=2) is never re-claimed; recovery ends it `failed` and the dependents upstream_failed.
+    t.ctx.db.update(processingJobs).set({ status: 'running', workerId: 'dead-worker', attempt: 2, leaseExpiresAt: past }).where(eq(processingJobs.id, C.jobs.thumbnails!)).run();
+    expect(await t.ctx.runner.runOnce()).toBeNull();
     const exhausted = await t.ctx.runner.recover();
+    expect(exhausted.map((j) => j.id)).toEqual([C.jobs.thumbnails]);
     expect(exhausted[0]!.status).toBe('failed');
-    expect((await job(C.jobs.thumbnails!)).error.code).toBe('upstream_failed');
+    expect((await job(C.jobs.segment!)).error.code).toBe('upstream_failed');
   });
 });
 

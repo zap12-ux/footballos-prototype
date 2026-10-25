@@ -37,6 +37,8 @@ const EnvSchema = z.object({
   WORKER_POLL_MS: z.coerce.number().int().positive().default(1000),
   JOB_MAX_ATTEMPTS: z.coerce.number().int().positive().default(3),
   JOB_LEASE_SECONDS: z.coerce.number().int().positive().default(300),
+  /** Maintenance tick: expired-lease recovery, upload GC and retention (seconds). */
+  WORKER_MAINTENANCE_SEC: z.coerce.number().int().positive().default(60),
   PROXY_HEIGHT: z.coerce.number().int().min(144).max(2160).default(720),
   THUMBNAIL_EVERY_SEC: z.coerce.number().positive().default(10),
   MONTHLY_COST_CAP_USD: z.coerce.number().nonnegative().default(0),
@@ -80,6 +82,7 @@ export type AppConfig = {
     workerPollMs: number;
     jobMaxAttempts: number;
     jobLeaseSeconds: number;
+    maintenanceIntervalSec: number;
     proxyHeight: number;
     thumbnailEverySec: number;
     monthlyCostCapUsd: number;
@@ -145,6 +148,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       workerPollMs: e.WORKER_POLL_MS,
       jobMaxAttempts: e.JOB_MAX_ATTEMPTS,
       jobLeaseSeconds: e.JOB_LEASE_SECONDS,
+      maintenanceIntervalSec: e.WORKER_MAINTENANCE_SEC,
       proxyHeight: e.PROXY_HEIGHT,
       thumbnailEverySec: e.THUMBNAIL_EVERY_SEC,
       monthlyCostCapUsd: e.MONTHLY_COST_CAP_USD,

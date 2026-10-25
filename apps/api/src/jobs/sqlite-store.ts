@@ -41,6 +41,12 @@ export class SqliteJobStore implements JobStore {
     return row ? fromRow(row) : null;
   }
 
+  /**
+   * Claims the oldest claimable job: `queued`, a due `retry_wait`, or (§14.10, QA D-2) a `running`
+   * row whose lease expired while attempts remain and no cancel is pending, i.e. a job orphaned by a
+   * worker that died. Exhausted or cancel-requested orphans are left to `recoverExpiredLeases()`,
+   * which ends them `failed` / `canceled`.
+   */
   async claim(workerId: string, leaseSec: number, kinds: string[] | null, now: Date): Promise<Job | null> {
     const nowIso = now.toISOString();
     if (kinds !== null && kinds.length === 0) return null;
@@ -48,9 +54,12 @@ export class SqliteJobStore implements JobStore {
     const candidate = sql`(
       SELECT j.id FROM processing_jobs j
       WHERE ${kindFilter}
-        AND (j.status = 'queued' OR (j.status = 'retry_wait' AND (j.not_before_at IS NULL OR j.not_before_at <= ${nowIso})))
+        AND (j.status = 'queued'
+          OR (j.status = 'retry_wait' AND (j.not_before_at IS NULL OR j.not_before_at <= ${nowIso}))
+          OR (j.status = 'running' AND j.lease_expires_at IS NOT NULL AND j.lease_expires_at < ${nowIso} AND j.cancel_requested_at IS NULL AND j.attempt < j.max_attempts))
         AND (j.depends_on_job_id IS NULL OR EXISTS (SELECT 1 FROM processing_jobs d WHERE d.id = j.depends_on_job_id AND d.status = 'succeeded'))
       ORDER BY j.created_at ASC, j.id ASC LIMIT 1)`;
+    const reclaimed: JobError = { code: 'lease_expired', message: 'previous worker stopped heartbeating; re-claimed after the lease expired', retryable: true };
     const row = this.db
       .update(processingJobs)
       .set({
@@ -60,6 +69,8 @@ export class SqliteJobStore implements JobStore {
         leaseExpiresAt: new Date(now.getTime() + leaseSec * 1000).toISOString(),
         startedAt: sql`COALESCE(${processingJobs.startedAt}, ${nowIso})`,
         notBeforeAt: null,
+        // An orphaned `running` row records why it changed hands; other claims keep their error field.
+        error: sql`CASE WHEN ${processingJobs.status} = 'running' THEN ${JSON.stringify(reclaimed)} ELSE ${processingJobs.error} END`,
       })
       .where(eq(processingJobs.id, candidate))
       .returning()
