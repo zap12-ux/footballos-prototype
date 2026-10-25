@@ -365,8 +365,9 @@ async function extractDocx(path: string, run: Extraction): Promise<ExtractedPage
 
 /** Splits text into pages of `linesPerPage` lines (CONTRACTS §15.5); a page is `pdf_text` because the text is authoritative, not recognised. */
 export function paginateText(raw: string, linesPerPage: number): string[][] {
-  const lines = raw.replace(/^﻿/, '').replace(/\r\n?/g, '\n').split('\n');
-  if (lines.length > 1 && lines[lines.length - 1] === '') lines.pop();
+  const cleaned = raw.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
+  const lines = cleaned.length === 0 ? [] : cleaned.split('\n');
+  if (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
   const pages: string[][] = [];
   for (let i = 0; i < lines.length; i += linesPerPage) pages.push(lines.slice(i, i + linesPerPage));
   if (pages.length === 0) pages.push([]);
