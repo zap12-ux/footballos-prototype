@@ -52,11 +52,13 @@ export class FakeTransport implements AnthropicTransport {
   }
 }
 
-export function goodResponse(timestamps: number[]) {
+export interface RawEntry { key: string; value: string | null; abstained: boolean; rationale: string; evidence_timestamps_sec: number[]; uncertainty: string | null }
+
+export function goodResponse(timestamps: number[]): { labels: RawEntry[] } {
   return {
     labels: [
-      { key: "formation_family", value: "trips", abstained: false, rationale: "Three receivers to the right at the snap.", evidence_timestamps_sec: [timestamps[0]], uncertainty: "low" },
-      { key: "play_type", value: "pass", abstained: false, rationale: "Quarterback drops and throws across frames.", evidence_timestamps_sec: [timestamps[1], timestamps[3]], uncertainty: "medium" },
+      { key: "formation_family", value: "trips", abstained: false, rationale: "Three receivers to the right at the snap.", evidence_timestamps_sec: [timestamps[0]!], uncertainty: "low" },
+      { key: "play_type", value: "pass", abstained: false, rationale: "Quarterback drops and throws across frames.", evidence_timestamps_sec: [timestamps[1]!, timestamps[3]!], uncertainty: "medium" },
       { key: "situation_down", value: null, abstained: true, rationale: "No down marker or graphic visible.", evidence_timestamps_sec: [], uncertainty: null },
     ],
   };

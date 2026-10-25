@@ -100,12 +100,11 @@ describe("AnthropicVisionLabeler with a fake transport", () => {
   });
 
   it("maps SDK errors to retryable / non-retryable provider_unavailable", () => {
-    const mk = (Cls: new (...a: never[]) => Error, status: number) =>
-      (Cls as unknown as new (s: number, e: unknown, m: string, h: Headers) => Error)(status, { message: "x" }, "x", new Headers());
-    expect(mapAnthropicError(mk(Anthropic.AuthenticationError as never, 401))).toMatchObject({ reason: "auth", retryable: false, status: 401 });
-    expect(mapAnthropicError(mk(Anthropic.RateLimitError as never, 429))).toMatchObject({ reason: "rate_limited", retryable: true });
-    expect(mapAnthropicError(mk(Anthropic.BadRequestError as never, 400))).toMatchObject({ reason: "bad_request", retryable: false });
-    expect(mapAnthropicError(mk(Anthropic.InternalServerError as never, 503))).toMatchObject({ reason: "server_error", retryable: true });
+    const sdkError = (status: number) => Anthropic.APIError.generate(status, { error: { type: "x", message: "x" } }, "x", new Headers());
+    expect(mapAnthropicError(sdkError(401))).toMatchObject({ reason: "auth", retryable: false, status: 401 });
+    expect(mapAnthropicError(sdkError(429))).toMatchObject({ reason: "rate_limited", retryable: true });
+    expect(mapAnthropicError(sdkError(400))).toMatchObject({ reason: "bad_request", retryable: false });
+    expect(mapAnthropicError(sdkError(503))).toMatchObject({ reason: "server_error", retryable: true });
     expect(mapAnthropicError(new Anthropic.APIConnectionError({ message: "down" }))).toMatchObject({ reason: "network", retryable: true });
     expect(mapAnthropicError(new Error("boom"))).toMatchObject({ reason: "unknown", retryable: false });
   });

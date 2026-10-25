@@ -1,43 +1,55 @@
 import { readFileSync } from "node:fs";
-import { z } from "zod";
+import type { PredictionRow, TruthRow } from "./types.js";
 
-/** One coach label: the ground truth for a segment/key. `value` null means "coach says unknown". */
-export const TruthRecord = z.object({
-  segmentId: z.string().min(1),
-  gameId: z.string().min(1),
-  key: z.string().min(1),
-  value: z.string().nullable(),
-});
-export type TruthRecord = z.infer<typeof TruthRecord>;
-
-/** One prediction: same shape plus `abstained`. */
-export const PredictionRecord = TruthRecord.extend({
-  abstained: z.boolean(),
-});
-export type PredictionRecord = z.infer<typeof PredictionRecord>;
-
-export function parseJsonl<T>(text: string, schema: z.ZodType<T>, source = "<input>"): T[] {
-  const out: T[] = [];
+export function parseJsonl(text: string): unknown[] {
+  const out: unknown[] = [];
   const lines = text.split(/\r?\n/);
-  lines.forEach((line, i) => {
-    if (line.trim() === "") return;
-    let obj: unknown;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!.trim();
+    if (line === "") continue;
     try {
-      obj = JSON.parse(line);
-    } catch {
-      throw new Error(`${source}:${i + 1}: not valid JSON`);
+      out.push(JSON.parse(line));
+    } catch (err) {
+      throw new Error(`line ${i + 1}: invalid JSON (${(err as Error).message})`);
     }
-    const parsed = schema.safeParse(obj);
-    if (!parsed.success) throw new Error(`${source}:${i + 1}: ${parsed.error.issues.map((x) => `${x.path.join(".")} ${x.message}`).join("; ")}`);
-    out.push(parsed.data);
-  });
+  }
   return out;
 }
 
-export function readTruthJsonl(path: string): TruthRecord[] {
-  return parseJsonl(readFileSync(path, "utf8"), TruthRecord, path);
+function str(v: unknown, field: string, line: number): string {
+  if (typeof v !== "string" || v === "") throw new Error(`line ${line}: "${field}" must be a non-empty string`);
+  return v;
 }
 
-export function readPredictionsJsonl(path: string): PredictionRecord[] {
-  return parseJsonl(readFileSync(path, "utf8"), PredictionRecord, path);
+export function parseTruthRows(text: string): TruthRow[] {
+  return parseJsonl(text).map((row, i) => {
+    const r = row as Record<string, unknown>;
+    const value = r.value;
+    if (value !== null && typeof value !== "string") throw new Error(`line ${i + 1}: "value" must be a string or null`);
+    return { segmentId: str(r.segmentId, "segmentId", i + 1), gameId: str(r.gameId, "gameId", i + 1), key: str(r.key, "key", i + 1), value: value as string | null };
+  });
+}
+
+export function parsePredictionRows(text: string): PredictionRow[] {
+  return parseJsonl(text).map((row, i) => {
+    const r = row as Record<string, unknown>;
+    const value = r.value;
+    if (value !== null && typeof value !== "string") throw new Error(`line ${i + 1}: "value" must be a string or null`);
+    if (typeof r.abstained !== "boolean") throw new Error(`line ${i + 1}: "abstained" must be a boolean`);
+    if (r.abstained && value !== null) throw new Error(`line ${i + 1}: an abstained prediction must have value null`);
+    return {
+      segmentId: str(r.segmentId, "segmentId", i + 1),
+      gameId: str(r.gameId, "gameId", i + 1),
+      key: str(r.key, "key", i + 1),
+      value: value as string | null,
+      abstained: r.abstained,
+    };
+  });
+}
+
+export function readTruthFile(path: string): TruthRow[] {
+  return parseTruthRows(readFileSync(path, "utf8"));
+}
+export function readPredictionFile(path: string): PredictionRow[] {
+  return parsePredictionRows(readFileSync(path, "utf8"));
 }
