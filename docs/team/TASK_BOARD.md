@@ -47,7 +47,7 @@ Contract: `docs/team/CONTRACTS.md` §14. Briefs: `docs/team/briefs/*-milestone-b
 | B4 / B5 | Label routes, inference enqueue, scouting route and snapshots in the API | B (same agent) | Verified (api 68/68 on integration; chain ran end to end on play-1) | B4-lib, B5-lib | `apps/api/**` |
 | B5-lib | `buildScoutingReport`, `snapshotFromReport` | D (same agent) | Verified | — | `packages/ai/**` |
 | B6 | QA: interrupted upload, worker restart, provider failure, correction persistence, counts, a11y of A2/B3 | E (subagent `qa` #2) | Integrated (API/worker scope: `docs/qa/QA_REPORT_B6.md`; D-1 High stored-XSS via media stream, D-2 lease recovery, D-3 tsx scripts, D-4/5/7 low; UI a11y scope pending) | B1–B5 integrated | `tests/e2e/**`, `docs/qa/**` |
-| B7 | Fix QA B6 defects D-1..D-5, D-7 (CONTRACTS §14.10) | B (subagent `backend` #3) | In progress | B6 | `apps/api/**`, `packages/contracts/**` |
+| B7 | Fix QA B6 defects D-1..D-5, D-7 (CONTRACTS §14.10) | B (subagent `backend` #3) | Verified (api 70/70; QA security scenario 17/17 re-run by the engineer) | B6 | `apps/api/**`, `packages/contracts/**` |
 | K5 | Console defects D-1..D-4, `agentctl wait --poll-until-answered` | console-fix (subagent) | Verified (console 45/45 on re-run after one load-related timing failure, ui 41/41, fixture 52/52 on integration) | K4 | `tools/agent-console/**`, `tools/agent-console-ui/**` |
 
 ## Milestone C — Coaching workflow (prepared 2026-10-25; launches after B7)
@@ -60,8 +60,8 @@ Contract: `docs/team/CONTRACTS.md` §15. Briefs: `B3-backend-milestone-c.md`, `C
 | ID | Task | Owner | Status | Depends on | Allowed paths |
 | --- | --- | --- | --- | --- | --- |
 | C1 | Schema `0002_coaching`; playbook intake/review, personnel, recommendations, plans, approval, sharing, exports in the API | B (subagent `backend` #4) | Ready | B7 | `apps/api/**`, `packages/contracts/**` |
-| C2-lib | `extractDocument`, `createDocumentHandlers`, OCR if offline-installable, media `types` export | C (subagent `media` #3) | Ready | B7 | `packages/media/**`, `fixtures/documents/**` |
-| C3-lib | `proposeFromPages`, `buildRecommendations`, `recommendationInputsHash`, `planReviewFlags`, grounding doc | D (subagent `ai` #3) | Ready | B7 | `packages/ai/**`, `docs/ai/**` |
+| C2-lib | `extractDocument`, `createDocumentHandlers`, OCR if offline-installable, media `types` export | C (subagent `media` #3) | In progress | B7 | `packages/media/**`, `fixtures/documents/**` |
+| C3-lib | `proposeFromPages`, `buildRecommendations`, `recommendationInputsHash`, `planReviewFlags`, grounding doc | D (subagent `ai` #3) | In progress | B7 | `packages/ai/**`, `docs/ai/**` |
 | C4 | Playbook, Personnel, Game Plans (editor, approvals, comments, sharing, print/PDF), Recommendations panel, shared read-only route | A (subagent `frontend` #3) | Ready | B7 (code against §15) | `apps/web/**` |
 | C5 | QA: authorization matrix for approvals/overrides/sharing, concurrent plan edits, stale flags, exports, playbook proposal honesty, a11y of B3/C4 pages | E | Ready | C1–C4 integrated | `tests/e2e/**`, `docs/qa/**` |
 

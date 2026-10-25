@@ -302,7 +302,8 @@ Implemented by B in `apps/api`; consumed by A in `apps/web`; library pieces from
   `packages/media/src/jobs/types.ts` (`JobStore`).
 - Worker: `npm run worker -w apps/api` runs the `JobRunner` from `packages/media` with
   `WORKER_CONCURRENCY`, `JOB_LEASE_SECONDS`, `JOB_MAX_ATTEMPTS`; `WORKER_INLINE=true` runs it inside
-  the API process for development. On start it calls `recoverExpiredLeases()`.
+  the API process for development. It calls `recoverExpiredLeases()` on start and on every
+  maintenance tick (`WORKER_MAINTENANCE_SEC`, default 60).
 - Handlers registered by B: `validate`, `proxy`, `thumbnails`, `segment` from
   `createMediaHandlers()` (C) and `infer_labels` from `createInferLabelsHandler()` (D). B persists
   each handler's result into `MediaAsset` (quality, proxy/thumbnail keys, status) or
@@ -332,7 +333,8 @@ Implemented by B in `apps/api`; consumed by A in `apps/web`; library pieces from
 - `GET /segments/:segmentId/labels` → `{ items: Label[] }`; `GET /assets/:assetId/labels` →
   `{ items: Label[] }` (all segments, for review tables).
 - `PATCH /labels/:labelId { accepted: { value, status: 'accepted'|'corrected'|'unknown'|'rejected' }, reason?, expectedVersion }`
-  → `{ label }`; writes a `LabelRevision`; `GET /labels/:labelId/revisions` → `{ items }`.
+  → `{ label, changed }`; writes a `LabelRevision` unless the request is a no-op (`changed:false`);
+  `GET /labels/:labelId/revisions` → `{ items }`.
 - `POST /assets/:assetId/labels/bulk-accept { segmentIds, keys }` → `{ accepted: n, skipped: n }`;
   only labels whose `accepted.status === 'inferred'` and `inferred.abstained === false` change.
 - `GET /assets/:assetId/provenance` → `{ items: ModelProvenance[] }`.
