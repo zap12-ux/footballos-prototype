@@ -1,6 +1,7 @@
 /// <reference types="vitest" />
 import { copyFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -28,6 +29,13 @@ export default defineConfig({
   // GitHub Pages serves the site under /footballos-prototype/ (the repository name); dev and local preview use /.
   base: process.env.GITHUB_PAGES === 'true' ? '/footballos-prototype/' : '/',
   plugins: [react(), spaFallback()],
+  resolve: {
+    alias: {
+      // The contracts workspace package from source (dev, tests and build), as apps/api's
+      // vitest config does, so nothing here depends on a built `dist`.
+      '@footballos/contracts': fileURLToPath(new URL('../../packages/contracts/src/index.ts', import.meta.url)),
+    },
+  },
   server: {
     port: 5174,
     proxy: {

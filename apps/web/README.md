@@ -38,9 +38,114 @@ production build copies `index.html` to `404.html` so GitHub Pages serves deep l
 Demo sign-in: any listed demo account, password `demo`, verification code `246810` (shown
 on the sign-in screen in mock mode only). `VITE_API_MODE=http` uses `src/api/http.ts`
 against `/api/v1` (Vite proxies `/api` and `/media` to `http://localhost:8789`, override
-with `VITE_API_PROXY_TARGET`). Contract types in `src/api/contracts.ts` are transcribed
-from CONTRACTS.md and will be replaced by `@footballos/contracts`; the HTTP client will be
-replaced by `hc<AppType>` from `hono/client` once `@footballos/api` exports `AppType`.
+with `VITE_API_PROXY_TARGET`).
+
+`src/api/http.ts` is `hc<AppType>` from `hono/client`, typed by the API's own route table
+(`import type { AppType } from '@footballos/api'`, type-only). Every route the API implements
+(auth, teams, staff, invites, seasons, opponents, games, schedule imports, and the CONTRACTS
+§14 uploads, jobs, grants, segments, labels, scouting and settings) is called through the
+typed client, so a server-side change to a path, parameter or response shape fails
+`npm run typecheck -w apps/web`. Routes the API has not implemented yet (plans, playbook,
+personnel) go through a small `raw()` helper with the same error-envelope handling and move
+to the typed client as each lands in `AppType`.
+`src/api/contracts.ts` re-exports every type from `@footballos/contracts` (aliased to the
+package source in `vite.config.ts` and `tsconfig.json`) and adds only coach-facing constants
+(`UNIT_LABELS`, `LABEL_KEY_LABELS`, plan section templates) and pure helpers.
+
+### Film workflow (Milestone B, task B3)
+
+`/app/film` lists the film attached to the selected game; `/app/film/:assetId` is the asset
+view. In mock mode the same screens run on demo data: a reviewed Westmoor game with 48
+proposed plays, 384 labels (12 plays carry model output with provenance, four are reviewed,
+the rest are `unknown` so a coach can enter them), jobs in every state, and a simulated
+worker that advances a job one step per poll.
+
+1. **Upload** (`src/film/uploadClient.ts`, CONTRACTS §14.1). The context form asks four
+   questions once (whose film, unit, camera, how to tell the teams apart). Files under 2 GB
+   are fingerprinted (sha256) in a Web Worker with `crypto.subtle` so an exact duplicate is
+   refused before any byte moves; larger files skip the hash and the status says so (the
+   server still hashes on completion). Bytes go as `PUT /uploads/:id` ranges of the server's
+   `chunkSizeBytes` (`UPLOAD_CHUNK_BYTES`, 8 MiB in the demo) from `File.slice`. A `409` with
+   `receivedBytes` moves the client to the server's position; network failures retry with
+   backoff; **Cancel** takes effect at the next chunk boundary. In-flight uploads are kept in
+   `localStorage` (`footballos.uploads.inflight.v1`): after a reload the page lists them under
+   *Interrupted uploads*; choosing the same file (name, size and modification time must match)
+   asks `GET /uploads/:id` where the server got to and continues from there. A duplicate
+   (`409` with `existingAssetId`) links to the existing film.
+2. **Jobs** (`src/film/jobPolling.ts`, §14.2). `GET /teams/:id/jobs?assetId=` is polled every
+   3 s while any job is queued, running or waiting to retry, and stops when every job is
+   terminal; the page says which. Cancel and retry are per job. When a chain finishes the
+   asset, its plays and labels reload.
+3. **Asset view** (`src/pages/AssetPage.tsx`). Footage quality notes and the *could not
+   evaluate* list are shown verbatim. The player streams the proxy through a media grant
+   (`GET /assets/:id/grant`, §14.3) that is renewed a minute before it expires and once more
+   if the stream answers with an error. The thumbnail strip is built from `thumbUrlTemplate`;
+   the tile interval comes from the grant when it states one, otherwise 10 s is assumed and
+   said. `?t=<sec>` (evidence links from scouting) opens the player at that time on the
+   nearest play. In mock mode a short credited demo clip stands in for the proxy.
+4. **Segment timeline** (`src/film/SegmentTimeline.tsx`, §14.4). Proposed cuts start out in
+   the review queue (owner decision, 2026-10-25); *Next in queue* and the `N` key step through
+   them. Accept and reject are `PATCH /segments/:id`; *Split at playhead* is
+   `POST /segments/:id/split { atSec }`; *Merge with next* is `POST /segments/merge`. Every
+   write carries `expectedVersion`; a `409` is shown as "changed elsewhere, reload" and nothing
+   is overwritten.
+5. **Label review** (`src/film/LabelReview.tsx`, §14.5). Plays × label keys with the value in
+   use, the model's abstention, an uncertainty word (never a number that was not measured),
+   the accepted status and who reviewed it when. Filters: status, key, abstained only, review
+   queue only. Clicking a cell opens the correction panel: accept the model's value, correct
+   it, mark it unknown, or reject it, with a reason that is kept in the revision history;
+   the panel also shows the model provenance for that play (model, prompt hash, the exact
+   frames inspected with clickable timestamps, tokens, cost, latency). *Accept inferred
+   labels in view* applies the §14.5 rule — only `accepted.status === 'inferred'` with
+   `inferred.abstained === false` — after a confirmation that states how many labels across
+   how many plays will change and how many are skipped (abstentions, already reviewed).
+   *Run inference* posts `POST /assets/:id/infer`; without a configured provider the job
+   fails with `provider_unavailable`, the page says so, and manual labeling stays available.
+   No screen ever fills in a value the model did not give.
+6. **Opponent Scouting** (`src/pages/ScoutingPage.tsx`, §14.6). Opponent, unit and review
+   basis (reviewed labels only / includes unreviewed model labels) select a report computed
+   on the server; the page shows the sample size, the games and processed film it came from,
+   each finding's numerator, denominator, percentage and excluded plays with reasons, and the
+   evidence timestamps as links into the asset view. Uncertain findings are listed apart.
+   *Save snapshot* posts `…/scouting/snapshots`; saved snapshots are listed below.
+7. **Settings** (`/app/settings`, §14.7): retention days with `expectedVersion` (head coach
+   only); the server's upload limits are shown, not edited.
+
+#### Keyboard interactions on the timeline
+
+The play list is one tab stop (`role="listbox"` with `aria-activedescendant`).
+
+| Key | Action |
+| --- | --- |
+| `↓` / `→` | Next play |
+| `↑` / `←` | Previous play |
+| `Home` / `End` | First / last play |
+| `Enter` or `Space` | Play from the start of this play |
+| `N` | Next play still in the review queue |
+| `A` | Accept this cut |
+| `R` | Reject this cut |
+| `S` | Split this play at the playhead |
+| `M` | Merge this play with the next one |
+
+#### What is demo-only
+
+- The mock's simulated worker: jobs advance one step per poll and `validate` writes an
+  estimated duration and says the stream was not probed; `segment` proposes evenly spaced
+  cuts; `infer_labels` always fails with `provider_unavailable` because the mock has no model
+  provider (it never invents a label).
+- The mock media grant streams one of the credited SWOSU demo clips (`public/demo-film/`) in
+  place of a proxy, and its thumbnail tiles are generated SVGs that name their own index.
+- The 12 plays with model output and their provenance are authored demo records; the
+  findings on the scouting page are authored, not computed.
+- Hashing in a Web Worker needs a browser; under vitest the hasher is injected.
+
+#### Proposed contract additions (for Backend)
+
+- `GET /assets/:id/grant` could return `thumbEverySec` and `thumbCount` so the client knows
+  the tile interval (today it assumes 10 s and says so).
+- Label rows for every inferable key should exist as soon as a segment exists (status
+  `unknown`, `inferred: null`), or a `POST /segments/:id/labels` route is needed; otherwise
+  manual labeling of plays the model never saw has nothing to `PATCH`.
 
 ### Landing hero montage — asset pending
 
@@ -69,7 +174,12 @@ aliases its historical variable names onto them; `src/styles/shell.css` styles t
 
 `npm test` runs the prototype's 58 tests unchanged plus the shell suite in
 `src/tests/shell/` (routing, auth gating, montage, context query, screens on the mock API,
-axe-core on landing and dashboard). `src/tests/setup.shell.ts` works around a jsdom/undici
+axe-core on landing, dashboard, film, asset view and scouting) and the film suite in
+`src/tests/film/` (upload client against a fake §14.1 server: chunking, resume, 409
+handling, retries, cancel; job polling start/stop with fake timers; the bulk-accept rule and
+filters; the asset view: keyboard review, split/merge with a stale version, correction with
+history and provenance, inference with the truthful provider state, evidence links; a
+chunked upload end to end on the mock). `src/tests/setup.shell.ts` works around a jsdom/undici
 `AbortSignal` mismatch that react-router's data routers hit under vitest; it is test-only.
 
 ```bash

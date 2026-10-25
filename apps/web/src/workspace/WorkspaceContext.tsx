@@ -37,6 +37,7 @@ export interface WorkspaceValue {
 }
 
 const WorkspaceContext = createContext<WorkspaceValue | null>(null);
+const CONTEXT_KEYS = new Set(['team', 'season', 'game', 'unit']);
 
 /** The next game that is not final, measured against the demo clock in mock mode. */
 export function pickCurrentGame(games: ScheduledGame[], nowIso: string): ScheduledGame | null {
@@ -91,9 +92,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       unit: resolved.unit,
     };
     workspaceStore.set(selection);
-    const wanted = selectionQuery(selection);
+    // Page-specific params (for example `t=` on the asset view) are kept as they are.
+    const next = new URLSearchParams(selectionQuery(selection));
+    for (const [key, value] of params) if (!CONTEXT_KEYS.has(key)) next.append(key, value);
+    const wanted = next.toString() ? `?${next.toString()}` : '';
     const have = params.toString() ? `?${params.toString()}` : '';
-    if (wanted !== have) setParams(new URLSearchParams(wanted), { replace: true });
+    if (wanted !== have) setParams(next, { replace: true });
   }, [resolved, params, setParams]);
 
   const select = useCallback(

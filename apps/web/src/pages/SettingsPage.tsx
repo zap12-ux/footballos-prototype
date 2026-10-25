@@ -1,9 +1,15 @@
 import { useEffect, useId, useState } from 'react';
 import { useApi, useAction, useResource } from '../api/hooks';
 import { useMe } from '../auth/AuthContext';
-import { DataState, EmptyState, PageHeader, SaveStatus, humanize } from '../components/shell/ui';
+import { DataState, EmptyState, PageHeader, SaveStatus, formatBytes, humanize } from '../components/shell/ui';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 
+const MIB = 1024 ** 2;
+
+/**
+ * Settings (CONTRACTS §14.7): `GET/PATCH /teams/:teamId/settings` with `expectedVersion`.
+ * Only the head coach edits; a stale version is reported as a conflict, never overwritten.
+ */
 export function SettingsPage() {
   const api = useApi();
   const ws = useWorkspace();
@@ -14,26 +20,22 @@ export function SettingsPage() {
   const settings = useResource(async () => (teamId ? api.teams.settings(teamId) : null), [api, teamId]);
 
   const [retention, setRetention] = useState<string>('');
-  const [autoDelete, setAutoDelete] = useState(false);
   useEffect(() => {
-    if (settings.data) {
-      setRetention(settings.data.retentionDays === null ? '' : String(settings.data.retentionDays));
-      setAutoDelete(settings.data.autoDeleteOriginals);
-    }
+    if (settings.data) setRetention(settings.data.retentionDays === null ? '' : String(settings.data.retentionDays));
   }, [settings.data]);
 
   const save = useAction(async () => {
     if (!teamId || !settings.data) throw new Error('Settings not loaded.');
     const days = retention === '' ? null : Number(retention);
     if (days !== null && (!Number.isInteger(days) || days < 30)) throw new Error('Retention must be blank (keep until deleted) or at least 30 days.');
-    const next = await api.teams.updateSettings(teamId, { retentionDays: days, autoDeleteOriginals: autoDelete, expectedVersion: settings.data.version });
+    const next = await api.teams.updateSettings(teamId, { retentionDays: days, expectedVersion: settings.data.version });
     settings.reload();
     return next;
   });
 
   return (
     <>
-      <PageHeader title="Settings" lede="Team details and media retention. Deleting media is an explicit action that writes an audit event; nothing is removed silently." />
+      <PageHeader title="Settings" lede="Team details, media retention and the server's upload limits. Deleting media is an explicit action that writes an audit event; nothing is removed silently." />
       <section className="card" aria-labelledby="team-heading">
         <h2 id="team-heading">Team</h2>
         {ws.team ? (
@@ -71,11 +73,19 @@ export function SettingsPage() {
                     Keep uploaded film for (days)
                     <input id={`${id}-days`} type="number" min={30} value={retention} onChange={(e) => setRetention(e.target.value)} disabled={!isHead} placeholder="Blank = keep until deleted" />
                   </label>
-                  <label className="check">
-                    <input type="checkbox" checked={autoDelete} onChange={(e) => setAutoDelete(e.target.checked)} disabled={!isHead} /> Delete original files after the retention period (proxies and labels are kept)
-                  </label>
                 </div>
-                <p className="small muted">Current: {s.retentionDays === null ? 'keep until deleted' : `${s.retentionDays} days`}; originals {s.autoDeleteOriginals ? 'are' : 'are not'} deleted automatically. Settings version {s.version}.</p>
+                <p className="small muted">Current: {s.retentionDays === null ? 'keep until deleted' : `${s.retentionDays} days`}. Settings version {s.version}.</p>
+                <dl className="kv" data-testid="upload-limits">
+                  <dt>Largest upload</dt>
+                  <dd>{formatBytes(s.uploadLimits.maxUploadBytes)}</dd>
+                  <dt>Upload chunk</dt>
+                  <dd>{Math.round(s.uploadLimits.uploadChunkBytes / MIB)} MB per request</dd>
+                  <dt>Accepted containers</dt>
+                  <dd>{s.uploadLimits.allowedVideoContainers.join(', ') || 'none'}</dd>
+                  <dt>Unfinished uploads kept for</dt>
+                  <dd>{s.uploadLimits.uploadTtlHours} hours</dd>
+                </dl>
+                <p className="small muted">Upload limits come from the server's configuration (<code>MAX_UPLOAD_BYTES</code>, <code>UPLOAD_CHUNK_BYTES</code>, <code>ALLOWED_VIDEO_CONTAINERS</code>, <code>UPLOAD_TTL_HOURS</code>) and are shown here, not edited.</p>
                 {isHead ? (
                   <div className="btn-row">
                     <button type="submit" className="primary" disabled={save.status === 'saving'}>

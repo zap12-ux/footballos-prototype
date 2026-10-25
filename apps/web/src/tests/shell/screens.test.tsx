@@ -24,13 +24,20 @@ describe('workspace screens on the mock API', () => {
   });
 
   it('scouting: every finding shows its denominator and review basis; uncertain findings are separated', async () => {
+    const user = userEvent.setup();
     renderApp('/app/scouting?unit=offense&game=game-w10', { signedInAs: HEAD });
     await screen.findByRole('heading', { level: 1, name: /^Opponent Scouting$/ });
-    const counts = await screen.findAllByTestId('finding-count');
-    expect(counts.map((c) => c.textContent)).toEqual(expect.arrayContaining([expect.stringMatching(/19 of 54 snaps \(35\.2%\)/), expect.stringMatching(/9 of 11 snaps/)]));
-    const bases = screen.getAllByTestId('review-basis').map((b) => b.textContent);
-    expect(bases).toContain('Reviewed labels only');
-    expect(bases).toContain('Includes unreviewed labels');
+    // Default basis: reviewed labels only; the report says so and every finding agrees.
+    let counts = await screen.findAllByTestId('finding-count');
+    expect(counts.map((c) => c.textContent)).toEqual(expect.arrayContaining([expect.stringMatching(/19 of 54 snaps \(35\.2%\)/)]));
+    expect(screen.getAllByTestId('review-basis').map((b) => b.textContent)).toEqual(expect.arrayContaining(['Reviewed labels only']));
+    expect(screen.getAllByTestId('review-basis').map((b) => b.textContent)).not.toContain('Includes unreviewed labels');
+    expect(screen.getByTestId('report-meta')).toHaveTextContent(/reviewed labels only/);
+    // Including unreviewed labels brings in the findings that depend on them.
+    await user.click(screen.getByRole('radio', { name: /Include unreviewed/ }));
+    await waitFor(() => expect(screen.getAllByTestId('review-basis').map((b) => b.textContent)).toContain('Includes unreviewed labels'));
+    counts = screen.getAllByTestId('finding-count');
+    expect(counts.map((c) => c.textContent)).toEqual(expect.arrayContaining([expect.stringMatching(/9 of 11 snaps/)]));
     const uncertain = screen.getByRole('region', { name: /Uncertain \(1\)/ });
     expect(within(uncertain).getByRole('heading', { level: 3, name: /may favour screens on third and long/ })).toBeInTheDocument();
     expect(within(uncertain).getByTestId('finding-count')).toHaveTextContent(/3 of 7 snaps .* too small to call/);
@@ -82,18 +89,22 @@ describe('workspace screens on the mock API', () => {
     expect(screen.getByRole('heading', { level: 3, name: /^Approved \(5\)/ })).toBeInTheDocument();
   });
 
-  it('film: upload context form, processing progress, rejection reason and a segment list', async () => {
+  it('film: upload context form, processing progress, rejection reason, and the asset view with its segment counts', async () => {
     const user = userEvent.setup();
-    renderApp('/app/film?game=game-w10', { signedInAs: HEAD });
+    const { router } = renderApp('/app/film?game=game-w10', { signedInAs: HEAD });
     await screen.findByRole('heading', { level: 1, name: /^Our Team Film$/ });
     expect(await screen.findByText(/Proposing play boundaries/)).toBeInTheDocument();
     expect(screen.getAllByRole('progressbar').length).toBeGreaterThan(0);
     expect(screen.getByText(/no video stream that ffprobe can read/)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /Show proposed plays/ }));
-    expect(await screen.findByText(/plays proposed/)).toHaveTextContent(/48 plays proposed · 31 accepted · 16 awaiting review · 1 rejected/);
     // Submitting without a file is a recoverable validation error.
     await user.click(screen.getByRole('button', { name: /Start upload/ }));
     expect(await screen.findByText(/Choose a video file first/)).toHaveAttribute('role', 'alert');
+    // The asset view lists every live play with its review state.
+    await user.click(screen.getAllByRole('link', { name: /Open plays and labels/ })[0]);
+    await waitFor(() => expect(router.state.location.pathname).toBe('/app/film/asset-westmoor-1'));
+    await screen.findByTestId('segment-counts');
+    await waitFor(() => expect(screen.getByTestId('segment-counts')).toHaveTextContent(/16 proposed · 31 accepted · 1 rejected · 16 in the review queue/));
+    expect(screen.getByTestId('unevaluable')).toHaveTextContent(/Jersey numbers on the far side/);
   });
 
   it('personnel and staff: depth chart, packages with availability, members and an invite', async () => {

@@ -33,6 +33,20 @@ describe('accessibility (axe-core)', () => {
     await expectAxeClean(container);
   }, 60000);
 
+  it('film list, the asset view and scouting have no axe violations', async () => {
+    const film = renderApp('/app/film?game=game-w10', { signedInAs: 'user-head' });
+    await screen.findByText(/Proposing play boundaries/);
+    await expectAxeClean(film.container);
+    film.unmount();
+    const asset = renderApp('/app/film/asset-westmoor-1?game=game-w10', { signedInAs: 'user-head' });
+    await screen.findByRole('heading', { level: 3, name: /^Labels \(384\)/ });
+    await expectAxeClean(asset.container);
+    asset.unmount();
+    const scouting = renderApp('/app/scouting?unit=offense&game=game-w10', { signedInAs: 'user-head' });
+    await screen.findAllByTestId('finding-count');
+    await expectAxeClean(scouting.container);
+  }, 120000);
+
   it('dashboard has no axe violations and headings in order', async () => {
     const { container } = renderApp('/app', { signedInAs: 'user-head' });
     await screen.findByRole('heading', { level: 1, name: /^Dashboard$/ });
