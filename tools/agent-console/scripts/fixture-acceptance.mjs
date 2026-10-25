@@ -309,8 +309,8 @@ async function main() {
   const qLead = askLead.json?.questionId;
   const leadAnswer = await runLeadctl(['answer', qLead, '--version', '1', '--option', 'yes']);
   check('leadctl answer <questionId> submits the response (D-1)', leadAnswer.code === 0 && leadAnswer.json?.response?.questionId === qLead && leadAnswer.json?.response?.option === 'yes', leadAnswer.stderr || leadAnswer.json);
-  const waitLead = await runAgentctl(B, ['wait', qLead, '--timeout', '10', '--ack']);
-  check('answer submitted via leadctl reaches the agent (agentctl wait --ack)', waitLead.code === 0 && waitLead.json?.response?.state === 'acknowledged' && waitLead.json?.response?.option === 'yes', waitLead.stderr);
+  const waitLead = await runAgentctl(B, ['wait', qLead, '--poll-until-answered', '--ack']);
+  check('answer submitted via leadctl reaches the agent (agentctl wait --poll-until-answered --ack)', waitLead.code === 0 && waitLead.json?.response?.state === 'acknowledged' && waitLead.json?.response?.option === 'yes', waitLead.stderr);
   const leadGit = await runLeadctl(['git', A.id]);
   check('leadctl git <agentId> returns git corroboration (D-1)', leadGit.code === 0 && typeof leadGit.json?.exists === 'boolean' && Array.isArray(leadGit.json?.commits), leadGit.stderr || leadGit.json);
   const leadBad = await runLeadctl(['answer']);

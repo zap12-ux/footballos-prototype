@@ -135,7 +135,7 @@ Env: `CONSOLE_URL` (default `http://127.0.0.1:4800`), `CONSOLE_AGENT_ID`, `CONSO
 ```
 agentctl status --state working --task A1 --message "Scaffolding packages/contracts"
 agentctl ask --task A1 --question "…" --why "…" --options "a|b" --recommend "a" [--blocking]   # prints questionId
-agentctl wait <questionId> [--timeout 900] [--ack]      # long-polls; prints JSON answer; exits 3 on 410, 4 on timeout
+agentctl wait <questionId> [--timeout 900 | --poll-until-answered] [--ack]   # long-polls; prints JSON answer; exits 3 on 410, 4 on timeout; --poll-until-answered never times out and prints a stderr heartbeat every 5 min
 agentctl ack <questionId> <responseId>
 agentctl result --task A1 --status completed --summary "…" --branch wt/x --commit <sha> --changed-files a,b --tests-json tests.json
 agentctl log --message "…"

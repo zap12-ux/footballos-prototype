@@ -7,7 +7,8 @@ import { api, describeError, expectOk, fail, newClientId, parseArgs, printJson, 
 const USAGE = `usage:
   agentctl status --state <working|reviewing|idle|waiting_on_dependency> [--task <taskId>] --message "..."
   agentctl ask --task <taskId> --question "..." --why "..." [--options "a|b"] [--recommend "a"] [--blocking] [--supersedes <questionId>]
-  agentctl wait <questionId> [--timeout 900] [--ack] [--note "..."]
+  agentctl wait <questionId> [--timeout 900 | --poll-until-answered] [--ack] [--note "..."]
+       --poll-until-answered: no timeout; keeps long-polling (wait=25) and prints a heartbeat line on stderr every 5 minutes
   agentctl ack <questionId> <responseId> [--note "..."]
   agentctl result --task <taskId> --status <completed|failed> --summary "..." --branch <branch> [--commit <sha>] [--changed-files a,b] [--tests-json tests.json] [--limitations "a|b"] [--follow-ups "a|b"]
   agentctl log --message "..."
@@ -34,8 +35,20 @@ const need = (name) => {
 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function waitForAnswer(questionId, { timeoutSec, ack, note }) {
-  const deadline = Date.now() + timeoutSec * 1000;
+const HEARTBEAT_MS = 5 * 60 * 1000;
+
+async function waitForAnswer(questionId, { timeoutSec, ack, note, pollUntilAnswered, heartbeatMs = HEARTBEAT_MS }) {
+  const started = Date.now();
+  const deadline = pollUntilAnswered ? Infinity : started + timeoutSec * 1000;
+  // Heartbeat on a timer (not between polls: a single long-poll can hold the request for 25 s).
+  // It goes to stderr so stdout stays a single JSON document; unref so it never keeps the process alive.
+  const heartbeat = pollUntilAnswered
+    ? setInterval(() => {
+        const minutes = Math.round((Date.now() - started) / 60000);
+        process.stderr.write(`heartbeat: still waiting for an answer to ${questionId} (${minutes} min elapsed)\n`);
+      }, heartbeatMs)
+    : null;
+  heartbeat?.unref();
   for (;;) {
     const remaining = Math.ceil((deadline - Date.now()) / 1000);
     if (remaining <= 0) fail(`timed out after ${timeoutSec}s waiting for an answer to ${questionId}`, 4);
@@ -52,6 +65,7 @@ async function waitForAnswer(questionId, { timeoutSec, ack, note }) {
         out.response = ackRes.body.response;
         out.acknowledged = true;
       }
+      if (heartbeat) clearInterval(heartbeat);
       printJson(out);
       return;
     }
@@ -96,9 +110,19 @@ switch (cmd) {
   case 'wait': {
     const questionId = positional[1];
     if (!questionId) fail(`questionId is required\n${USAGE}`);
+    const pollUntilAnswered = flags['poll-until-answered'] === true || flags['poll-until-answered'] === 'true';
+    if (pollUntilAnswered && flags.timeout !== undefined) fail('--poll-until-answered and --timeout are mutually exclusive');
     const timeoutSec = flags.timeout ? Number(flags.timeout) : 900;
     if (!Number.isFinite(timeoutSec) || timeoutSec <= 0) fail('--timeout must be a positive number of seconds');
-    await waitForAnswer(questionId, { timeoutSec, ack: flags.ack === true || flags.ack === 'true', note: flags.note ? String(flags.note) : null });
+    // Undocumented, for tests only: shorten the heartbeat interval (milliseconds).
+    const heartbeatMs = process.env.AGENTCTL_HEARTBEAT_MS ? Number(process.env.AGENTCTL_HEARTBEAT_MS) : undefined;
+    await waitForAnswer(questionId, {
+      timeoutSec,
+      ack: flags.ack === true || flags.ack === 'true',
+      note: flags.note ? String(flags.note) : null,
+      pollUntilAnswered,
+      ...(Number.isFinite(heartbeatMs) && heartbeatMs > 0 ? { heartbeatMs } : {}),
+    });
     break;
   }
   case 'ack': {
