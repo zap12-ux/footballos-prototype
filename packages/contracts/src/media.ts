@@ -49,7 +49,8 @@ export const MediaAssetSchema = z.object({
   kind: MediaKindSchema,
   originalFilename: z.string().min(1).max(255),
   byteSize: z.number().int().nonnegative(),
-  sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  /** Hex sha256 of the original file; null while the upload is still in progress (v0.3). */
+  sha256: z.string().regex(/^[0-9a-f]{64}$/).nullable(),
   mimeType: z.string().min(1).max(127),
   durationSec: SecondsSchema.nullable(),
   width: z.number().int().positive().nullable(),
@@ -108,7 +109,12 @@ export const JobProgressSchema = z.object({
 });
 export type JobProgress = z.infer<typeof JobProgressSchema>;
 
-export const JobErrorSchema = z.object({ code: z.string().min(1), message: z.string() });
+export const JobErrorSchema = z.object({
+  code: z.string().min(1),
+  message: z.string(),
+  /** False when no further attempt will be made (set by the job store when the job ends `failed`). */
+  retryable: z.boolean().optional(),
+});
 export type JobError = z.infer<typeof JobErrorSchema>;
 
 export const ProcessingJobSchema = z.object({
@@ -131,6 +137,10 @@ export const ProcessingJobSchema = z.object({
   startedAt: TimestampSchema.nullable(),
   finishedAt: TimestampSchema.nullable(),
   canceledAt: TimestampSchema.nullable(),
+  /** `retry_wait` wake-up time (store field adopted in v0.3). */
+  notBeforeAt: TimestampSchema.nullable().optional(),
+  /** Set when a cancel was requested for a running job (store field adopted in v0.3). */
+  cancelRequestedAt: TimestampSchema.nullable().optional(),
 });
 export type ProcessingJob = z.infer<typeof ProcessingJobSchema>;
 
@@ -159,3 +169,74 @@ export const PlaySegmentSchema = z
   })
   .refine((s) => s.endSec > s.startSec, { message: 'endSec must be after startSec', path: ['endSec'] });
 export type PlaySegment = z.infer<typeof PlaySegmentSchema>;
+
+// §14.1 Resumable uploads: request / response shapes (v0.3) ------------------------------
+
+export const CreateUploadRequestSchema = z.object({
+  filename: z.string().trim().min(1).max(255),
+  byteSize: z.number().int().positive(),
+  mimeType: z.string().min(1).max(127),
+  /** Optional client-side hash; enables the early duplicate check (`409 existingAssetId`). */
+  sha256: z.string().regex(/^[0-9a-f]{64}$/).optional(),
+  kind: z.enum(['game_film', 'clip']).default('game_film'),
+  context: UploadContextSchema,
+});
+export type CreateUploadRequest = z.infer<typeof CreateUploadRequestSchema>;
+
+export const CreateUploadResponseSchema = z.object({ upload: UploadSchema, asset: MediaAssetSchema });
+export type CreateUploadResponse = z.infer<typeof CreateUploadResponseSchema>;
+
+export const UploadChunkResponseSchema = z.object({ receivedBytes: z.number().int().nonnegative() });
+export type UploadChunkResponse = z.infer<typeof UploadChunkResponseSchema>;
+
+export const UploadCompleteRequestSchema = z.object({
+  /** Client-side hash of the whole file; a mismatch with the stored bytes is `400`. */
+  sha256: z.string().regex(/^[0-9a-f]{64}$/).optional(),
+});
+export type UploadCompleteRequest = z.infer<typeof UploadCompleteRequestSchema>;
+
+export const UploadCompleteResponseSchema = z.object({ asset: MediaAssetSchema, jobs: z.array(ProcessingJobSchema) });
+export type UploadCompleteResponse = z.infer<typeof UploadCompleteResponseSchema>;
+
+// §14.2 Jobs ----------------------------------------------------------------------------
+
+const commaList = <T extends z.ZodTypeAny>(item: T) =>
+  z.preprocess((v) => (typeof v === 'string' ? v.split(',').map((s) => s.trim()).filter(Boolean) : v), z.array(item));
+
+export const JobsQuerySchema = z.object({
+  assetId: IdSchema.optional(),
+  /** One status or a comma-separated list. */
+  status: commaList(JobStatusSchema).optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  cursor: z.string().min(1).optional(),
+});
+export type JobsQuery = z.infer<typeof JobsQuerySchema>;
+
+// §14.4 Segments -------------------------------------------------------------------------
+
+export const SplitSegmentRequestSchema = z.object({ atSec: SecondsSchema, expectedVersion: VersionSchema });
+export type SplitSegmentRequest = z.infer<typeof SplitSegmentRequestSchema>;
+
+export const MergeSegmentsRequestSchema = z.object({
+  segmentIds: z.array(IdSchema).min(2).max(50),
+  expectedVersion: z.record(IdSchema, VersionSchema),
+});
+export type MergeSegmentsRequest = z.infer<typeof MergeSegmentsRequestSchema>;
+
+export const PatchSegmentRequestSchema = z
+  .object({
+    expectedVersion: VersionSchema,
+    reviewStatus: SegmentReviewStatusSchema.optional(),
+    startSec: SecondsSchema.optional(),
+    endSec: SecondsSchema.optional(),
+  })
+  .refine((p) => p.startSec === undefined || p.endSec === undefined || p.endSec > p.startSec, {
+    message: 'endSec must be after startSec',
+    path: ['endSec'],
+  });
+export type PatchSegmentRequest = z.infer<typeof PatchSegmentRequestSchema>;
+
+export const CreateSegmentRequestSchema = z
+  .object({ startSec: SecondsSchema, endSec: SecondsSchema })
+  .refine((s) => s.endSec > s.startSec, { message: 'endSec must be after startSec', path: ['endSec'] });
+export type CreateSegmentRequest = z.infer<typeof CreateSegmentRequestSchema>;

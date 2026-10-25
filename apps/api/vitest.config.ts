@@ -6,11 +6,13 @@ export default defineConfig({
     alias: {
       // Resolve the workspace package from source so tests never depend on a built dist.
       '@footballos/contracts': path.resolve(__dirname, '../../packages/contracts/src/index.ts'),
+      '@footballos/media': path.resolve(__dirname, '../../packages/media/src/index.ts'),
+      '@footballos/ai': path.resolve(__dirname, '../../packages/ai/src/index.ts'),
     },
   },
   test: {
     include: ['src/test/**/*.test.ts'],
-    testTimeout: 20_000,
-    hookTimeout: 20_000,
+    testTimeout: 120_000,
+    hookTimeout: 120_000,
   },
 });

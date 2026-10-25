@@ -7,8 +7,15 @@ import { authRoutes } from './routes/auth.js';
 import { teamRoutes } from './routes/teams.js';
 import { scheduleRoutes } from './routes/schedule.js';
 import { opsRoutes } from './routes/ops.js';
+import { mediaRoutes, mediaStreamRoutes } from './routes/media.js';
+import { jobRoutes } from './routes/jobs.js';
+import { segmentRoutes } from './routes/segments.js';
+import { labelRoutes } from './routes/labels.js';
+import { scoutingRoutes } from './routes/scouting.js';
+import { settingsRoutes } from './routes/settings.js';
 
-export const API_PREFIX = '/api/v1';
+import { API_PREFIX } from './http/prefix.js';
+export { API_PREFIX };
 
 /**
  * Builds the HTTP application. Route modules are chained so `hono/client` can derive a typed client
@@ -40,9 +47,18 @@ export function createApp(ctx: AppContext) {
       await next();
     })
     .route('/', opsRoutes(ctx))
+    // Token-authenticated byte delivery must be registered before any sub-app whose `use('*')`
+    // session guard is mounted at the same prefix (Hono composes matching handlers in registration order).
+    .route(API_PREFIX, mediaStreamRoutes(ctx))
     .route(`${API_PREFIX}/auth`, authRoutes(ctx))
     .route(API_PREFIX, teamRoutes(ctx))
-    .route(API_PREFIX, scheduleRoutes(ctx));
+    .route(API_PREFIX, scheduleRoutes(ctx))
+    .route(API_PREFIX, mediaRoutes(ctx))
+    .route(API_PREFIX, jobRoutes(ctx))
+    .route(API_PREFIX, segmentRoutes(ctx))
+    .route(API_PREFIX, labelRoutes(ctx))
+    .route(API_PREFIX, scoutingRoutes(ctx))
+    .route(API_PREFIX, settingsRoutes(ctx));
   return app;
 }
 
