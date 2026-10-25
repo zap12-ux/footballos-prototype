@@ -47,10 +47,12 @@ export function createApp(ctx: AppContext) {
       await next();
     })
     .route('/', opsRoutes(ctx))
+    // Token-authenticated byte delivery must be registered before any sub-app whose `use('*')`
+    // session guard is mounted at the same prefix (Hono composes matching handlers in registration order).
+    .route(API_PREFIX, mediaStreamRoutes(ctx))
     .route(`${API_PREFIX}/auth`, authRoutes(ctx))
     .route(API_PREFIX, teamRoutes(ctx))
     .route(API_PREFIX, scheduleRoutes(ctx))
-    .route(API_PREFIX, mediaStreamRoutes(ctx))
     .route(API_PREFIX, mediaRoutes(ctx))
     .route(API_PREFIX, jobRoutes(ctx))
     .route(API_PREFIX, segmentRoutes(ctx))
