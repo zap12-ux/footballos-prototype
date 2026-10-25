@@ -239,8 +239,12 @@ export function listComments(db: Db, versionId: string): CommentRow[] {
 }
 
 export function createComment(ctx: AppContext, actorUserId: string, v: PlanVersionRow, body: CreatePlanCommentRequest): CommentRow {
-  if (body.sectionKey && !v.sections.some((s) => s.key === body.sectionKey)) throw errors.validation(`Section "${body.sectionKey}" is not in this version`);
-  if (body.itemId && !v.sections.some((s) => s.items.some((i) => i.id === body.itemId))) throw errors.validation('itemId is not in this version');
+  const section = body.sectionKey ? v.sections.find((s) => s.key === body.sectionKey) : undefined;
+  if (body.sectionKey && !section) throw errors.validation(`Section "${body.sectionKey}" is not in this version`);
+  if (body.itemId) {
+    const scope = section ? [section] : v.sections;
+    if (!scope.some((s) => s.items.some((i) => i.id === body.itemId))) throw errors.validation(section ? `itemId is not in section "${section.key}"` : 'itemId is not in this version');
+  }
   const row: CommentRow = {
     id: crypto.randomUUID(), teamId: v.teamId, versionId: v.id, sectionKey: body.sectionKey ?? null, itemId: body.itemId ?? null, authorUserId: actorUserId, body: body.body,
     createdAt: ctx.now().toISOString(), resolvedAt: null, resolvedBy: null,
