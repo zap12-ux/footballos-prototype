@@ -41,3 +41,9 @@ export type {
   SegmentJobResult,
 } from './handlers.ts';
 export * from './jobs/index.ts';
+export { extractDocument, documentSourceType, paginateText, normaliseText, pageImageName, DocumentError, ExtractDocumentOptionsSchema, DOCUMENT_EXTENSIONS, PAGES_DIRNAME } from './documents.ts';
+export type { ExtractDocumentOptions, ExtractDocumentResult, ExtractedPage, DocumentSourceType, TextSource } from './documents.ts';
+export { ocrAvailability, createOcrEngine, normaliseOcrText, OCR_LANGUAGE } from './ocr.ts';
+export type { OcrAvailability, OcrEngine, OcrEngineOptions, OcrPageResult } from './ocr.ts';
+export { createDocumentHandlers, asDocumentJobHandler, registerDocumentHandlers, DocumentJobInputSchema, PAGES_FILENAME } from './document-handlers.ts';
+export type { DocumentJobInput, DocumentHandlers, DocumentHandlerOptions, ExtractDocumentJobResult, PagesFile } from './document-handlers.ts';

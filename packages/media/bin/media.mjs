@@ -9,6 +9,8 @@
 //   media.mjs frames <file> <outDir> --at 1,2.5,40 [--height 720]
 //   media.mjs segments <file> [--fps 4]
 //   media.mjs quality <file>
+//   media.mjs doc <file.pdf|.txt|.md|.docx> <outDir> [--dpi 110] [--ocr auto|off]
+//   media.mjs doc-fixtures <outDir>        (writes the demo documents used by the tests)
 import { resolve, basename } from 'node:path';
 
 const [, , command, file, ...rest] = process.argv;
@@ -24,8 +26,8 @@ function positional(i) {
   return args[i];
 }
 
-if (!command || !file || !['probe', 'validate', 'proxy', 'thumbs', 'frames', 'segments', 'quality'].includes(command)) {
-  console.error('usage: media.mjs probe|validate|proxy|thumbs|frames|segments|quality <file> [out] [--height N] [--every N] [--fps N] [--at a,b,c]');
+if (!command || !file || !['probe', 'validate', 'proxy', 'thumbs', 'frames', 'segments', 'quality', 'doc', 'doc-fixtures'].includes(command)) {
+  console.error('usage: media.mjs probe|validate|proxy|thumbs|frames|segments|quality|doc <file> [out] [--height N] [--every N] [--fps N] [--at a,b,c] [--dpi N] [--ocr auto|off]\n       media.mjs doc-fixtures <outDir>');
   process.exit(2);
 }
 
@@ -90,5 +92,25 @@ switch (command) {
   case 'quality':
     print(await media.assessQuality(src));
     break;
+  case 'doc': {
+    const outDir = resolve(positional(0) ?? `${basename(src).replace(/\.[^.]+$/, '')}-pages`);
+    const i = rest.indexOf('--ocr');
+    const ocr = i >= 0 && rest[i + 1] === 'off' ? 'off' : 'auto';
+    const r = await media.extractDocument(src, outDir, {
+      renderDpi: flag('dpi', 110),
+      ocr,
+      onProgress: (done, total, message) => process.stderr.write(`${message}\n`),
+    });
+    const { writeFile } = await import('node:fs/promises');
+    await writeFile(resolve(outDir, media.PAGES_FILENAME), JSON.stringify({ version: 1, sourcePath: src, ...r, extractedAt: new Date().toISOString() }, null, 2));
+    print({ outDir, ocrAvailability: media.ocrAvailability(), ...r, pages: r.pages.map((p) => ({ ...p, text: p.text === null ? null : `${p.text.slice(0, 160)}${p.text.length > 160 ? '…' : ''}` })) });
+    break;
+  }
+  case 'doc-fixtures': {
+    // `file` is the output directory for this command.
+    const { ensureDocumentFixtures } = await import('../src/test/document-fixtures.ts');
+    print(await ensureDocumentFixtures(src, { force: true }));
+    break;
+  }
 }
 process.stderr.write(`done in ${((Date.now() - started) / 1000).toFixed(1)} s\n`);
