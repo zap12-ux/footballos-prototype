@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { ConsoleEvent, GitInfo, StateSnapshot, Task, Verification } from '../types';
 import type { ApiClient } from '../lib/api';
 import { TASK_STATUS_LABEL, responsesFor, type AgentView } from '../lib/derive';
+import { trapTab } from '../lib/focus';
 import { formatClock, relativeTime } from '../lib/time';
 import type { SubmitInput, SubmitOutcome } from '../hooks/useConsole';
+import type { DrawerMode } from '../hooks/useLayoutMode';
 import { QuestionCard } from './QuestionCard';
 
 interface Props {
@@ -13,9 +15,14 @@ interface Props {
   nowIso: string;
   api: ApiClient;
   focusQuestionId: string | null;
+  /** 'docked' = third grid column (wide windows); 'overlay' = fixed panel over the graph (D-2). */
+  mode?: DrawerMode;
   onClose: () => void;
   onSubmit: (questionId: string, questionVersion: number, input: SubmitInput) => Promise<SubmitOutcome>;
 }
+
+/** Fallback for the sticky header height until it is measured (matches .drawer .qcard scroll-margin-top in CSS). */
+const DEFAULT_HEAD_HEIGHT = 72;
 
 const HISTORY_TYPES = new Set([
   'agent.status',
@@ -70,11 +77,14 @@ function describe(ev: ConsoleEvent): string {
   }
 }
 
-export function Drawer({ view, snapshot, events, nowIso, api, focusQuestionId, onClose, onSubmit }: Props) {
+export function Drawer({ view, snapshot, events, nowIso, api, focusQuestionId, mode = 'docked', onClose, onSubmit }: Props) {
   const agent = view.agent;
   const [git, setGit] = useState<GitInfo | null>(null);
   const [gitError, setGitError] = useState<string | null>(null);
+  const rootRef = useRef<HTMLElement>(null);
+  const headRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
+  const overlay = mode === 'overlay';
 
   useEffect(() => {
     let cancelled = false;
@@ -89,13 +99,53 @@ export function Drawer({ view, snapshot, events, nowIso, api, focusQuestionId, o
     };
   }, [api, agent.id]);
 
+  // D-3: the drawer header is sticky inside the scroll container, so a plain scrollIntoView puts the
+  // card's top under it. Measure the header and give the card a matching scroll-margin-top first.
   useEffect(() => {
     if (!focusQuestionId) return;
     const el = document.getElementById(`question-${focusQuestionId}`);
-    el?.scrollIntoView({ block: 'start', behavior: 'smooth' });
-    const input = el?.querySelector<HTMLElement>('input, textarea');
+    if (!el) return;
+    const measured = headRef.current?.getBoundingClientRect().height ?? 0;
+    const headHeight = measured > 0 ? Math.ceil(measured) : DEFAULT_HEAD_HEIGHT;
+    el.style.scrollMarginTop = `${headHeight}px`;
+    el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    const input = el.querySelector<HTMLElement>('input, textarea');
     input?.focus({ preventScroll: true });
-  }, [focusQuestionId, agent.id]);
+    // `mode` is a dependency on purpose: switching docked <-> overlay remounts the panel (the overlay
+    // adds a backdrop sibling), so the card is scrolled back under the header again.
+  }, [focusQuestionId, agent.id, mode]);
+
+  // D-2 overlay mode: move focus into the panel on open (the focused question input if any, else the
+  // panel itself), and return focus to the element that opened it (queue item or graph node) on close.
+  useLayoutEffect(() => {
+    if (!overlay) return;
+    const opener = document.activeElement as HTMLElement | null;
+    const root = rootRef.current;
+    const input = focusQuestionId ? document.getElementById(`question-${focusQuestionId}`)?.querySelector<HTMLElement>('input, textarea') : null;
+    if (input) input.focus({ preventScroll: true });
+    else root?.focus({ preventScroll: true });
+    return () => {
+      if (opener && opener.isConnected && !root?.contains(opener) && typeof opener.focus === 'function') opener.focus({ preventScroll: true });
+    };
+    // Re-run only when the overlay opens/closes (not on every agent change: the opener would then be inside the drawer).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [overlay]);
+
+  // Escape closes the overlay wherever focus is (focus can land on <body> after a resize remount),
+  // and Tab is trapped inside the panel.
+  useEffect(() => {
+    if (!overlay) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+        return;
+      }
+      if (e.key === 'Tab' && rootRef.current) trapTab(rootRef.current, e);
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [overlay, onClose]);
 
   const tasks = view.tasks;
   const questions = snapshot.questions.filter((q) => q.agentId === agent.id).sort((a, b) => Number(b.status === 'open') - Number(a.status === 'open') || b.createdAt.localeCompare(a.createdAt));
@@ -103,16 +153,24 @@ export function Drawer({ view, snapshot, events, nowIso, api, focusQuestionId, o
   const history = events.filter((e) => e.agentId === agent.id && HISTORY_TYPES.has(e.type)).slice(-200);
   const taskById = new Map(snapshot.tasks.map((t) => [t.id, t]));
 
-  return (
-    <aside className="drawer" aria-label={`Details for ${view.displayName}`}>
-      <div className="drawer-head">
+  const panel = (
+    <aside
+      className={`drawer${overlay ? ' overlay' : ''}`}
+      data-mode={mode}
+      aria-label={`Details for ${view.displayName}`}
+      role={overlay ? 'dialog' : undefined}
+      aria-modal={overlay ? true : undefined}
+      tabIndex={-1}
+      ref={rootRef}
+    >
+      <div className="drawer-head" ref={headRef}>
         <div>
           <h2>{view.displayName}</h2>
           <div className="sub">
             {agent.role} · <span className={`chip state-${view.execState}`}>{view.execLabel}</span>
           </div>
         </div>
-        <button type="button" className="btn" onClick={onClose} aria-label="Close details">
+        <button type="button" className="btn drawer-close" onClick={onClose} aria-label="Close details">
           Close
         </button>
       </div>
@@ -198,9 +256,17 @@ export function Drawer({ view, snapshot, events, nowIso, api, focusQuestionId, o
               <div className="note">Changed files ({git.changedFiles.length})</div>
               <ul className="file-list list plain">
                 {git.changedFiles.length === 0 && <li className="note">none</li>}
-                {git.changedFiles.map((f) => (
-                  <li key={f}>{f}</li>
-                ))}
+                {git.changedFiles.map((f) => {
+                  // The server sends { status, path } (git name-status); tolerate plain strings.
+                  const path = typeof f === 'string' ? f : f.path;
+                  const status = typeof f === 'string' ? '' : (f.status ?? '');
+                  return (
+                    <li key={path}>
+                      {status ? <span className="note">{status} </span> : null}
+                      {path}
+                    </li>
+                  );
+                })}
               </ul>
             </>
           )}
@@ -241,6 +307,14 @@ export function Drawer({ view, snapshot, events, nowIso, api, focusQuestionId, o
         </section>
       </div>
     </aside>
+  );
+
+  if (!overlay) return panel;
+  return (
+    <>
+      <div className="drawer-backdrop" data-testid="drawer-backdrop" onClick={onClose} aria-hidden="true" />
+      {panel}
+    </>
   );
 }
 

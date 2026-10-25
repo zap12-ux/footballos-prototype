@@ -51,6 +51,22 @@ reads the following and degrades gracefully when a field is missing:
   snapshot. `seq` gaps are expected on per-run streams (shared rowid), so the reader orders
   and de-duplicates but never waits for gaps to close.
 
+## Layout and breakpoints (QA D-2 / D-3)
+
+There is no hard minimum width; the layout is usable from 720 px up. `hooks/useLayoutMode.ts`
+decides the modes with `matchMedia` and `App` exposes them as `data-drawer-mode` and
+`data-queue-mode` on `.app` (CSS keys off those attributes):
+
+| Window width | Queue | Agent drawer |
+| --- | --- | --- |
+| >= 1180 px | docked left column | docked right column (400 px, 360 px below 1280) |
+| 960–1179 px | docked left column | overlay panel over the graph: full height, `min(480px, 100%)` wide, `role="dialog"`, backdrop, Close always in the sticky header, Escape closes, Tab trapped, focus returned to the opener |
+| 720–959 px | collapsed to a "Show queue" toggle bar (count and blocking count) that opens an overlay list with the same dialog behaviour; picking a question closes the list | overlay panel as above |
+
+Opening a question from the queue scrolls its card to just below the drawer's sticky header:
+`Drawer` measures the header and sets `scroll-margin-top` on the card before `scrollIntoView`
+(CSS default 72 px). Tests: `src/tests/layout.test.tsx`.
+
 ## Local-only state
 
 `localStorage`: question drafts (`agentConsole.draft.<questionId>`), manual node positions

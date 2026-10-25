@@ -16,7 +16,7 @@ function fakeServer() {
     if (auth !== 'Bearer FIXTURE-TOKEN') return json({ error: { code: 'unauthorized' } }, 401);
     if (url.startsWith('/api/runs')) return json({ runs: [snapshot().run] });
     if (url.startsWith('/api/state')) return json(snapshot());
-    if (url.startsWith('/api/git/agents/')) return json({ branch: 'wt/x', ahead: 1, commits: [{ sha: 'abcdef1234', subject: 'FIXTURE commit' }], changedFiles: ['src/x.ts'], mergedIntoIntegration: false });
+    if (url.startsWith('/api/git/agents/')) return json({ branch: 'wt/x', ahead: 1, commits: [{ sha: 'abcdef1234', subject: 'FIXTURE commit' }], changedFiles: [{ status: 'M', path: 'src/x.ts' }, 'src/plain.ts'], mergedIntoIntegration: false });
     if (/\/api\/questions\/.+\/responses$/.test(url) && init?.method === 'POST') {
       const body = JSON.parse(String(init.body)) as Record<string, unknown>;
       submissions.push({ url, body });
@@ -79,6 +79,9 @@ describe('App', () => {
     expect(within(drawer).getByText("Pause/stop/restart are only available to the lead's Claude Code session.")).toBeInTheDocument();
     await waitFor(() => expect(within(drawer).getByText('from git')).toBeInTheDocument());
     expect(await within(drawer).findByText('FIXTURE commit', { exact: false })).toBeInTheDocument();
+    // changed files arrive as { status, path } from the server (v1.1) or as plain paths
+    expect(within(drawer).getByText('src/x.ts', { exact: false })).toBeInTheDocument();
+    expect(within(drawer).getByText('src/plain.ts')).toBeInTheDocument();
 
     server.setConflictOnce();
     await user.click(within(card).getByRole('radio', { name: /Alpha/ }));
