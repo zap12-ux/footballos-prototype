@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
@@ -238,16 +239,32 @@ export async function thumbnailAt(
   const width = options.width ?? 640;
   const q = options.jpegQuality ?? 4;
   const source = options.sourceProbe ?? (await probe(src, { signal: options.signal }));
-  let t = Math.max(0, atSec);
-  if (source.durationSec !== null && t >= source.durationSec) {
-    // Seeking past the end yields no frame; back off to just inside the file.
-    t = Math.max(0, source.durationSec - (source.fps ? 1 / source.fps : 0.04));
+  const duration = source.durationSec;
+  const frameSec = source.fps ? 1 / source.fps : 0.04;
+  // Seeking at or past the last decodable frame yields no output, so clamp and, if the
+  // file still comes back empty, back off further toward the end of the stream.
+  const candidates: number[] = [];
+  const requested = Math.max(0, atSec);
+  if (duration !== null && requested >= duration - frameSec) {
+    candidates.push(Math.max(0, duration - 2 * frameSec), Math.max(0, duration - 0.5), Math.max(0, duration - 1));
+  } else {
+    candidates.push(requested);
   }
   await mkdir(dirname(out), { recursive: true });
-  await runFfmpeg(
-    ['-y', '-v', 'error', '-ss', t.toFixed(3), '-i', src, '-map', '0:v:0', '-frames:v', '1', '-vf', `scale=${width}:-2`, '-q:v', String(q), '-f', 'image2', out],
-    { signal: options.signal },
-  );
+  let t = candidates[0] as number;
+  let produced = false;
+  for (const candidate of candidates) {
+    t = candidate;
+    await runFfmpeg(
+      ['-y', '-v', 'error', '-ss', t.toFixed(3), '-i', src, '-map', '0:v:0', '-frames:v', '1', '-vf', `scale=${width}:-2`, '-q:v', String(q), '-f', 'image2', out],
+      { signal: options.signal },
+    );
+    if (existsSync(out)) {
+      produced = true;
+      break;
+    }
+  }
+  if (!produced) throw new Error(`no frame could be decoded near ${atSec.toFixed(3)} s of ${basename(src)}`);
   const img = await probe(out, { signal: options.signal });
   return { path: out, requestedAtSec: atSec, atSec: t, width: img.width, height: img.height };
 }

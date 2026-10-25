@@ -140,7 +140,7 @@ describe('JobRunner', () => {
     runner.register('segment', async (ctx) => {
       await new Promise<void>((resolve) => {
         ctx.signal.addEventListener('abort', () => {
-          sawAbort = true;
+          sawAbort = ctx.signal.reason === 'cancel_requested';
           resolve();
         });
       });

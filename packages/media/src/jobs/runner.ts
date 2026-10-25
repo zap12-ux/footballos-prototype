@@ -36,6 +36,9 @@ export type RunnerEvent =
   | { type: 'lease_lost'; job: Job }
   | { type: 'recovered'; jobs: Job[] };
 
+/** Why a handler's AbortSignal fired; read from `signal.reason`. */
+export type AbortReason = 'cancel_requested' | 'lease_lost' | 'runner_stopping';
+
 /** Stable idempotency key: sha256 over kind, canonical JSON of inputs and the config version. */
 export function idempotencyKeyFor(kind: string, inputs: unknown, configVersion: string): string {
   return createHash('sha256').update(kind).update('\u0000').update(canonicalJson(inputs)).update('\u0000').update(configVersion).digest('hex');
@@ -141,7 +144,7 @@ export class JobRunner extends EventEmitter {
   async requestCancel(jobId: string): Promise<Job | null> {
     const job = await this.store.requestCancel(jobId, this.now());
     const ctrl = this.inFlight.get(jobId);
-    if (ctrl && !ctrl.signal.aborted) ctrl.abort(new Error('cancel requested'));
+    if (ctrl && !ctrl.signal.aborted) ctrl.abort('cancel_requested' satisfies AbortReason);
     return job;
   }
 
@@ -170,7 +173,7 @@ export class JobRunner extends EventEmitter {
   async stop(): Promise<void> {
     this.running = false;
     this.wake?.();
-    for (const ctrl of this.inFlight.values()) ctrl.abort(new Error('runner stopping'));
+    for (const ctrl of this.inFlight.values()) if (!ctrl.signal.aborted) ctrl.abort('runner_stopping' satisfies AbortReason);
     await this.loopPromise;
     this.loopPromise = null;
   }
@@ -204,19 +207,15 @@ export class JobRunner extends EventEmitter {
     const handler = this.handlers.get(job.kind);
     const ctrl = new AbortController();
     this.inFlight.set(job.id, ctrl);
-    let leaseLost = false;
-    let cancelSeen = job.cancelRequestedAt !== null;
-    if (cancelSeen) ctrl.abort(new Error('cancel requested'));
+    const abort = (reason: AbortReason) => {
+      if (!ctrl.signal.aborted) ctrl.abort(reason);
+    };
+    if (job.cancelRequestedAt !== null) abort('cancel_requested');
 
     const hb = setInterval(() => {
       void this.store.heartbeat(job.id, this.workerId, this.leaseSec, this.now()).then((r) => {
-        if (!r.ok) {
-          leaseLost = true;
-          ctrl.abort(new Error('lease lost'));
-        } else if (r.cancelRequested && !cancelSeen) {
-          cancelSeen = true;
-          ctrl.abort(new Error('cancel requested'));
-        }
+        if (!r.ok) abort('lease_lost');
+        else if (r.cancelRequested) abort('cancel_requested');
       });
     }, this.heartbeatSec * 1000);
 
@@ -245,13 +244,13 @@ export class JobRunner extends EventEmitter {
           this.emit('event', { type: 'progress', job: { ...job, progress } } satisfies RunnerEvent);
         },
       });
-      if (ctrl.signal.aborted) return await this.afterAbort(job, leaseLost, cancelSeen);
+      if (ctrl.signal.aborted) return await this.afterAbort(job, ctrl.signal.reason as AbortReason);
       return await finish(
         () => this.store.complete(job.id, this.workerId, result ?? null, this.now()),
         (j) => ({ type: 'succeeded', job: j }),
       );
     } catch (err) {
-      if (ctrl.signal.aborted) return await this.afterAbort(job, leaseLost, cancelSeen);
+      if (ctrl.signal.aborted) return await this.afterAbort(job, ctrl.signal.reason as AbortReason);
       const error = toJobError(err);
       const retryable = !(err instanceof NonRetryableError) && job.attempt < job.maxAttempts;
       if (retryable) {
@@ -272,19 +271,18 @@ export class JobRunner extends EventEmitter {
     }
   }
 
-  private async afterAbort(job: Job, leaseLost: boolean, cancelSeen: boolean): Promise<Job> {
-    if (leaseLost) {
-      // Another worker may own it now; do not touch the record.
-      this.emit('event', { type: 'lease_lost', job } satisfies RunnerEvent);
-      return ((await this.store.get(job.id)) as Job) ?? job;
-    }
-    if (cancelSeen) {
-      const updated = await this.store.markCanceled(job.id, this.workerId, this.now());
+  private async afterAbort(job: Job, reason: AbortReason): Promise<Job> {
+    if (reason === 'cancel_requested') {
+      const store = this.store as JobStore & { markCanceled?: (id: string, workerId: string, now: Date) => Promise<Job | null> };
+      const updated = store.markCanceled
+        ? await store.markCanceled(job.id, this.workerId, this.now())
+        : await this.store.fail(job.id, this.workerId, { code: 'canceled', message: 'canceled by request' }, { retryAt: null }, this.now());
       const j = updated ?? ((await this.store.get(job.id)) as Job);
       this.emit('event', { type: 'canceled', job: j } satisfies RunnerEvent);
       return j;
     }
-    // Runner is stopping: release the job for another worker by letting the lease expire.
+    // Lease lost: another worker may own the job now. Runner stopping: leave the record so the
+    // lease expires and another worker (or this one after restart) re-claims it.
     this.emit('event', { type: 'lease_lost', job } satisfies RunnerEvent);
     return ((await this.store.get(job.id)) as Job) ?? job;
   }
