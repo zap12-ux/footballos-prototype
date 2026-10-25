@@ -16,7 +16,8 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm test --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
-    "console": "npm run start -w tools/agent-console",
-    "licenses": "node scripts/license-inventory.mjs"
+    "console": "npm run build -w tools/agent-console-ui && npm run build -w tools/agent-console && npm run start -w tools/agent-console",
+    "licenses": "node scripts/license-inventory.mjs",
+    "console:dev": "npm run dev -w tools/agent-console"
   }
 }
