@@ -43,11 +43,11 @@ Contract: `docs/team/CONTRACTS.md` §14. Briefs: `docs/team/briefs/*-milestone-b
 | B2 | `SqliteJobStore` + worker hosting media and AI handlers; cancel/retry/restart; usage/cost cap | B (same agent) | In progress | B1, B2-lib, B4-lib | `apps/api/**` |
 | B2-lib | `extractFrames`, `createMediaHandlers`, contracts types in `packages/media` | C (subagent `media` #2) | In progress | A5 | `packages/media/**` |
 | B3 | Film page (chunked upload, jobs, segments split/merge, proxy player), label review with bulk accept, scouting page, typed `hc<AppType>` client | A (subagent `frontend` #2) | In progress | §14 (code against contract) | `apps/web/**` |
-| B4-lib | `createInferLabelsHandler`, `applyInference` (corrections survive reprocessing), `bulkAcceptPlan` | D (subagent `ai` #2) | In progress | A5 | `packages/ai/**`, `docs/ai/**` |
+| B4-lib | `createInferLabelsHandler`, `applyInference` (corrections survive reprocessing), `bulkAcceptPlan` | D (subagent `ai` #2) | Verified (ai vitest 65/65 on integration 9d30d6f) | A5 | `packages/ai/**`, `docs/ai/**` |
 | B4 / B5 | Label routes, inference enqueue, scouting route and snapshots in the API | B (same agent) | In progress | B4-lib, B5-lib | `apps/api/**` |
-| B5-lib | `buildScoutingReport`, `snapshotFromReport` | D (same agent) | In progress | — | `packages/ai/**` |
+| B5-lib | `buildScoutingReport`, `snapshotFromReport` | D (same agent) | Verified | — | `packages/ai/**` |
 | B6 | QA: interrupted upload, worker restart, provider failure, correction persistence, counts, a11y of A2/B3 | E | Ready | B1–B5 integrated | `tests/e2e/**`, `docs/qa/**` |
-| K5 | Console defects D-1..D-4, `agentctl wait --poll-until-answered` | console-fix (subagent) | Ready (launches when a slot frees; cap = 4) | K4 | `tools/agent-console/**`, `tools/agent-console-ui/**` |
+| K5 | Console defects D-1..D-4, `agentctl wait --poll-until-answered` | console-fix (subagent) | In progress | K4 | `tools/agent-console/**`, `tools/agent-console-ui/**` |
 
 ## Milestones C–E
 
