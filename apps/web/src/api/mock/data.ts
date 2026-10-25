@@ -84,7 +84,7 @@ export const opponents: Opponent[] = [
   { id: 'opp-stonebrook', teamId: T, name: 'Stonebrook (demo)', shortName: 'Stonebrook', notes: '' },
   { id: 'opp-caldwell', teamId: T, name: 'Caldwell Heights (demo)', shortName: 'Caldwell Heights', notes: '' },
   { id: 'opp-northgate', teamId: T, name: 'Northgate (demo)', shortName: 'Northgate', notes: '' },
-  { id: 'opp-pinehollow', teamId: T, name: 'Pine Hollow (demo)', shortName: 'Pine Hollow', notes: 'Game moved after weather postponement.' },
+  { id: 'opp-pinehollow', teamId: T, name: 'Pine Hollow (demo)', shortName: 'Pine Hollow', notes: 'Week 9 game postponed; make-up date pending.' },
   { id: 'opp-westmoor', teamId: T, name: 'Westmoor (demo)', shortName: 'Westmoor', notes: 'Three games of opponent film on hand.' },
   { id: 'opp-linden', teamId: T, name: 'Linden Falls (demo)', shortName: 'Linden Falls', notes: '' },
 ];
@@ -112,7 +112,7 @@ export const games: ScheduledGame[] = [
   game('game-w6', 6, 'regular', 'opp-stonebrook', 'home', '2026-10-02T23:00:00.000Z', 'final', { ourScore: 10, theirScore: 28, outcome: 'loss' }),
   game('game-w7', 7, 'regular', 'opp-caldwell', 'away', '2026-10-09T23:00:00.000Z', 'final', { ourScore: 27, theirScore: 13, outcome: 'win' }),
   game('game-w8', 8, 'regular', 'opp-northgate', 'home', '2026-10-16T23:00:00.000Z', 'final', { ourScore: 35, theirScore: 21, outcome: 'win' }),
-  game('game-w9', 9, 'regular', 'opp-pinehollow', 'home', '2026-10-26T22:30:00.000Z', 'rescheduled', null, 'Moved from Fri 23 Oct (lightning).'),
+  game('game-w9', 9, 'regular', 'opp-pinehollow', 'home', null, 'postponed', null, 'Postponed from Fri 23 Oct (lightning); make-up date not set.'),
   game('game-w10', 10, 'regular', 'opp-westmoor', 'away', '2026-10-30T23:00:00.000Z', 'scheduled', null),
   game('game-w11', 11, 'regular', 'opp-linden', 'home', '2026-11-06T23:00:00.000Z', 'scheduled', null, 'Senior night'),
   game('game-playoff-1', null, 'playoff', null, null, null, 'scheduled', null, 'Opponent and date set by the bracket.'),

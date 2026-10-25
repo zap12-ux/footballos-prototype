@@ -39,7 +39,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
-    setupFiles: './src/tests/setup.ts',
+    setupFiles: ['./src/tests/setup.ts', './src/tests/setup.shell.ts'],
     css: false,
     // Full-workflow integration tests drive six plays through the UI; with four test files
     // running in parallel on a busy machine they can take well over Vitest's 5 s default.
