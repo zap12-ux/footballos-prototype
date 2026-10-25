@@ -29,3 +29,8 @@ export { proposeFromText, dedupeConcepts, dedupeTerms } from "./playbook/heurist
 export { PAGE_RESPONSE_JSON_SCHEMA, pageResponseSchema, validatePageResponse, type PageResponse } from "./playbook/schema.js";
 export { AnthropicPageLabeler, buildPageContextText, PLAYBOOK_PAGE_PROMPT_ID, PLAYBOOK_PAGE_PROMPT_VERSION, type AnthropicPageLabelerOptions } from "./playbook/anthropic-page-labeler.js";
 export { proposeFromPages, loadPageImageFromDisk } from "./playbook/propose.js";
+export * from "./recommendations/types.js";
+export { CONCEPT_KINDS_BY_RECOMMENDATION, REPORT_UNIT_FOR_PLAN_UNIT, classifyFinding, findingFacets, situationLabel, type Classification, type FindingFacets } from "./recommendations/matching.js";
+export { RECOMMENDATION_HASH_VERSION, labelsHash, personnelHash, playbookHash, recommendationInputHashes, recommendationInputsHash } from "./recommendations/hash.js";
+export { DEFAULT_MIN_FORMATION_PERCENT, DEFAULT_MIN_SAMPLE, DEFAULT_MIN_TENDENCY_PERCENT, buildRecommendations, evaluatePackages, installedConcepts } from "./recommendations/build.js";
+export { planReviewFlags } from "./recommendations/flags.js";
