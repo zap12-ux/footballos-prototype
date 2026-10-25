@@ -61,8 +61,15 @@ function prepare(segments: StatSegment[], labels: Label[], keys: LabelKey[], opt
   return { rows, segmentExcluded, gameIds: [...games].sort() };
 }
 
-function findingId(parts: string[]): string {
-  return "finding_" + createHash("sha256").update(parts.join("\u0000")).digest("hex").slice(0, 24);
+/**
+ * Deterministic id: the same inputs always produce the same finding id, so recomputed
+ * reports can be compared. Formatted as an RFC 9562 version-8 (custom) UUID over a
+ * sha256 of the parts so it satisfies the contracts' `IdSchema`.
+ */
+export function findingId(parts: string[]): string {
+  const h = createHash("sha256").update(parts.join("\u0000")).digest("hex");
+  const variant = ((parseInt(h[16] as string, 16) & 0x3) | 0x8).toString(16);
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-8${h.slice(13, 16)}-${variant}${h.slice(17, 20)}-${h.slice(20, 32)}`;
 }
 
 function percentOf(numerator: number, denominator: number): number | null {
