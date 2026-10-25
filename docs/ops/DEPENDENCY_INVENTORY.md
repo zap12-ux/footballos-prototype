@@ -6,14 +6,14 @@ Do not edit by hand; rerun after any dependency change.
 Allowed licenses: MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, 0BSD, Unlicense, MPL-2.0. Anything else must appear in
 `scripts/license-allowlist.json` with the exact license string and a reason.
 
-Workspaces: `@footballos/web`.
-Installed third-party packages: 183.
+Workspaces: `@footballos/web`, `@footballos/ops`.
+Installed third-party packages: 186.
 
 ## Licenses
 
 | License | Packages |
 | --- | --- |
-| MIT | 164 |
+| MIT | 167 |
 | ISC | 8 |
 | Apache-2.0 | 5 |
 | BSD-2-Clause | 2 |
@@ -57,15 +57,17 @@ Installed third-party packages: 183.
 | @csstools/css-color-parser | 3.1.0 | MIT | @footballos/web | dev |
 | @csstools/css-parser-algorithms | 3.0.5 | MIT | @footballos/web | dev |
 | @csstools/css-tokenizer | 3.0.4 | MIT | @footballos/web | dev |
-| @esbuild/darwin-x64 | 0.21.5 | MIT | @footballos/web | dev |
+| @esbuild/darwin-x64 | 0.21.5 | MIT | @footballos/ops | dev |
 | @esbuild/darwin-x64 | 0.21.5 | MIT | @footballos/web | dev |
 | @esbuild/darwin-x64 | 0.25.12 | MIT | @footballos/web | dev |
 | @jridgewell/gen-mapping | 0.3.13 | MIT | @footballos/web | dev |
 | @jridgewell/remapping | 2.3.5 | MIT | @footballos/web | dev |
 | @jridgewell/resolve-uri | 3.1.2 | MIT | @footballos/web | dev |
+| @jridgewell/sourcemap-codec | 1.6.0 | MIT | @footballos/ops | dev |
 | @jridgewell/sourcemap-codec | 1.6.0 | MIT | @footballos/web | dev |
 | @jridgewell/trace-mapping | 0.3.31 | MIT | @footballos/web | dev |
 | @rolldown/pluginutils | 1.0.0-beta.27 | MIT | @footballos/web | dev |
+| @rollup/rollup-darwin-x64 | 4.65.0 | MIT | @footballos/ops | dev |
 | @rollup/rollup-darwin-x64 | 4.65.0 | MIT | @footballos/web | dev |
 | @testing-library/dom | 10.4.2 | MIT | @footballos/web | dev |
 | @testing-library/jest-dom | 6.9.1 | MIT | @footballos/web | dev |
@@ -76,29 +78,42 @@ Installed third-party packages: 183.
 | @types/babel__generator | 7.27.0 | MIT | @footballos/web | dev |
 | @types/babel__template | 7.4.4 | MIT | @footballos/web | dev |
 | @types/babel__traverse | 7.28.0 | MIT | @footballos/web | dev |
+| @types/estree | 1.0.9 | MIT | @footballos/ops | dev |
 | @types/estree | 1.0.9 | MIT | @footballos/web | dev |
 | @types/react | 19.3.0 | MIT | @footballos/web | dev |
 | @types/react-dom | 19.3.0 | MIT | @footballos/web | dev |
 | @vitejs/plugin-react | 4.7.0 | MIT | @footballos/web | dev |
+| @vitest/expect | 2.1.9 | MIT | @footballos/ops | dev |
 | @vitest/expect | 2.1.9 | MIT | @footballos/web | dev |
+| @vitest/mocker | 2.1.9 | MIT | @footballos/ops | dev |
 | @vitest/mocker | 2.1.9 | MIT | @footballos/web | dev |
+| @vitest/pretty-format | 2.1.9 | MIT | @footballos/ops | dev |
 | @vitest/pretty-format | 2.1.9 | MIT | @footballos/web | dev |
+| @vitest/runner | 2.1.9 | MIT | @footballos/ops | dev |
 | @vitest/runner | 2.1.9 | MIT | @footballos/web | dev |
+| @vitest/snapshot | 2.1.9 | MIT | @footballos/ops | dev |
 | @vitest/snapshot | 2.1.9 | MIT | @footballos/web | dev |
+| @vitest/spy | 2.1.9 | MIT | @footballos/ops | dev |
 | @vitest/spy | 2.1.9 | MIT | @footballos/web | dev |
+| @vitest/utils | 2.1.9 | MIT | @footballos/ops | dev |
 | @vitest/utils | 2.1.9 | MIT | @footballos/web | dev |
 | agent-base | 7.1.4 | MIT | @footballos/web | dev |
 | ansi-regex | 5.0.1 | MIT | @footballos/web | dev |
 | ansi-styles | 5.2.0 | MIT | @footballos/web | dev |
 | aria-query | 5.3.0 | Apache-2.0 | @footballos/web | dev |
+| assertion-error | 2.0.1 | MIT | @footballos/ops | dev |
 | assertion-error | 2.0.1 | MIT | @footballos/web | dev |
 | asynckit | 0.4.0 | MIT | @footballos/web | dev |
 | baseline-browser-mapping | 2.11.32 | Apache-2.0 | @footballos/web | dev |
+| better-sqlite3 | 13.0.3 | MIT | @footballos/ops | prod |
 | browserslist | 4.29.4 | MIT | @footballos/web | dev |
+| cac | 6.7.14 | MIT | @footballos/ops | dev |
 | cac | 6.7.14 | MIT | @footballos/web | dev |
 | call-bind-apply-helpers | 1.0.2 | MIT | @footballos/web | dev |
 | caniuse-lite | 1.0.30001819 | CC-BY-4.0 | @footballos/web | dev |
+| chai | 5.3.3 | MIT | @footballos/ops | dev |
 | chai | 5.3.3 | MIT | @footballos/web | dev |
+| check-error | 2.1.3 | MIT | @footballos/ops | dev |
 | check-error | 2.1.3 | MIT | @footballos/web | dev |
 | combined-stream | 1.0.8 | MIT | @footballos/web | dev |
 | convert-source-map | 2.0.0 | MIT | @footballos/web | dev |
@@ -106,8 +121,10 @@ Installed third-party packages: 183.
 | cssstyle | 4.6.0 | MIT | @footballos/web | dev |
 | csstype | 3.2.3 | MIT | @footballos/web | dev |
 | data-urls | 5.0.0 | MIT | @footballos/web | dev |
+| debug | 4.4.3 | MIT | @footballos/ops | dev |
 | debug | 4.4.3 | MIT | @footballos/web | dev |
 | decimal.js | 10.6.0 | MIT | @footballos/web | dev |
+| deep-eql | 5.0.2 | MIT | @footballos/ops | dev |
 | deep-eql | 5.0.2 | MIT | @footballos/web | dev |
 | delayed-stream | 1.0.0 | MIT | @footballos/web | dev |
 | dequal | 2.0.3 | MIT | @footballos/web | dev |
@@ -118,17 +135,22 @@ Installed third-party packages: 183.
 | entities | 6.0.1 | BSD-2-Clause | @footballos/web | dev |
 | es-define-property | 1.0.1 | MIT | @footballos/web | dev |
 | es-errors | 1.3.0 | MIT | @footballos/web | dev |
+| es-module-lexer | 1.7.0 | MIT | @footballos/ops | dev |
 | es-module-lexer | 1.7.0 | MIT | @footballos/web | dev |
 | es-object-atoms | 1.1.2 | MIT | @footballos/web | dev |
 | es-set-tostringtag | 2.1.0 | MIT | @footballos/web | dev |
-| esbuild | 0.21.5 | MIT | @footballos/web | dev |
+| esbuild | 0.21.5 | MIT | @footballos/ops | dev |
 | esbuild | 0.21.5 | MIT | @footballos/web | dev |
 | esbuild | 0.25.12 | MIT | @footballos/web | dev |
 | escalade | 3.2.0 | MIT | @footballos/web | dev |
+| estree-walker | 3.0.3 | MIT | @footballos/ops | dev |
 | estree-walker | 3.0.3 | MIT | @footballos/web | dev |
+| expect-type | 1.4.0 | Apache-2.0 | @footballos/ops | dev |
 | expect-type | 1.4.0 | Apache-2.0 | @footballos/web | dev |
 | fdir | 6.5.0 | MIT | @footballos/web | dev |
 | form-data | 4.0.6 | MIT | @footballos/web | dev |
+| fsevents | 2.3.3 | MIT | @footballos/ops | dev |
+| fsevents | 2.3.3 | MIT | @footballos/web | dev |
 | function-bind | 1.1.2 | MIT | @footballos/web | dev |
 | gensync | 1.0.0-beta.2 | MIT | @footballos/web | dev |
 | get-intrinsic | 1.3.0 | MIT | @footballos/web | dev |
@@ -147,24 +169,33 @@ Installed third-party packages: 183.
 | jsdom | 25.0.1 | MIT | @footballos/web | dev |
 | jsesc | 3.1.0 | MIT | @footballos/web | dev |
 | json5 | 2.2.3 | MIT | @footballos/web | dev |
+| loupe | 3.2.1 | MIT | @footballos/ops | dev |
 | loupe | 3.2.1 | MIT | @footballos/web | dev |
 | lru-cache | 10.4.3 | ISC | @footballos/web | dev |
 | lru-cache | 5.1.1 | ISC | @footballos/web | dev |
 | lz-string | 1.5.0 | MIT | @footballos/web | dev |
+| magic-string | 0.30.21 | MIT | @footballos/ops | dev |
 | magic-string | 0.30.21 | MIT | @footballos/web | dev |
 | math-intrinsics | 1.1.0 | MIT | @footballos/web | dev |
 | mime-db | 1.52.0 | MIT | @footballos/web | dev |
 | mime-types | 2.1.35 | MIT | @footballos/web | dev |
 | min-indent | 1.0.1 | MIT | @footballos/web | dev |
+| ms | 2.1.3 | MIT | @footballos/ops | dev |
 | ms | 2.1.3 | MIT | @footballos/web | dev |
+| nanoid | 3.3.20 | MIT | @footballos/ops | dev |
 | nanoid | 3.3.20 | MIT | @footballos/web | dev |
+| node-addon-api | 8.9.2 | MIT | @footballos/ops | prod |
 | node-releases | 2.0.60 | MIT | @footballos/web | dev |
 | nwsapi | 2.2.28 | MIT | @footballos/web | dev |
 | parse5 | 7.3.0 | MIT | @footballos/web | dev |
+| pathe | 1.1.2 | MIT | @footballos/ops | dev |
 | pathe | 1.1.2 | MIT | @footballos/web | dev |
+| pathval | 2.0.1 | MIT | @footballos/ops | dev |
 | pathval | 2.0.1 | MIT | @footballos/web | dev |
+| picocolors | 1.1.1 | ISC | @footballos/ops | dev |
 | picocolors | 1.1.1 | ISC | @footballos/web | dev |
 | picomatch | 4.0.7 | MIT | @footballos/web | dev |
+| postcss | 8.5.31 | MIT | @footballos/ops | dev |
 | postcss | 8.5.31 | MIT | @footballos/web | dev |
 | pretty-format | 27.5.1 | MIT | @footballos/web | dev |
 | punycode | 2.3.1 | MIT | @footballos/web | dev |
@@ -173,6 +204,7 @@ Installed third-party packages: 183.
 | react-is | 17.0.2 | MIT | @footballos/web | dev |
 | react-refresh | 0.17.0 | MIT | @footballos/web | dev |
 | redent | 3.0.0 | MIT | @footballos/web | dev |
+| rollup | 4.65.0 | MIT | @footballos/ops | dev |
 | rollup | 4.65.0 | MIT | @footballos/web | dev |
 | rrweb-cssom | 0.7.1 | MIT | @footballos/web | dev |
 | rrweb-cssom | 0.8.0 | MIT | @footballos/web | dev |
@@ -180,17 +212,26 @@ Installed third-party packages: 183.
 | saxes | 6.0.0 | ISC | @footballos/web | dev |
 | scheduler | 0.28.0 | MIT | @footballos/web | prod |
 | semver | 6.3.1 | ISC | @footballos/web | dev |
+| siginfo | 2.0.0 | ISC | @footballos/ops | dev |
 | siginfo | 2.0.0 | ISC | @footballos/web | dev |
+| source-map-js | 1.2.2 | BSD-3-Clause | @footballos/ops | dev |
 | source-map-js | 1.2.2 | BSD-3-Clause | @footballos/web | dev |
+| stackback | 0.0.2 | MIT | @footballos/ops | dev |
 | stackback | 0.0.2 | MIT | @footballos/web | dev |
+| std-env | 3.10.0 | MIT | @footballos/ops | dev |
 | std-env | 3.10.0 | MIT | @footballos/web | dev |
 | strip-indent | 3.0.0 | MIT | @footballos/web | dev |
 | symbol-tree | 3.2.4 | MIT | @footballos/web | dev |
+| tinybench | 2.9.0 | MIT | @footballos/ops | dev |
 | tinybench | 2.9.0 | MIT | @footballos/web | dev |
+| tinyexec | 0.3.2 | MIT | @footballos/ops | dev |
 | tinyexec | 0.3.2 | MIT | @footballos/web | dev |
 | tinyglobby | 0.2.17 | MIT | @footballos/web | dev |
+| tinypool | 1.1.1 | MIT | @footballos/ops | dev |
 | tinypool | 1.1.1 | MIT | @footballos/web | dev |
+| tinyrainbow | 1.2.0 | MIT | @footballos/ops | dev |
 | tinyrainbow | 1.2.0 | MIT | @footballos/web | dev |
+| tinyspy | 3.0.2 | MIT | @footballos/ops | dev |
 | tinyspy | 3.0.2 | MIT | @footballos/web | dev |
 | tldts | 6.1.86 | MIT | @footballos/web | dev |
 | tldts-core | 6.1.86 | MIT | @footballos/web | dev |
@@ -198,16 +239,19 @@ Installed third-party packages: 183.
 | tr46 | 5.1.1 | MIT | @footballos/web | dev |
 | typescript | 5.9.3 | Apache-2.0 | @footballos/web | dev |
 | update-browserslist-db | 1.3.4 | MIT | @footballos/web | dev |
-| vite | 5.4.21 | MIT | @footballos/web | dev |
+| vite | 5.4.21 | MIT | @footballos/ops | dev |
 | vite | 5.4.21 | MIT | @footballos/web | dev |
 | vite | 6.4.5 | MIT | @footballos/web | dev |
+| vite-node | 2.1.9 | MIT | @footballos/ops | dev |
 | vite-node | 2.1.9 | MIT | @footballos/web | dev |
+| vitest | 2.1.9 | MIT | @footballos/ops | dev |
 | vitest | 2.1.9 | MIT | @footballos/web | dev |
 | w3c-xmlserializer | 5.0.0 | MIT | @footballos/web | dev |
 | webidl-conversions | 7.0.0 | BSD-2-Clause | @footballos/web | dev |
 | whatwg-encoding | 3.1.1 | MIT | @footballos/web | dev |
 | whatwg-mimetype | 4.0.0 | MIT | @footballos/web | dev |
 | whatwg-url | 14.2.0 | MIT | @footballos/web | dev |
+| why-is-node-running | 2.3.0 | MIT | @footballos/ops | dev |
 | why-is-node-running | 2.3.0 | MIT | @footballos/web | dev |
 | ws | 8.22.0 | MIT | @footballos/web | dev |
 | xml-name-validator | 5.0.0 | Apache-2.0 | @footballos/web | dev |
