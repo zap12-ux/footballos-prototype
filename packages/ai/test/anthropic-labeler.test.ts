@@ -148,3 +148,17 @@ describe("AnthropicVisionLabeler with a fake transport", () => {
     expect(transport.calls).toHaveLength(0);
   });
 });
+
+describe("AnthropicVisionLabeler shared budget and snapshot pricing", () => {
+  it("reserves against input.budget when one is supplied and prices a dated snapshot id by the requested model", async () => {
+    const transport = new FakeTransport(() => makeMessage(goodResponse(ts), { model: "claude-opus-5-5-20260301" } as never));
+    const labeler = new AnthropicVisionLabeler({ transport });
+    const shared = new JobBudget(25);
+    const out = await labeler.labelSegment(makeInput({ budget: shared }));
+    expect(out.provenance.model).toBe("claude-opus-5-5-20260301");
+    expect(out.provenance.costUsd).toBeCloseTo(0.0445, 6);
+    expect(shared.callCount).toBe(1);
+    expect(shared.spentUsd).toBeCloseTo(0.0445, 6);
+    expect(labeler.jobBudget.callCount).toBe(0);
+  });
+});

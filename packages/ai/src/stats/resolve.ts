@@ -1,4 +1,4 @@
-import type { AnalyzedUnit, EvidenceRef, Label, LabelKey, ReviewBasis } from "../types.js";
+import type { AnalyzedUnit, EvidenceRef, Label, LabelKey, ReviewBasis, Unit } from "../types.js";
 
 /** Segment as the statistics module needs it. The API layer maps PlaySegment + asset context. */
 export interface StatSegment {
@@ -54,7 +54,7 @@ function normalize(value: string | null, evidence: EvidenceRef[]): ResolvedValue
 }
 
 /** Segment-level eligibility, independent of any label. */
-export function segmentExclusion(seg: StatSegment, basis: ReviewBasis, unit: AnalyzedUnit): ExclusionReason | null {
+export function segmentExclusion(seg: StatSegment, basis: ReviewBasis, unit: Unit): ExclusionReason | null {
   if (seg.reviewStatus === "rejected") return "rejected";
   if (seg.supersededBy.length > 0) return "superseded";
   if (basis === "reviewed_only" && seg.reviewStatus === "proposed") return "unreviewed";
