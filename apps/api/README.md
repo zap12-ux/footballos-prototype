@@ -30,7 +30,11 @@ first builds `packages/contracts`, `packages/media` and `packages/ai` (`deps:bui
 scripts): the API resolves contracts and ai through their `dist/` output and takes the media
 package's types from `packages/media/dist/index.d.ts` (`tsconfig.json` `paths`), because its
 source uses `.ts` import specifiers that Node runs natively but `tsc` cannot compile from another
-project. Tests alias all three packages to source instead (`vitest.config.ts`).
+project. The `tsx` entry points (`dev`, `worker`, `migrate`, `seed:demo`, `bootstrap`) run with
+`--tsconfig tsconfig.tsx.json`, which maps `@footballos/media` to `packages/media/src/index.ts`
+instead: tsx honours `paths` at run time and would otherwise load the `.d.ts` and fail with
+`ERR_MODULE_NOT_FOUND …/dist/types.ts` (QA B6 D-3). Tests alias all three packages to source
+(`vitest.config.ts`).
 
 ## Worker and the film processing chain
 

@@ -17,15 +17,15 @@
     }
   },
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "tsx watch --tsconfig tsconfig.tsx.json src/server.ts",
     "start": "node dist/server.js",
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "migrate": "tsx src/scripts/migrate.ts",
-    "seed:demo": "tsx src/scripts/seed-demo.ts",
-    "bootstrap": "tsx src/scripts/bootstrap.ts",
+    "migrate": "tsx --tsconfig tsconfig.tsx.json src/scripts/migrate.ts",
+    "seed:demo": "tsx --tsconfig tsconfig.tsx.json src/scripts/seed-demo.ts",
+    "bootstrap": "tsx --tsconfig tsconfig.tsx.json src/scripts/bootstrap.ts",
     "db:generate": "drizzle-kit generate",
     "contracts:build": "npm run build --prefix ../../packages/contracts",
     "predev": "npm run deps:build",
@@ -35,7 +35,7 @@
     "premigrate": "npm run deps:build",
     "preseed:demo": "npm run deps:build",
     "prebootstrap": "npm run deps:build",
-    "worker": "tsx src/worker.ts",
+    "worker": "tsx --tsconfig tsconfig.tsx.json src/worker.ts",
     "deps:build": "npm run build --prefix ../../packages/contracts && npm run build --prefix ../../packages/media && npm run build --prefix ../../packages/ai",
     "preworker": "npm run deps:build"
   },
