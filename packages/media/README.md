@@ -13,7 +13,7 @@ with `child_process.execFile` and argument arrays. No footage leaves the machine
 | --- | --- | --- |
 | Probe and validate | `probe(path)`, `validate(probe, limits)`, `DEFAULT_UPLOAD_LIMITS`, `UploadLimitsSchema` | container family, codecs, duration, size, resolution, fps, start offset, rotation. `validate` returns `{ ok, reasons[], warnings[] }` in plain language. |
 | Proxy | `makeProxy(src, out, { height: 720, crf: 23, preset: 'veryfast' })` | H.264/AAC MP4, never upscaled, 2 s keyframes, faststart, progress callback, abortable. Returns a `ProxyTimeMapping` (`proxyOffsetSec` is 0 by construction; measured duration drift is reported). |
-| Thumbnails | `makeThumbnailSheet(src, out, { everySec: 10 })`, `thumbnailAt(src, atSec, out)` | Exact tile count (frames are extracted first, then tiled). Mapping helpers `thumbIndexToSourceSec`, `sourceSecToThumbIndex`, `thumbRect`. |
+| Thumbnails | `makeThumbnailSheet(src, out, { everySec: 10 })`, `thumbnailAt(src, atSec, out)` | Exact tile count (frames are extracted first, then tiled). Mapping helpers `thumbIndexToSourceSec`, `sourceSecToThumbIndex`, `thumbRect`. `thumbnailAt` past the end of the file backs off toward the last decodable frame and reports both `requestedAtSec` and the `atSec` actually used. |
 | Time mapping | `toSourceSec`, `toProxySec` | All stored times are seconds from the first presented frame of the original file; `ProbeResult.startTimeSec` keeps the container offset for anyone who needs PTS. |
 | Play boundaries | `proposeSegments(src, identity, opts)`, `proposeSegmentsFromSeries(series, …)` (pure), `motionEnergy(src)` | Per-second motion energy from `signalstats` YDIF at 4 fps on 160-px frames; median smoothing; hysteresis onset/offset; min length; merge of near gaps before padding; pre/post roll; overlaps resolved at the gap midpoint. Output is `PlaySegment`-shaped with `origin: 'proposed'`, ordered and non-overlapping, plus a `confidenceNote` in words. |
 | Split / merge | `splitSegment(seg, atSec)`, `mergeSegments(a, b)`, `renumber`, `findOverlaps` | Pure; inputs are never mutated; originals come back as copies with `supersededBy` filled and `version + 1`. Coach-made parts default to `reviewStatus: 'accepted'` (override with `reviewStatus`). |
@@ -112,8 +112,11 @@ needs three fields the contract's `ProcessingJob` does not have yet: `input`, `r
 `failed` with code `canceled`.
 
 Semantics: `claim` is atomic and increments `attempt`; the runner heartbeats every
-`leaseSec / 3`; a lost lease (heartbeat returns `ok: false`) aborts the handler's signal and
-the runner leaves the record alone because another worker may own it; `recover()` moves
+`leaseSec / 3`. Handlers receive an `AbortSignal` whose `reason` is one of
+`'cancel_requested' | 'lease_lost' | 'runner_stopping'` (`AbortReason`). On
+`cancel_requested` the job is recorded as `canceled`; on a lost lease the runner leaves the
+record alone because another worker may own it; on `runner_stopping` the record is left
+`running` so its lease expires and `recover()` re-queues it after restart; `recover()` moves
 expired leases back to `queued` (or `failed` with `lease_expired` when attempts are
 exhausted). Failures retry with `baseSec * 2^(attempt-1)` capped at `maxSec` (defaults 5 s
 and 300 s, 20 % jitter) unless the handler throws `NonRetryableError`. `enqueue` returns the
@@ -122,7 +125,8 @@ is sha256 over canonical JSON).
 
 ## Tests
 
-`npm run typecheck -w packages/media` and `npm test -w packages/media`. The suite uses the
+`npm run typecheck -w packages/media` and `npm test -w packages/media` (60 tests in 5 files,
+about 40 s on a laptop once the derived assets exist). The suite uses the
 six clips at `apps/web/public/demo-film/play-1.mp4 … play-6.mp4` by path (nothing is copied)
 and builds three derived assets into `.data/wt-c/` on first run: the synthetic game, a
 "held frame then play" clip (fixed-camera case) and a "shaken" clip (unstable-camera case).
