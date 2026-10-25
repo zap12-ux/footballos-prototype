@@ -14,7 +14,7 @@ import {
 } from '../services/media.js';
 import { serializeJob } from '../services/jobs.js';
 import { createGrant, verifyGrant } from '../services/grants.js';
-import { absolutePath } from '../services/storage.js';
+import { absolutePath, containerContentType, containerExtension, extensionOf } from '../services/storage.js';
 
 const gameParam = z.object({ gameId: IdSchema });
 const uploadParam = z.object({ uploadId: IdSchema });
@@ -128,42 +128,66 @@ function parseRange(header: string | undefined, size: number): { start: number; 
   return { start, end };
 }
 
+/** Only film that passed validation is ever served (§14.10, QA D-1): uploading/uploaded/rejected/failed/deleted are 404. */
+const SERVABLE_STATUSES: ReadonlySet<string> = new Set(['validated', 'processing', 'ready']);
+
+/**
+ * Response headers shared by every byte-serving route: a server-chosen Content-Type, an inline
+ * disposition with an id-based filename, `nosniff`, and a CSP that forbids the bytes from running
+ * or loading anything even if a browser were to treat the response as a document.
+ */
+function deliveryHeaders(assetId: string, contentType: string, ext: string): Record<string, string> {
+  return {
+    'Content-Type': contentType,
+    'Content-Disposition': `inline; filename="${assetId}.${ext}"`,
+    'X-Content-Type-Options': 'nosniff',
+    'Content-Security-Policy': "default-src 'none'",
+    'Cache-Control': 'private, no-store',
+  };
+}
+
+/** Token-authenticated asset lookup shared by stream and thumb: team-bound grant and a servable status, else 404. */
+function requireServableAsset(ctx: AppContext, token: string | undefined, assetId: string) {
+  const claims = verifyGrant(ctx, token, assetId);
+  if (!claims) throw errors.unauthorized('Media grant is missing, invalid or expired');
+  const a = getAsset(ctx, assetId);
+  if (!a || a.teamId !== claims.teamId || !SERVABLE_STATUSES.has(a.status)) throw errors.notFound('Asset');
+  return a;
+}
+
 /** §14.3 byte delivery: token-authenticated, no session, HTTP Range on the proxy (or the original). */
 export function mediaStreamRoutes(ctx: AppContext) {
   return new Hono()
     .get('/media/:assetId/stream', zv('param', streamParam), zv('query', tokenQuery), (c) => {
       const { assetId } = c.req.valid('param');
-      const claims = verifyGrant(ctx, c.req.valid('query').token, assetId);
-      if (!claims) throw errors.unauthorized('Media grant is missing, invalid or expired');
-      const a = getAsset(ctx, assetId);
-      if (!a || a.teamId !== claims.teamId || a.status === 'deleted') throw errors.notFound('Asset');
+      const a = requireServableAsset(ctx, c.req.valid('query').token, assetId);
       const key = a.proxyStorageKey ?? a.storageKey;
       const file = absolutePath(ctx.config, key);
       if (!fs.existsSync(file)) throw errors.notFound('Media file');
       const size = fs.statSync(file).size;
-      const contentType = a.proxyStorageKey ? 'video/mp4' : a.mimeType;
+      // The proxy is always mp4; the original's type comes from the validate probe's container (never
+      // from the client-supplied mimeType), with the stored extension as the fallback before a probe.
+      const container = a.proxyStorageKey ? 'mp4' : (a.container ?? extensionOf(a.storageKey));
+      const contentType = containerContentType(container);
+      const ext = containerExtension(container);
       const range = parseRange(c.req.header('range'), size);
       if (range === 'invalid') {
-        return c.body(null, 416, { 'Content-Range': `bytes */${size}`, 'Accept-Ranges': 'bytes' });
+        return c.body(null, 416, { ...deliveryHeaders(assetId, contentType, ext), 'Content-Range': `bytes */${size}`, 'Accept-Ranges': 'bytes' });
       }
       const start = range?.start ?? 0;
       const end = range?.end ?? size - 1;
       const stream = Readable.toWeb(fs.createReadStream(file, { start, end })) as ReadableStream;
       const headers: Record<string, string> = {
-        'Content-Type': contentType,
+        ...deliveryHeaders(assetId, contentType, ext),
         'Accept-Ranges': 'bytes',
         'Content-Length': String(end - start + 1),
-        'Cache-Control': 'private, no-store',
       };
       if (range) headers['Content-Range'] = `bytes ${start}-${end}/${size}`;
       return c.body(stream, range ? 206 : 200, headers);
     })
     .get('/media/:assetId/thumb/:n', zv('param', thumbParam), zv('query', tokenQuery), async (c) => {
       const { assetId, n } = c.req.valid('param');
-      const claims = verifyGrant(ctx, c.req.valid('query').token, assetId);
-      if (!claims) throw errors.unauthorized('Media grant is missing, invalid or expired');
-      const a = getAsset(ctx, assetId);
-      if (!a || a.teamId !== claims.teamId || a.status === 'deleted') throw errors.notFound('Asset');
+      const a = requireServableAsset(ctx, c.req.valid('query').token, assetId);
       if (!a.thumbnailSheetKey) throw errors.notFound('Thumbnails');
       const sheet = absolutePath(ctx.config, a.thumbnailSheetKey);
       if (!fs.existsSync(sheet)) throw errors.notFound('Thumbnails');
@@ -174,6 +198,6 @@ export function mediaStreamRoutes(ctx: AppContext) {
         if (err instanceof RangeError) throw errors.notFound('Thumbnail');
         throw err;
       }
-      return c.body(new Uint8Array(jpeg), 200, { 'Content-Type': 'image/jpeg', 'Content-Length': String(jpeg.length), 'Cache-Control': 'private, no-store' });
+      return c.body(new Uint8Array(jpeg), 200, { ...deliveryHeaders(`${assetId}-${n}`, 'image/jpeg', 'jpg'), 'Content-Length': String(jpeg.length) });
     });
 }

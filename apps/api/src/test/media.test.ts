@@ -201,6 +201,11 @@ describe('§14.2 worker runs the chain on play-1.mp4 and §14.3 streams it', () 
     expect(full.status).toBe(200);
     expect(full.headers.get('accept-ranges')).toBe('bytes');
     expect(full.headers.get('content-type')).toBe('video/mp4');
+    // §14.10 (QA D-1): server-chosen type plus delivery headers on every byte response
+    expect(full.headers.get('content-disposition')).toBe(`inline; filename="${assetId}.mp4"`);
+    expect(full.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(full.headers.get('content-security-policy')).toBe("default-src 'none'");
+    expect(full.headers.get('cache-control')).toContain('no-store');
     const size = Number(full.headers.get('content-length'));
     expect(size).toBe(fs.statSync(path.join(t.dataDir, 'media', alpha.team.id, assetId, 'proxy.mp4')).size);
     const bytes = new Uint8Array(await full.arrayBuffer());
@@ -219,8 +224,59 @@ describe('§14.2 worker runs the chain on play-1.mp4 and §14.3 streams it', () 
     const thumb = await t.app.request(grant.thumbUrlTemplate.replace('{n}', '0'));
     expect(thumb.status).toBe(200);
     expect(thumb.headers.get('content-type')).toBe('image/jpeg');
+    expect(thumb.headers.get('content-disposition')).toBe(`inline; filename="${assetId}-0.jpg"`);
+    expect(thumb.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(thumb.headers.get('content-security-policy')).toBe("default-src 'none'");
     expect((await thumb.arrayBuffer()).byteLength).toBeGreaterThan(100);
     expect((await t.app.request(grant.thumbUrlTemplate.replace('{n}', '999'))).status).toBe(404);
+  });
+
+  it('never serves a rejected upload and never uses the client mimeType as Content-Type (§14.10, QA D-1)', async () => {
+    // HTML bytes named .mp4 with mimeType text/html: accepted at create, rejected by validate.
+    const html = Buffer.from('<!doctype html><html><body><script>document.title="xss"</script>not film</body></html>');
+    const create = await call(t, 'POST', `/api/v1/games/${game.gameId}/uploads`, { filename: 'page.mp4', byteSize: html.length, mimeType: 'text/html', context: CONTEXT }, alpha.pc.cookie);
+    expect(create.status).toBe(201);
+    const htmlAsset = create.body.asset.id as string;
+    expect((await putChunk(t, alpha.pc.cookie, create.body.upload.id, html, 0, html.length)).status).toBe(200);
+    const complete = await call(t, 'POST', `/api/v1/uploads/${create.body.upload.id}/complete`, {}, alpha.pc.cookie);
+    expect(complete.status).toBe(200);
+    // Before validation runs the asset is `uploaded`: a grant exists but nothing is served.
+    const earlyGrant = await call(t, 'GET', `/api/v1/assets/${htmlAsset}/grant`, undefined, alpha.pc.cookie);
+    expect(earlyGrant.status).toBe(200);
+    const early = await t.app.request(earlyGrant.body.streamUrl);
+    expect(early.status).toBe(404);
+    expect(early.headers.get('content-type')).not.toMatch(/text\/html/i);
+    const done = await runWorkerUntilIdle(t.ctx, 50);
+    const validate = done.find((j) => j.assetId === htmlAsset && j.kind === 'validate')!;
+    expect(validate.status).toBe('succeeded');
+    const asset = (await call(t, 'GET', `/api/v1/assets/${htmlAsset}`, undefined, alpha.pc.cookie)).body.asset;
+    expect(asset.status).toBe('rejected');
+    expect(asset.mimeType).toBe('text/html'); // the record keeps what the client said; the wire never does
+    const g = await call(t, 'GET', `/api/v1/assets/${htmlAsset}/grant`, undefined, alpha.pc.cookie);
+    expect(g.status).toBe(200);
+    for (const url of [g.body.streamUrl, g.body.thumbUrlTemplate.replace('{n}', '0')]) {
+      for (const headers of [{}, { range: 'bytes=0-9' }] as Record<string, string>[]) {
+        const res = await t.app.request(url, { headers });
+        expect(res.status).toBe(404);
+        expect(res.headers.get('content-type')).not.toMatch(/text\/html/i);
+        expect(await res.text()).not.toContain('<script>');
+      }
+    }
+    // A validated original (no proxy yet) is typed from the probe's container, not from the client's mimeType.
+    const probed = await uploadFile(t, alpha.pc.cookie, game.gameId, FIXTURE_CLIPS[3]!, { chunkSize: 2_000_000 });
+    const probedId = probed.complete.body.asset.id as string;
+    t.ctx.db.update(mediaAssets).set({ mimeType: 'text/html' }).where(eq(mediaAssets.id, probedId)).run();
+    const first = await t.ctx.runner.runOnce(); // validate only
+    expect(first?.kind).toBe('validate');
+    expect(t.ctx.db.select().from(mediaAssets).where(eq(mediaAssets.id, probedId)).get()).toMatchObject({ status: 'validated', container: 'mp4', proxyStorageKey: null });
+    const pg = (await call(t, 'GET', `/api/v1/assets/${probedId}/grant`, undefined, alpha.pc.cookie)).body;
+    const orig = await t.app.request(pg.streamUrl, { headers: { range: 'bytes=0-15' } });
+    expect(orig.status).toBe(206);
+    expect(orig.headers.get('content-type')).toBe('video/mp4');
+    expect(orig.headers.get('content-disposition')).toBe(`inline; filename="${probedId}.mp4"`);
+    expect(orig.headers.get('x-content-type-options')).toBe('nosniff');
+    expect((await t.app.request(pg.thumbUrlTemplate.replace('{n}', '0'))).status).toBe(404); // no sheet yet
+    await runWorkerUntilIdle(t.ctx, 50);
   });
 
   it('rejects tampered, foreign and expired grants with 401', async () => {

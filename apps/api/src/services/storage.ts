@@ -100,3 +100,35 @@ export function extensionOf(filename: string): string | null {
   const m = /\.([A-Za-z0-9]{1,8})$/.exec(filename.trim());
   return m ? m[1]!.toLowerCase() : null;
 }
+
+/**
+ * Content-Type for bytes served through a media grant (CONTRACTS §14.10, QA D-1). The input is the
+ * probe's container family (or, before a probe exists, the stored original's extension); it is never
+ * the client-supplied `mimeType`. Unknown containers fall back to a non-executable binary type.
+ */
+export function containerContentType(container: string | null | undefined): string {
+  switch ((container ?? '').toLowerCase()) {
+    case 'mp4': return 'video/mp4';
+    case 'mov': return 'video/quicktime';
+    case 'mkv': return 'video/x-matroska';
+    case 'webm': return 'video/webm';
+    case 'avi': return 'video/x-msvideo';
+    case 'mpegts': case 'ts': return 'video/mp2t';
+    case 'jpg': case 'jpeg': return 'image/jpeg';
+    default: return 'application/octet-stream';
+  }
+}
+
+/** File extension used in `Content-Disposition` for a served container family. */
+export function containerExtension(container: string | null | undefined): string {
+  switch ((container ?? '').toLowerCase()) {
+    case 'mp4': return 'mp4';
+    case 'mov': return 'mov';
+    case 'mkv': return 'mkv';
+    case 'webm': return 'webm';
+    case 'avi': return 'avi';
+    case 'mpegts': case 'ts': return 'ts';
+    case 'jpg': case 'jpeg': return 'jpg';
+    default: return 'bin';
+  }
+}

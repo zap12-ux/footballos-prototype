@@ -112,6 +112,8 @@ function persistResult(ctx: AppContext, tx: Db, job: Job, result: unknown): void
           status: r.ok ? 'validated' : 'rejected',
           rejectionReason: r.ok ? null : r.reasons.join(' '),
           durationSec: r.probe?.durationSec ?? null, width: r.probe?.width ?? null, height: r.probe?.height ?? null, fps: r.probe?.fps ?? null, quality: r.quality,
+          // The probe's container (not the client's mimeType) decides the stream Content-Type (§14.10, QA D-1).
+          container: r.probe?.container ?? null,
           updatedAt: nowIso,
         })
         .where(eq(mediaAssets.id, asset.id))

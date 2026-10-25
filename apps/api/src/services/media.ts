@@ -101,7 +101,7 @@ export function createUpload(ctx: AppContext, userId: string, teamId: string, ga
   const uploadId = crypto.randomUUID();
   const asset: AssetRow = {
     id: assetId, teamId, gameId, uploadedBy: userId, kind: input.kind, originalFilename: input.filename, byteSize: input.byteSize,
-    sha256: null, mimeType: input.mimeType, durationSec: null, width: null, height: null, fps: null, status: 'uploading',
+    sha256: null, mimeType: input.mimeType, durationSec: null, width: null, height: null, fps: null, container: null, status: 'uploading',
     rejectionReason: null, context: input.context, quality: null, storageKey: originalKey(teamId, assetId, ext), proxyStorageKey: null,
     thumbnailSheetKey: null, retentionUntil: retentionUntilFor(ctx, teamId, nowIso), createdAt: nowIso, updatedAt: nowIso,
   };
