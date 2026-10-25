@@ -8,7 +8,8 @@ import { teamRoutes } from './routes/teams.js';
 import { scheduleRoutes } from './routes/schedule.js';
 import { opsRoutes } from './routes/ops.js';
 
-export const API_PREFIX = '/api/v1';
+import { API_PREFIX } from './http/prefix.js';
+export { API_PREFIX };
 
 /**
  * Builds the HTTP application. Route modules are chained so `hono/client` can derive a typed client
