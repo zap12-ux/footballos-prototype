@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="Stylised football field at night, end-zone view">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#090d12"/>
+      <stop offset="1" stop-color="#142a47"/>
+    </linearGradient>
+    <linearGradient id="turf" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#15301f"/>
+      <stop offset="1" stop-color="#1b3429"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.1" r="0.7">
+      <stop offset="0" stop-color="#e2b457" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#e2b457" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#sky)"/>
+  <rect width="1280" height="720" fill="url(#glow)"/>
+  <!-- field in perspective -->
+  <polygon points="140,720 1140,720 820,300 460,300" fill="url(#turf)"/>
+  <g stroke="#f3e6c9" stroke-opacity="0.55" stroke-width="2" fill="none">
+    <line x1="460" y1="300" x2="820" y2="300"/>
+    <line x1="430" y1="340" x2="850" y2="340"/>
+    <line x1="396" y1="386" x2="884" y2="386"/>
+    <line x1="356" y1="440" x2="924" y2="440"/>
+    <line x1="308" y1="505" x2="972" y2="505"/>
+    <line x1="250" y1="584" x2="1030" y2="584"/>
+    <line x1="180" y1="678" x2="1100" y2="678"/>
+  </g>
+  <!-- hash marks -->
+  <g stroke="#f3e6c9" stroke-opacity="0.35" stroke-width="2">
+    <line x1="560" y1="310" x2="560" y2="330"/><line x1="720" y1="310" x2="720" y2="330"/>
+    <line x1="548" y1="352" x2="548" y2="376"/><line x1="732" y1="352" x2="732" y2="376"/>
+    <line x1="534" y1="400" x2="534" y2="428"/><line x1="746" y1="400" x2="746" y2="428"/>
+    <line x1="516" y1="456" x2="516" y2="492"/><line x1="764" y1="456" x2="764" y2="492"/>
+    <line x1="494" y1="522" x2="494" y2="568"/><line x1="786" y1="522" x2="786" y2="568"/>
+  </g>
+  <!-- line of scrimmage -->
+  <line x1="308" y1="505" x2="972" y2="505" stroke="#e2b457" stroke-width="4" stroke-dasharray="14 10"/>
+  <!-- players as simple marks -->
+  <g fill="#f4f6f8" stroke="#142a47" stroke-width="3">
+    <circle cx="520" cy="540" r="14"/><circle cx="580" cy="540" r="14"/><circle cx="640" cy="540" r="14"/><circle cx="700" cy="540" r="14"/><circle cx="760" cy="540" r="14"/>
+    <circle cx="640" cy="600" r="14"/><circle cx="640" cy="660" r="14"/>
+  </g>
+  <g fill="#9c1b30" stroke="#f9ebee" stroke-width="2">
+    <path d="M540 472 l14 24 h-28z"/><path d="M610 472 l14 24 h-28z"/><path d="M670 472 l14 24 h-28z"/><path d="M740 472 l14 24 h-28z"/>
+    <path d="M580 420 l12 20 h-24z"/><path d="M700 420 l12 20 h-24z"/>
+  </g>
+  <!-- stadium lights -->
+  <g fill="#e2b457" fill-opacity="0.9">
+    <rect x="120" y="60" width="90" height="10" rx="3"/><rect x="1070" y="60" width="90" height="10" rx="3"/>
+  </g>
+  <g stroke="#34455a" stroke-width="6"><line x1="165" y1="70" x2="165" y2="300"/><line x1="1115" y1="70" x2="1115" y2="300"/></g>
+</svg>
