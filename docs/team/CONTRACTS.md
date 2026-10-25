@@ -480,7 +480,7 @@ recommendation grounding). Records are §8–§11; this section fixes routes and
   comparing stored `inputsHash` values against current inputs; never mutates versions.
 - Comments: `GET/POST /plan-versions/:id/comments` (`{ sectionKey?, itemId?, body }`, any member),
   `POST /plan-comments/:id/resolve`.
-- Sharing: `POST /plan-versions/:id/share { expiresInHours ≤ 168 }` → `{ link: ShareLink,
+- Sharing: `POST /plan-versions/:id/share { expiresInHours ≤ 72 }` (owner decision 2026-10-25; was 168) → `{ link: ShareLink,
   url }` (token shown once); `GET /shared/:token` → read-only `{ version, team: { name },
   game, unit, expiresAt }` for **approved** versions only, no session required, team-scoped
   token, `410` after expiry or revoke; `DELETE /share-links/:id` (creator or head coach);
