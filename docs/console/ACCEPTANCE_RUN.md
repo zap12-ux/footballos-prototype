@@ -25,6 +25,7 @@ from truncation of long text. Ids are shortened to 8 characters.
 | An agent failure remains visibly failed until recovery | FIXTURE ONLY | No live agent failed during this run. Fixture check "agent.completed → execState completed" and the derivation rule (`failed` only cleared by `agent.spawned`/`agent.resumed`) are unit-tested; not yet observed live |
 | An obsolete question cannot resume the wrong task | PASS (live + fixture) | Live: answered question rejects new responses (409); fixture: superseded question → `agentctl wait` exits 3 on 410, owner answer → 409, task reassignment → 410 |
 | Unauthorized clients cannot read or answer questions | PASS (live) | No token → 401; bad Origin with valid token → 401; malformed token → 400 (refused; see defects) |
+| Console server restart preserves state | PASS (live) | Server exited cleanly at ~13:11 local (cause not identified) and was restarted at 13:13 from the same data dir; owner token, run, agents, tasks, questions and all four acknowledged responses were intact; the owner watcher and UI reconnected |
 | An integrated task shows the relevant verification evidence | PASS (live) | K1 and K2 carry verification records (vitest 32/32 + fixture 48/48; vitest 33/33 + build) and status `integrated`; `report_task_result` cannot set `integrated` (fixture) |
 
 Lead continuation path: both answers sat unfetched for more than `LEAD_PICKUP_AFTER_SEC` (90 s)
