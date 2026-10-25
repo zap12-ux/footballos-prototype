@@ -7,13 +7,13 @@ Allowed licenses: MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, 0BSD, Unlice
 `scripts/license-allowlist.json` with the exact license string and a reason.
 
 Workspaces: `@footballos/web`.
-Installed third-party packages: 184.
+Installed third-party packages: 183.
 
 ## Licenses
 
 | License | Packages |
 | --- | --- |
-| MIT | 165 |
+| MIT | 164 |
 | ISC | 8 |
 | Apache-2.0 | 5 |
 | BSD-2-Clause | 2 |
@@ -129,7 +129,6 @@ Installed third-party packages: 184.
 | expect-type | 1.4.0 | Apache-2.0 | @footballos/web | dev |
 | fdir | 6.5.0 | MIT | @footballos/web | dev |
 | form-data | 4.0.6 | MIT | @footballos/web | dev |
-| fsevents | 2.3.3 | MIT | @footballos/web | dev |
 | function-bind | 1.1.2 | MIT | @footballos/web | dev |
 | gensync | 1.0.0-beta.2 | MIT | @footballos/web | dev |
 | get-intrinsic | 1.3.0 | MIT | @footballos/web | dev |
