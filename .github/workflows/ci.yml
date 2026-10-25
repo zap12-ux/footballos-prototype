@@ -1,0 +1,33 @@
+# Typecheck, test and build every workspace on pushes to integration and on pull requests.
+# Uses the root scripts, which fan out with --workspaces --if-present.
+# Deployment to GitHub Pages stays in deploy.yml (main only).
+name: CI
+
+on:
+  push:
+    branches: [integration]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: License inventory
+        run: node scripts/license-inventory.mjs

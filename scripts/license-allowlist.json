@@ -1,0 +1,16 @@
+{
+  "packages": {
+    "caniuse-lite": {
+      "license": "CC-BY-4.0",
+      "reason": "Browser-support data table used at build time by browserslist (dev only; its data is not shipped in the built app). Credited here; review if it ever becomes a production dependency."
+    },
+    "@csstools/color-helpers": {
+      "license": "MIT-0",
+      "reason": "MIT No Attribution: more permissive than MIT. Dev only (jsdom CSS parsing in tests)."
+    },
+    "ffmpeg-static": {
+      "license": "GPL-3.0-or-later",
+      "reason": "Ships prebuilt GPL ffmpeg binaries that FootballOS runs as a separate process (spawned tool, not linked into application code). Not redistributed to end users; the app runs on the staff's own host. Revisit before any binary redistribution."
+    }
+  }
+}
