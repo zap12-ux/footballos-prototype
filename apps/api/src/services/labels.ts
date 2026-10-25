@@ -1,5 +1,6 @@
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import { LabelKeySchema, type BulkAcceptRequest, type Label, type LabelKey, type LabelRevision, type ModelProvenance, type PatchLabelRequest } from '@footballos/contracts';
+import { bulkAcceptPlan } from '@footballos/ai';
 import type { AppContext } from '../context.js';
 import type { Db } from '../db/db.js';
 import { labelRevisions, labels, modelProvenance, playSegments } from '../db/schema.js';
@@ -88,27 +89,28 @@ export function listRevisions(ctx: AppContext, labelId: string): RevisionRow[] {
   return ctx.db.select().from(labelRevisions).where(eq(labelRevisions.labelId, labelId)).orderBy(asc(labelRevisions.at)).all();
 }
 
-/** Only labels with `accepted.status === 'inferred'` and a non-abstained inference change; everything else is counted as skipped. */
+/** §14.5 bulk accept: the plan comes from `@footballos/ai` `bulkAcceptPlan` (only `inferred` + non-abstained labels change). */
 export function bulkAccept(ctx: AppContext, userId: string, asset: { id: string; teamId: string }, body: BulkAcceptRequest): { accepted: number; skipped: number } {
   const nowIso = ctx.now().toISOString();
   const assetSegmentIds = new Set(ctx.db.select({ id: playSegments.id }).from(playSegments).where(eq(playSegments.assetId, asset.id)).all().map((s) => s.id));
   const segmentIds = body.segmentIds.filter((id) => assetSegmentIds.has(id));
   if (segmentIds.length === 0) return { accepted: 0, skipped: 0 };
   const rows = ctx.db.select().from(labels).where(and(inArray(labels.segmentId, segmentIds), inArray(labels.key, body.keys))).all();
-  let accepted = 0;
-  let skipped = 0;
+  const plan = bulkAcceptPlan(rows.map(serializeLabel), { segmentIds, keys: body.keys });
+  const byId = new Map(rows.map((r) => [r.id, r]));
   ctx.db.transaction((tx) => {
-    for (const l of rows) {
-      if (l.accepted.status !== 'inferred' || !l.inferred || l.inferred.abstained) { skipped += 1; continue; }
-      const next = { value: l.inferred.value, status: 'accepted' as const, byUserId: userId, at: nowIso };
+    for (const id of plan.toAccept) {
+      const l = byId.get(id)!;
+      const next = { value: l.inferred!.value, status: 'accepted' as const, byUserId: userId, at: nowIso };
       tx.insert(labelRevisions).values({
         id: crypto.randomUUID(), labelId: l.id, previousValue: l.accepted.value, newValue: next.value, previousStatus: l.accepted.status, newStatus: 'accepted',
         byUserId: userId, at: nowIso, reason: 'bulk accept',
       }).run();
       tx.update(labels).set({ accepted: next, version: l.version + 1, updatedAt: nowIso }).where(eq(labels.id, l.id)).run();
-      accepted += 1;
     }
   });
+  const accepted = plan.toAccept.length;
+  const skipped = plan.skipped.length;
   writeAudit(ctx, { teamId: asset.teamId, actorUserId: userId, action: 'labels.bulk_accepted', targetType: 'media_asset', targetId: asset.id, details: { accepted, skipped, keys: body.keys, segmentCount: segmentIds.length } });
   return { accepted, skipped };
 }

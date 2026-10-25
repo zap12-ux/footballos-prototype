@@ -286,6 +286,11 @@ export class SqliteJobStore implements JobStore {
       .run();
   }
 
+  /** Public entry for hosts that reject a file inside a succeeded `validate` job. */
+  failDependents(tx: Db, jobId: string, now: Date): void {
+    this.cascade(tx, jobId, 'failed', now);
+  }
+
   /** Dependents of a failed/canceled job end in the same state with `upstream_failed`. */
   private cascade(tx: Db, jobId: string, status: 'failed' | 'canceled', now: Date): void {
     const nowIso = now.toISOString();

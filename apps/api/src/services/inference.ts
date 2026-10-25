@@ -3,7 +3,7 @@ import { idempotencyKeyFor, type Job } from '@footballos/media';
 import type { AppContext } from '../context.js';
 import { errors } from '../errors.js';
 import { enqueueJob } from '../jobs/enqueue.js';
-import type { InferJobInput } from '../jobs/infer-handlers.js';
+import type { InferLabelsJobInput } from '@footballos/ai';
 import { inferConfigVersion } from '../jobs/worker.js';
 import { LABEL_KEYS } from './labels.js';
 import type { AssetRow } from './media.js';
@@ -33,7 +33,7 @@ export async function enqueueInference(ctx: AppContext, userId: string, asset: A
   const jobs: Job[] = [];
   for (let i = 0; i < segments.length; i += batchSize) {
     const batch = segments.slice(i, i + batchSize);
-    const input: InferJobInput = {
+    const input: InferLabelsJobInput = {
       assetId: asset.id, sourcePath, context: asset.context, labelKeys,
       segments: batch.map((s) => ({ id: s.id, startSec: s.startSec, endSec: s.endSec, fps: asset.fps })),
     };

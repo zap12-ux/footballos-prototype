@@ -1,6 +1,12 @@
 import { eq } from 'drizzle-orm';
-import { createVisionLabeler, LABEL_SEGMENT_PROMPT_VERSION } from '@footballos/ai';
-import { DEFAULT_UPLOAD_LIMITS, NonRetryableError, type HandlerContext, type Job, type RunnerEvent, type UploadLimits } from '@footballos/media';
+import {
+  ANALYSIS_VERSION, applyInference, createInferLabelsHandler, createVisionLabeler, isProviderUnavailable, LABEL_SEGMENT_PROMPT_VERSION,
+  type InferLabelsJobInput, type InferLabelsResult,
+} from '@footballos/ai';
+import {
+  asJobHandler, createMediaHandlers, extractFrames, NonRetryableError, type HandlerContext, type Job, type MediaHandler, type MediaJobInput,
+  type ProxyJobResult, type RunnerEvent, type SegmentJobResult, type ThumbnailsJobResult, type UploadLimits, type ValidateJobResult,
+} from '@footballos/media';
 import type { AppContext } from '../context.js';
 import type { Db } from '../db/db.js';
 import { labels, mediaAssets, modelProvenance } from '../db/schema.js';
@@ -9,15 +15,14 @@ import { keyFor, tightenPermissions } from '../services/storage.js';
 import { storeProposedSegments } from '../services/segments.js';
 import { listLabelsForSegments, serializeLabel } from '../services/labels.js';
 import { monthlyCostUsd } from '../services/usage.js';
-// Local stand-ins for the C and D library exports (CONTRACTS §14.8); swap for package imports when they land.
-import { createMediaHandlers, extractFrames, type ChainJobInput, type ProxyResult, type SegmentResult, type ThumbnailsResult, type ValidateResult } from './media-handlers.js';
-import { ANALYSIS_VERSION, applyInference, createInferLabelsHandler, type InferJobInput, type InferResult } from './infer-handlers.js';
+
+/** `ProcessingJob.input` for the validate → proxy → thumbnails → segment chain (C's MediaJobInput plus identity). */
+export type ChainJobInput = MediaJobInput & { teamId: string; gameId: string };
 
 export const MAINTENANCE_INTERVAL_MS = 5 * 60_000;
 
-export function uploadLimitsFor(ctx: AppContext): UploadLimits {
+export function uploadLimitsFor(ctx: AppContext): Partial<UploadLimits> {
   return {
-    ...DEFAULT_UPLOAD_LIMITS,
     allowedContainers: ctx.config.limits.allowedVideoContainers.filter((c): c is UploadLimits['allowedContainers'][number] =>
       (['mp4', 'mov', 'mkv', 'webm', 'avi', 'mpegts', 'other'] as string[]).includes(c)),
     maxBytes: ctx.config.limits.maxUploadBytes,
@@ -29,9 +34,6 @@ export function inferConfigVersion(ctx: AppContext): string {
   return `${ctx.config.modelProvider}:${ctx.config.ai.anthropicModel}:analysis-${ANALYSIS_VERSION}:prompt-${LABEL_SEGMENT_PROMPT_VERSION}`;
 }
 
-function adapt<I, R>(fn: (job: { id: string; input: I }, ctx: { signal: AbortSignal; progress(done: number, total: number | null, message: string): Promise<void> | void }) => Promise<R>) {
-  return (h: HandlerContext<I>) => fn({ id: h.job.id, input: h.input }, { signal: h.signal, progress: (done, total, message) => h.progress({ done, total, message }) });
-}
 
 /**
  * Registers the §14.2 handlers on the context's JobRunner and installs the store hooks that persist
@@ -45,18 +47,20 @@ export function registerJobHandlers(ctx: AppContext): void {
     proxy: { height: ctx.config.limits.proxyHeight },
     thumbnails: { everySec: ctx.config.limits.thumbnailEverySec },
   });
-  const requireLiveAsset = (input: ChainJobInput) => {
+  const requireLiveAsset = (input: MediaJobInput) => {
     const a = ctx.db.select().from(mediaAssets).where(eq(mediaAssets.id, input.assetId)).get();
     if (!a || a.status === 'deleted') throw new NonRetryableError('asset_deleted', 'The asset no longer exists');
     if (a.status === 'rejected') throw new NonRetryableError('asset_rejected', a.rejectionReason ?? 'The file was rejected during validation');
     return a;
   };
+  const guarded = <R>(handler: MediaHandler<R>): MediaHandler<R> => async (job, c) => { requireLiveAsset(job.input); return handler(job, c); };
   ctx.runner
-    .register<ChainJobInput, ValidateResult>('validate', adapt(async (job, c) => { requireLiveAsset(job.input); return media.validate(job, c); }))
-    .register<ChainJobInput, ProxyResult>('proxy', adapt(async (job, c) => { requireLiveAsset(job.input); return media.proxy(job, c); }))
-    .register<ChainJobInput, ThumbnailsResult>('thumbnails', adapt(async (job, c) => { requireLiveAsset(job.input); return media.thumbnails(job, c); }))
-    .register<ChainJobInput, SegmentResult>('segment', adapt(async (job, c) => { requireLiveAsset(job.input); return media.segment(job, c); }))
-    .register<InferJobInput, InferResult>('infer_labels', (h) => {
+    .register('validate', asJobHandler(guarded(media.validate)))
+    .register('proxy', asJobHandler(guarded(media.proxy)))
+    .register('thumbnails', asJobHandler(guarded(media.thumbnails)))
+    .register('segment', asJobHandler(guarded(media.segment)))
+    .register<InferLabelsJobInput, InferLabelsResult>('infer_labels', async (h: HandlerContext<InferLabelsJobInput>) => {
+      // §14.5: no provider → fail immediately and truthfully; manual labeling stays available.
       if (ctx.config.modelProvider === 'none') throw new NonRetryableError('provider_unavailable', 'No model provider is configured');
       const cap = ctx.config.limits.monthlyCostCapUsd;
       const spent = monthlyCostUsd(ctx, h.job.teamId, ctx.now());
@@ -65,7 +69,16 @@ export function registerJobHandlers(ctx: AppContext): void {
       }
       const labeler = createVisionLabeler(ctx.config.modelProvider, { config: ctx.config.ai });
       const handler = createInferLabelsHandler({ labeler, extractFrames, budgetUsd: ctx.config.ai.jobBudgetUsd, maxFramesPerSegment: ctx.config.ai.maxFramesPerSegment });
-      return adapt(handler)(h);
+      try {
+        return await handler({ id: h.job.id, input: h.input }, { signal: h.signal, progress: (done, total, message) => h.progress({ done, total, message }) });
+      } catch (err) {
+        // C's runner retries everything except NonRetryableError; D's adapter says whether a retry can help.
+        if (isProviderUnavailable(err)) {
+          if (!err.retryable) throw new NonRetryableError(err.reason === 'budget_exceeded' ? 'budget_exceeded' : 'provider_unavailable', err.message);
+          throw Object.assign(new Error(err.message), { code: 'provider_unavailable' });
+        }
+        throw err;
+      }
     });
 
   ctx.jobStore.hooks = {
@@ -93,54 +106,50 @@ function persistResult(ctx: AppContext, tx: Db, job: Job, result: unknown): void
   const input = job.input as ChainJobInput;
   switch (job.kind) {
     case 'validate': {
-      const r = result as ValidateResult;
+      const r = result as ValidateJobResult;
       tx.update(mediaAssets)
         .set({
           status: r.ok ? 'validated' : 'rejected',
           rejectionReason: r.ok ? null : r.reasons.join(' '),
-          durationSec: r.probe.durationSec, width: r.probe.width, height: r.probe.height, fps: r.probe.fps, quality: r.quality,
+          durationSec: r.probe?.durationSec ?? null, width: r.probe?.width ?? null, height: r.probe?.height ?? null, fps: r.probe?.fps ?? null, quality: r.quality,
           updatedAt: nowIso,
         })
         .where(eq(mediaAssets.id, asset.id))
         .run();
-      if (!r.ok) {
-        // Dependents must not run on a rejected file.
-        const nowDate = ctx.now();
-        for (const kind of CHAIN_KINDS) if (kind !== 'validate') void kind;
-        cascadeChain(ctx, tx, job.id, nowDate);
-      }
+      // Dependents must not run on a rejected file.
+      if (!r.ok) cascadeChain(ctx, tx, job.id, ctx.now());
       return;
     }
     case 'proxy': {
-      const r = result as ProxyResult;
+      const r = result as ProxyJobResult;
       tightenPermissions(input.outDir);
       tx.update(mediaAssets).set({ proxyStorageKey: keyFor(ctx.config, r.proxyPath), status: 'processing', updatedAt: nowIso }).where(eq(mediaAssets.id, asset.id)).run();
       return;
     }
     case 'thumbnails': {
-      const r = result as ThumbnailsResult;
+      const r = result as ThumbnailsJobResult;
       tightenPermissions(input.outDir);
       tx.update(mediaAssets).set({ thumbnailSheetKey: keyFor(ctx.config, r.sheetPath), updatedAt: nowIso }).where(eq(mediaAssets.id, asset.id)).run();
       return;
     }
     case 'segment': {
-      const r = result as SegmentResult;
+      const r = result as SegmentJobResult;
       storeProposedSegments(tx, asset as AssetRow, r.segments, nowIso);
       tx.update(mediaAssets).set({ status: 'ready', updatedAt: nowIso }).where(eq(mediaAssets.id, asset.id)).run();
       return;
     }
     case 'infer_labels': {
-      const r = result as InferResult;
+      const r = result as InferLabelsResult;
       const existing = listLabelsForSegments(tx, r.perSegment.map((p) => p.segmentId)).map(serializeLabel);
       for (const p of r.perSegment) {
         const prov = p.provenance;
         tx.insert(modelProvenance).values({
           id: prov.id, teamId: job.teamId, assetId: asset.id, segmentId: p.segmentId, jobId: job.id, provider: prov.provider, model: prov.model,
           modelRevision: prov.modelRevision, promptId: prov.promptId, promptHash: prov.promptHash, preprocessing: prov.preprocessing, inspected: prov.inspected,
-          analysisVersion: prov.analysisVersion, inputTokens: prov.inputTokens, outputTokens: prov.outputTokens, costUsd: prov.costUsd ?? 0, latencyMs: prov.latencyMs,
+          analysisVersion: prov.analysisVersion, inputTokens: prov.inputTokens, outputTokens: prov.outputTokens, costUsd: prov.costUsd, latencyMs: prov.latencyMs,
           requestedAt: prov.requestedAt, completedAt: prov.completedAt,
         }).run();
-        const { upserts } = applyInference(existing, p.segmentId, p.labels, prov.id, nowIso, job.teamId);
+        const { upserts } = applyInference(existing, p.segmentId, p.labels, prov.id, { teamId: job.teamId, now: () => new Date(nowIso) });
         for (const l of upserts) {
           tx.insert(labels)
             .values({ id: l.id, teamId: l.teamId, segmentId: l.segmentId, key: l.key, inferred: l.inferred, accepted: l.accepted, provenanceId: l.provenanceId, version: l.version, createdAt: l.createdAt, updatedAt: l.updatedAt })
@@ -157,8 +166,7 @@ function persistResult(ctx: AppContext, tx: Db, job: Job, result: unknown): void
 
 /** Marks every queued dependent of `jobId` failed with `upstream_failed` (used when validate succeeds but rejects the file). */
 function cascadeChain(ctx: AppContext, tx: Db, jobId: string, now: Date): void {
-  // Reuse the store's private cascade through a public wrapper to keep one implementation.
-  (ctx.jobStore as unknown as { cascade: (tx: Db, id: string, status: 'failed' | 'canceled', now: Date) => void }).cascade(tx, jobId, 'failed', now);
+  ctx.jobStore.failDependents(tx, jobId, now);
 }
 
 /** Runs claimable jobs until none is left. For tests and `WORKER_INLINE` smoke runs. */
