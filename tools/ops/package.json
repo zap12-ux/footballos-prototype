@@ -1,0 +1,19 @@
+{
+  "name": "@footballos/ops",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Operations tooling for FootballOS: SQLite online backup and verified restore.",
+  "exports": {
+    "./sqlite-backup": "./src/sqlite-backup.mjs"
+  },
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.8"
+  }
+}

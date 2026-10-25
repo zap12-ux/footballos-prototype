@@ -1,9 +1,10 @@
 # FootballOS deployment (single host)
 
-Status: **concept and templates only. Nothing here has been provisioned or run.** The API
-package (`apps/api`) does not exist on `integration` yet, so service units, backup and
-restore steps are unverified until the backend owner adopts them and a restore drill is
-recorded below.
+Status: **nothing here has been provisioned or deployed.** The SQLite backup and restore
+tools (`scripts/backup-sqlite.mjs`, `scripts/restore-sqlite.mjs`) are tested and have been
+drilled locally on a synthetic database (see below). The API package (`apps/api`) does not
+exist on `integration` yet, so the service unit, release and rollback steps, and a full
+application restore are still unverified.
 
 FootballOS serves one coaching staff. One host runs everything: Node 22, the API with its
 background worker, SQLite, and media files on local disk. There are no separate database
@@ -27,9 +28,13 @@ Environment templates: [`env/api.env.example`](env/api.env.example) and
 never committed. Development and production use separate data directories and separate API
 keys; the production data directory must never be mounted by a development machine or agent.
 
-## Hosting (provisional decision D-009; provider not yet chosen by the owner)
+## Hosting (decision D-009: DigitalOcean)
 
-The owner asked for a simple cloud host: **one small VM with an attached persistent volume
+The owner chose **DigitalOcean** on 2026-10-25. That is a provider choice only: creating
+the account, provisioning, payment, deployment and moving team film to it each still need
+separate explicit approval from the owner.
+
+The plan: **one small VM with an attached persistent volume
 for `FOOTBALLOS_DATA_DIR`, and nightly off-host backups to object storage in the same
 provider.** Each option below is priced for the same reference configuration: 2 vCPU / 4 GB
 server, 100 GB volume, 200 GB object storage. Prices were read from each provider's official
@@ -43,8 +48,8 @@ pricing pages on 2026-10-25, exclude tax, and must be rechecked before provision
 | **Estimate / month** | **$39.00** | **$39.00** | Incomplete; backups would leave the US |
 | Sources | [droplets](https://www.digitalocean.com/pricing/droplets), [volumes](https://www.digitalocean.com/pricing/volumes), [spaces](https://www.digitalocean.com/pricing/spaces-object-storage) | [cpu](https://www.akamai.com/cloud/pricing/cpu), [block storage](https://www.akamai.com/cloud/pricing/block-storage), [object storage](https://www.akamai.com/cloud/pricing/object-storage) | [regular performance](https://www.hetzner.com/cloud/regular-performance), [object storage](https://www.hetzner.com/storage/object-storage) |
 
-Recommendation: **DigitalOcean or Akamai.** They cost the same for this configuration and
-both offer US regions for server, volume and backups in one account. DigitalOcean's optional
+DigitalOcean and Akamai cost the same for this configuration, and both offer US regions
+for server, volume and backups in one account. DigitalOcean's optional
 weekly server backups add 20% of the Droplet price ($4.80). Hetzner is listed for
 completeness, but it fits poorly here: no matching US plan and no US object storage.
 
@@ -96,22 +101,36 @@ only ports 80 and 443. Bind the API to `127.0.0.1`. Allow SSH by key only.
 Media files are added, never rewritten in place, so a database rollback leaves orphaned
 newer media files but does not lose older ones.
 
-## Backups (unverified)
+## Backups
 
-Nightly, via a systemd timer:
+Database backup and restore (tested; implementation in `tools/ops`, workspace `@footballos/ops`):
 
-1. Take a consistent SQLite copy while the service runs: use SQLite's online backup
-   (`sqlite3 footballos.db ".backup backups/footballos-<date>.db"`, or `db.backup()` from
-   better-sqlite3). A plain file copy of a WAL database is only safe after
-   `PRAGMA wal_checkpoint(TRUNCATE)` with writes stopped, so prefer the online backup.
-2. Run `PRAGMA integrity_check` on the copy; fail the backup if it does not return `ok`.
-3. Sync `media/` and the database copy to the Spaces bucket. Keep 14 nightly and 8 weekly
-   database copies.
-4. Write a success or failure line that monitoring alerts on.
+```bash
+# Safe while the API is running. Exits 1 and keeps nothing if any step fails.
+node scripts/backup-sqlite.mjs --db "$FOOTBALLOS_DATA_DIR/footballos.db" \
+  --out "$FOOTBALLOS_DATA_DIR/backups" --keep 14
+
+# Stop the API first. Verifies the checksum and integrity, and refuses to replace an existing
+# database unless --force; the replaced file (and its -wal/-shm) is kept as *.pre-restore.
+node scripts/restore-sqlite.mjs --from <backup.db> --db "$FOOTBALLOS_DATA_DIR/footballos.db" --force
+```
+
+What the backup does: SQLite's online backup API (consistent, including committed WAL
+content), conversion of the copy to a single self-contained file (rollback-journal mode),
+`PRAGMA integrity_check`, fsync, an atomic rename into place, and a `<file>.sha256` sidecar in
+`sha256sum` format. `--keep N` then deletes all but the newest N backups.
+
+Nightly schedule (unverified; needs the host):
+
+1. Run the backup command above from a systemd timer.
+2. Sync `media/` and the newest database copy with its `.sha256` to the Spaces bucket. Keep 14
+   nightly and 8 weekly database copies there.
+3. The script prints `backup ok ...` or `backup FAILED: ...` and exits non-zero on failure;
+   monitoring alerts on a failure or on a missing success line.
 
 The bucket is private, and its access keys can write to the backup bucket only.
 
-## Restore drill (not yet performed)
+## Restore drill
 
 Do this at least once before release and after any storage change, on a separate machine or
 an empty data directory, never over production:
@@ -123,6 +142,7 @@ an empty data directory, never over production:
    right timestamp, and label corrections and plan approval history are present.
 4. Record the date, backup age, time taken, and results in the table below.
 
-| Date | Backup used | Restored by | Duration | Result |
-| --- | --- | --- | --- | --- |
-| — | — | — | — | Not yet performed |
+| Date | Scope | Backup used | Restored by | Duration | Result |
+| --- | --- | --- | --- | --- | --- |
+| 2026-10-25 | **Database tools only, local Mac, synthetic data.** Not an application restore: no `apps/api` schema, media or sign-in exists yet. | Online backup of a 200,000-row WAL-mode database (12.8 MB main file plus 12.9 MB un-checkpointed WAL), taken while a second process held it open | Agent (footballos-11, role F) with `scripts/backup-sqlite.mjs` then `scripts/restore-sqlite.mjs` into an empty directory | Backup 0.57 s, restore 0.56 s | Pass: row count (200,000), distinct segments (5,000) and latest timestamp match the source; `integrity_check` = ok on both; sha256 of the restored file matches the sidecar (`1a8ce49c…`) |
+| — | Full application restore on the DigitalOcean host (steps 1–4 above) | — | — | — | **Not yet performed** |

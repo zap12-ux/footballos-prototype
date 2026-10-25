@@ -117,8 +117,15 @@ for (const { dir, pkg } of workspaces) {
   for (const dep of Object.keys(pkg.devDependencies ?? {})) walk(pkg.name, 'dev', dep, dir, devSeen);
 }
 
-const rows = [...found.values()]
-  .flatMap((e) => [...e.uses].map(([ws, kind]) => ({ ...e, ws, kind })))
+// The same name@version can be installed at several paths; list it once per workspace.
+const rowMap = new Map();
+for (const e of found.values()) {
+  for (const [ws, kind] of e.uses) {
+    const key = `${e.name}@${e.version}|${ws}`;
+    if (rowMap.get(key)?.kind !== 'prod') rowMap.set(key, { ...e, ws, kind });
+  }
+}
+const rows = [...rowMap.values()]
   .sort((a, b) => a.name.localeCompare(b.name) || a.version.localeCompare(b.version) || a.ws.localeCompare(b.ws));
 
 const violations = [];
