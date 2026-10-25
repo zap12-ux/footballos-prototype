@@ -1,0 +1,38 @@
+{
+  "name": "@footballos/agent-console",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Owner-only localhost Agent Build Console: shows the Claude Code agents building FootballOS and routes the owner's answers to the right agent. Not part of the product.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "agentctl": "bin/agentctl.mjs",
+    "leadctl": "bin/leadctl.mjs",
+    "agent-console-mcp": "bin/mcp-server.mjs"
+  },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "fixture:acceptance": "node scripts/fixture-acceptance.mjs"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.17",
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "better-sqlite3": "^13.0.3",
+    "hono": "^4.13.14",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^22.15.0",
+    "tsx": "^4.23.15",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  }
+}
