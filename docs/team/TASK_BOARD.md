@@ -59,10 +59,10 @@ Contract: `docs/team/CONTRACTS.md` §15. Briefs: `B3-backend-milestone-c.md`, `C
 
 | ID | Task | Owner | Status | Depends on | Allowed paths |
 | --- | --- | --- | --- | --- | --- |
-| C1 | Schema `0002_coaching`; playbook intake/review, personnel, recommendations, plans, approval, sharing, exports in the API | B (subagent `backend` #4) | Ready | B7 | `apps/api/**`, `packages/contracts/**` |
+| C1 | Schema `0002_coaching`; playbook intake/review, personnel, recommendations, plans, approval, sharing, exports in the API | B (subagent `backend` #4) | In progress | B7 | `apps/api/**`, `packages/contracts/**` |
 | C2-lib | `extractDocument`, `createDocumentHandlers`, OCR if offline-installable, media `types` export | C (subagent `media` #3) | In progress | B7 | `packages/media/**`, `fixtures/documents/**` |
 | C3-lib | `proposeFromPages`, `buildRecommendations`, `recommendationInputsHash`, `planReviewFlags`, grounding doc | D (subagent `ai` #3) | In progress | B7 | `packages/ai/**`, `docs/ai/**` |
-| C4 | Playbook, Personnel, Game Plans (editor, approvals, comments, sharing, print/PDF), Recommendations panel, shared read-only route | A (subagent `frontend` #3) | Ready | B7 (code against §15) | `apps/web/**` |
+| C4 | Playbook, Personnel, Game Plans (editor, approvals, comments, sharing, print/PDF), Recommendations panel, shared read-only route | A (subagent `frontend` #3) | In progress | B7 (code against §15) | `apps/web/**` |
 | C5 | QA: authorization matrix for approvals/overrides/sharing, concurrent plan edits, stale flags, exports, playbook proposal honesty, a11y of B3/C4 pages | E | Ready | C1–C4 integrated | `tests/e2e/**`, `docs/qa/**` |
 
 ## Milestones D–E
