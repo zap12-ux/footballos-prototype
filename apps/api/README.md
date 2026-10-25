@@ -2,9 +2,11 @@
 
 FootballOS HTTP API: Hono 4 on `@hono/node-server`, SQLite (`better-sqlite3`) with Drizzle ORM,
 invite-only authentication with TOTP MFA, team scoping, schedule services, an append-only audit
-log, resumable film uploads with private storage, and a SQLite-backed job worker that hosts the
-`@footballos/media` (validate, proxy, thumbnails, segment) and `@footballos/ai` (`infer_labels`)
-handlers (Milestone B, CONTRACTS §14). Contracts (zod schemas and types) live in `@footballos/contracts`; this package
+log, resumable film uploads with private storage, a SQLite-backed job worker that hosts the
+`@footballos/media` (validate, proxy, thumbnails, segment, extract_document) and `@footballos/ai`
+(`infer_labels`) handlers (Milestone B, CONTRACTS §14), and the coaching workflow of Milestone C
+(CONTRACTS §15): playbook intake and review, personnel, grounded recommendations, unit game plans
+with approval, sharing and exports. Contracts (zod schemas and types) live in `@footballos/contracts`; this package
 exports `type AppType` from `src/app.ts` so `apps/web` can build a `hono/client` client
 type-only.
 
@@ -27,14 +29,10 @@ Per-worker ports and data directories are in `docs/team/WORKFLOW.md` (B: `PORT=8
 
 Every `npm run <dev|build|typecheck|test|migrate|seed:demo|bootstrap|worker>` in this workspace
 first builds `packages/contracts`, `packages/media` and `packages/ai` (`deps:build` through `pre*`
-scripts): the API resolves contracts and ai through their `dist/` output and takes the media
-package's types from `packages/media/dist/index.d.ts` (`tsconfig.json` `paths`), because its
-source uses `.ts` import specifiers that Node runs natively but `tsc` cannot compile from another
-project. The `tsx` entry points (`dev`, `worker`, `migrate`, `seed:demo`, `bootstrap`) run with
-`--tsconfig tsconfig.tsx.json`, which maps `@footballos/media` to `packages/media/src/index.ts`
-instead: tsx honours `paths` at run time and would otherwise load the `.d.ts` and fail with
-`ERR_MODULE_NOT_FOUND …/dist/types.ts` (QA B6 D-3). Tests alias all three packages to source
-(`vitest.config.ts`).
+scripts): the API resolves contracts and ai through their `dist/` output and the media package
+through its `exports` entry (`types` → `dist/index.d.ts`, `import` → `src/index.ts`, added in
+Milestone C), so the former `tsconfig.json` `paths` workaround is gone; `tsconfig.tsx.json` only
+extends the base config now. Tests alias all three packages to source (`vitest.config.ts`).
 
 ## Worker and the film processing chain
 
@@ -96,6 +94,131 @@ npm run dev -w apps/api
 #   GET  /api/v1/assets/:id/grant       → { streamUrl, thumbUrlTemplate, expiresAt }
 # or run the same flow in-process: npm test -w apps/api -- media.test.ts (uses apps/web/public/demo-film/play-1.mp4)
 ```
+
+## Coaching workflow (Milestone C, CONTRACTS §15)
+
+Schema `0003_coaching` adds `playbook_documents`, `playbook_pages`, `playbook_versions`, `concepts`,
+`terms`, `players` (with `availability` json), `roster_imports`, `depth_charts`, `personnel_packages`,
+`recommendations`, `game_plans`, `plan_versions`, `plan_comments`, `share_links`, and rebuilds
+`media_assets` with a nullable `game_id` (documents are team-level; film stays game-bound). The
+rebuild is why `openDatabase()` now runs migrations with `PRAGMA foreign_keys=OFF` (a no-op inside
+drizzle's migration transaction otherwise) and refuses to start when `PRAGMA foreign_key_check`
+reports violations afterwards. Rehearsed on a copy of the integration database: row counts
+unchanged, no violations.
+
+### Playbook (§15.1)
+- `POST /teams/:teamId/playbook/documents { filename, byteSize, mimeType, sha256?, unit, title? }`
+  → `201 { document, upload, asset }`; then the usual `PUT /uploads/:id` chunks and
+  `POST /uploads/:id/complete`, which enqueues one `extract_document` job (idempotent per sha256 +
+  `DOCUMENT_RENDER_DPI` + `DOCUMENT_OCR` + prompt version). `POST /games/:gameId/uploads` also
+  accepts `kind:'document'` with `unit` (game-bound document). Accepted types:
+  `ALLOWED_DOCUMENT_TYPES` (default `pdf,txt,md`; `docx` works through `mammoth` when added), size
+  cap `MAX_DOCUMENT_BYTES` (default 100 MB). Uploaders: any staff who can upload film.
+- The worker runs `createDocumentHandlers` (`@footballos/media`: pdfjs render + text layer, offline
+  tesseract OCR when its data package is installed) and then `proposeFromPages` (`@footballos/ai`:
+  text heuristics; a page image goes to a model **only** when `MODEL_PROVIDER=anthropic` with a key
+  and under the monthly cap). Results are persisted in the job's transaction: `playbook_pages`
+  (`imageKey`, `ocrText`, `textSource: pdf_text|ocr|none`, `ocrConfidence`, size), `ModelProvenance`
+  rows for any model call, and every proposal as a **`proposed`** concept or term (`basis`, `note`,
+  `sources: [{ documentId, pageNumber, bbox: null, excerpt }]`) in the unit's newest draft playbook
+  version (created as "Draft from <title>" when none exists). The document ends `review` (proposals
+  to look at), `extracted` (nothing proposable: e.g. scanned pages without OCR, which the
+  `extraction` summary says plainly) or `failed` (unreadable / encrypted PDF, reason in
+  `extraction.note`). Nothing is approved by the extractor.
+- `GET /teams/:teamId/playbook/documents?unit=`, `GET /playbook/documents/:id` → `{ document, pages }`,
+  `GET /playbook/documents/:id/grant` → `{ pageUrlTemplate, expiresAt }` (HMAC grant bound to team +
+  asset, `MEDIA_GRANT_TTL_MIN`) and `GET /playbook/pages/:pageId/image?token=` (PNG, `nosniff`,
+  restrictive CSP, no session), `DELETE /playbook/documents/:id` (head coach; file and pages removed,
+  asset record kept as `deleted`, concepts keep their source refs; audit `playbook.document_deleted`).
+- Versions: `GET/POST /teams/:teamId/playbook/versions?unit=&seasonId=`, `GET /playbook/versions/:id`,
+  `GET /playbook/versions/:id/concepts|terms?status=`, `POST /playbook/versions/:id/concepts|terms`
+  (coach-created: `approved`, `sources: []`, `basis: 'none'`), `PATCH /concepts/:id` and
+  `PATCH /terms/:id` (`expectedVersion`; `status`, `name`, `kind`, `description`, `installed`, `note`;
+  a rejected concept is never installed; only drafts change: `409 reason:'not_draft'`),
+  `POST /playbook/versions/:id/approve` → `{ version, superseded }` (the previous approved version of
+  the unit and season becomes `superseded`; audit `playbook.approved` with `override` when the head
+  coach did it). Who: coordinator of the unit or head coach (`policy.canApproveExtraction`).
+
+### Personnel (§15.2)
+- `GET/POST /teams/:teamId/seasons/:seasonId/players?status=` (default hides `inactive`; `all`),
+  `GET/PATCH /players/:id` (`expectedVersion`; `availability: [{ week, status: available|limited|out, note }]`
+  replaces the list), `DELETE /players/:id` (head coach; soft: `inactive`).
+- Roster import shares the CSV parser and the preview/apply shape with schedule imports:
+  `POST /teams/:teamId/seasons/:seasonId/roster-imports { filename, content, mapping? }` auto-maps
+  headers (jersey/number/#, first, last or a single name column "Last, First", positions, class,
+  status, notes), validates per row (`errors[]`) and marks rows that match an existing player on
+  jersey + last name (`matchesPlayerId`); `POST /roster-imports/:id/apply { skipInvalidRows }` →
+  `{ createdPlayerIds, updatedPlayerIds, skippedRows }` (`409` with errors unless skipping);
+  `GET /roster-imports/:id`, `POST /roster-imports/:id/discard`.
+- `GET/PUT /teams/:teamId/seasons/:seasonId/depth-chart?unit=` (`PUT { slots, expectedVersion? }`:
+  omit the version on the first write, afterwards a mismatch is `409` with `currentVersion` and the
+  current chart), `GET/POST …/packages?unit=&week=` (the list carries `availability[]`: a package with
+  a player `out` for `week`, `unavailable` or off the roster is flagged with the reason),
+  `PATCH /packages/:id`. Edits: head coach and coordinators; everyone views. Audit:
+  `roster.edited`, `roster_import.applied`, `player.deleted`, `depth_chart.updated`, `package.changed`.
+
+### Recommendations (§15.3)
+- `POST /games/:gameId/recommendations/generate { unit }` (coordinator of the unit / head coach) →
+  `201 { items, blockedReasons, inputsHash, supersededIds, skipped, packages }` from
+  `buildRecommendations` over the reviewed-only scouting report of the opponent's counterpart unit
+  (a defense plan uses the opponent-offense report), the approved playbook version of the game's
+  season (installed concepts only) and current personnel for the game week. With no approved
+  playbook, no personnel or no findings the result is `[]` plus plain `blockedReasons`. Each stored
+  row keeps `inputsHash` and the component hashes. Re-generating supersedes undecided (`proposed`)
+  rows (`rejected`, `staleReason:'regenerated'`) and leaves decided ones. Audit
+  `recommendation.generated`.
+- `GET /games/:gameId/recommendations?unit=`, `GET /recommendations/:id`: `status` is reported as
+  `stale` with a `staleReason` naming what changed (film labels, approved playbook, personnel or
+  availability) when the stored `inputsHash` no longer matches the current inputs; the stored
+  decision is in `storedStatus` and is never rewritten by a read.
+- `POST /recommendations/:id/decide { decision: accept|edit|reject|defer, editedStatement?, note?, expectedVersion? }`
+  → `{ recommendation, planVersionId, planItemId }`. `accept`/`edit` append a `PlanItem` with
+  `sourceRecommendationId` to the unit's current **draft** plan version (created from the template or
+  from the approved version when none is open; `409` while a version is `in_review`), in the section
+  matching the first grounded concept's kind. Audit `recommendation.decided`.
+
+### Unit game plans, approval, sharing, export (§15.4)
+- `GET /games/:gameId/plans/:unit` → `{ plan, versions, current, reviewFlags }`; first access creates
+  the plan with draft version 1 from the §11 template. `current` is the open draft / in_review
+  version, else the approved one. `reviewFlags` are computed on read for the approved and open
+  versions by `planReviewFlags` against the hashes recorded when the version was created or
+  approved (`baselineHashes`) and the recommendations behind its items; never stored.
+- `PATCH /plan-versions/:id { sections, expectedVersion }` (head coach, or coordinator /
+  position coach assigned to the unit) → `{ version }`; mismatch → `409` with `currentVersion` and
+  the **server copy** (`details.current`) for merging; non-draft → `409 reason:'not_draft'`; section
+  keys must belong to the unit's template.
+- `POST /plan-versions/:id/draft` (new draft `basedOn` an approved version; `409 reason:'draft_exists'`
+  when one is open), `POST /plan-versions/:id/submit` → `in_review`, `POST /plan-versions/:id/approve
+  { note? }` (coordinator of the unit; head coach → `override: true`, audit `plan.override_approved`;
+  the previous approved version becomes `superseded`), `POST /plan-versions/:id/reopen` (in_review →
+  draft; coordinator / head coach). Approved versions are immutable.
+- Comments: `GET/POST /plan-versions/:id/comments { sectionKey?, itemId?, body }` (any member; the
+  anchors must exist in that version), `POST /plan-comments/:id/resolve`.
+- Sharing: `POST /plan-versions/:id/share { expiresInHours ≤ 72 }` (any member; **approved** versions
+  only) → `201 { link, url, token }`: the token (32 random bytes, base64url) is shown **once**; only its
+  sha256 is stored. Default and maximum lifetime 72 h (owner decision 2026-10-25, D-013); longer
+  requests are `400`. `GET /shared/:token` (no session) → `{ version, team, game, unit, expiresAt }`
+  for approved versions; `410 gone` (`details.reason: expired|revoked`) afterwards; unknown tokens
+  `404`. `DELETE /share-links/:id` (creator or head coach), `GET /plan-versions/:id/share-links`,
+  `GET /teams/:teamId/share-links` (head coach). Audit `plan.shared`, `plan.share_revoked`. The URL
+  uses `PUBLIC_ORIGIN` + `/shared/<token>` (the web app's read-only route).
+- Export: `GET /plan-versions/:id/export.html` (self-contained HTML with a print stylesheet, no
+  scripts, no external fonts) and `GET /plan-versions/:id/export.pdf` (`pdf-lib`, Helvetica, title
+  block with team, opponent, week, unit, version, status, approved by/at; one section per template
+  key; footer "Generated by FootballOS <date> · version n"). Both accept a session (any member) or
+  `?token=` of a share link **for that approved version**; a share token never reaches a draft.
+
+Roles on these routes follow CONTRACTS §3 (`src/http/guards.ts` `policy`): every member views and
+comments; staff who upload film also upload documents; head coach and coordinators edit personnel;
+coordinator of the unit or head coach approves extraction, creates playbook versions, generates and
+decides recommendations and reopens plans; plan drafts are edited by the head coach and by
+coordinators / position coaches assigned to the unit; approval is by the unit's coordinator or the
+head coach (recorded as an override). Every record-keyed route resolves the team first and answers
+`404` across teams.
+
+Environment added in Milestone C (`.env.example`): `MAX_DOCUMENT_BYTES`, `ALLOWED_DOCUMENT_TYPES`,
+`DOCUMENT_RENDER_DPI`, `DOCUMENT_OCR`. Dependency added: `pdf-lib` 1.17.1 (MIT) for PDF export (and
+for generating test PDFs).
 
 ## Migrate
 
@@ -170,6 +293,10 @@ audit rows for invites, staff changes, MFA enrollment, recovery and imports.
 | labels (§14.5) | `POST /assets/:assetId/infer` (`202 { jobs }`), `GET /segments/:segmentId/labels`, `GET /assets/:assetId/labels`, `PATCH /labels/:labelId` (correction + `LabelRevision`), `GET /labels/:labelId/revisions`, `POST /assets/:assetId/labels/bulk-accept` (`bulkAcceptPlan`, audit), `GET /assets/:assetId/provenance` |
 | scouting (§14.6) | `GET /teams/:teamId/opponents/:opponentId/scouting?unit=&reviewBasis=&gameIds=` (computed by `buildScoutingReport`), `GET/POST …/scouting/snapshots` |
 | settings (§14.7) | `GET/PATCH /teams/:teamId/settings` (head coach, `expectedVersion`) |
+| playbook (§15.1) | see "Coaching workflow" above |
+| personnel (§15.2) | see "Coaching workflow" above |
+| recommendations (§15.3) | see "Coaching workflow" above |
+| plans / sharing / export (§15.4) | see "Coaching workflow" above |
 
 Authorization on the new routes follows §3: any active member reads; `head_coach`, `coordinator`,
 `position_coach`, `analyst` upload, edit segments, correct labels, start inference and save
@@ -228,6 +355,7 @@ $FOOTBALLOS_DATA_DIR/
   media/<teamId>/<assetId>/proxy.mp4         # playback proxy (job `proxy`)
   media/<teamId>/<assetId>/thumbs.jpg        # thumbnail sheet, thumbs.jpg.json sidecar, thumbs.jpg.frames/ tiles
   media/<teamId>/<assetId>/segments.json     # last segment proposal, for inspection
+  media/<teamId>/<assetId>/pages/page-<n>.png  # rendered playbook pages (job `extract_document`), pages.json sidecar
   uploads/<uploadId>.part                    # partial uploads until completion or expiry (UPLOAD_TTL_HOURS)
   backups/                                   # local backup target (tools/ops)
 ```
@@ -266,7 +394,12 @@ src/jobs/                SqliteJobStore, enqueue helper, worker (handler registr
 src/worker.ts            standalone worker entry (`npm run worker`)
 src/services/media.ts    uploads, completion, chain enqueue, delete, GC, retention
 src/services/storage.ts  private storage layout and permissions
-src/services/grants.ts   HMAC media grants
+src/services/grants.ts   HMAC media grants (also used for playbook page images)
+src/libs/index.ts        the §15.5 library functions the API hosts (media extractDocument handlers, ai proposals/recommendations/flags)
+src/services/playbook.ts documents, extraction persistence, versions, concepts, terms
+src/services/personnel.ts players, roster import (roster-import.ts), depth chart, packages, availability
+src/services/recommendations.ts inputs, generation, stale computation, decisions
+src/services/plans.ts    plans, versions, transitions, comments, review flags; share.ts share links; plan-export.ts HTML/PDF
 ```
 
 Environment variables added in Milestone B (see `.env.example`): `UPLOAD_TTL_HOURS`,

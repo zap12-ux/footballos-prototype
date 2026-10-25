@@ -146,7 +146,7 @@ export type PlaybookDocumentsQuery = z.infer<typeof PlaybookDocumentsQuerySchema
 export const PlaybookDocumentDetailSchema = z.object({ document: PlaybookDocumentSchema, pages: z.array(PlaybookPageSchema) });
 export type PlaybookDocumentDetail = z.infer<typeof PlaybookDocumentDetailSchema>;
 
-/** `GET /playbook/documents/:id/grant` → page images at `pageUrlTemplate` with `{pageNumber}` substituted. */
+/** `GET /playbook/documents/:id/grant` → page images at `pageUrlTemplate` with `{pageId}` substituted (ids from the document detail). */
 export const DocumentGrantSchema = z.object({ pageUrlTemplate: z.string(), expiresAt: TimestampSchema });
 export type DocumentGrant = z.infer<typeof DocumentGrantSchema>;
 
