@@ -14,6 +14,18 @@ import type { ErrorEnvelope, ScheduledGame } from './contracts';
 
 type Method = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
 
+/** `AuthState` as apps/api serializes it (`mfaRequired` rather than the shell's `mfaVerified`). */
+interface RawAuthState {
+  user: Me['user'];
+  mfaRequired: boolean;
+  mfaEnrollmentRequired?: boolean;
+  memberships: Me['memberships'];
+}
+
+function toMe(raw: RawAuthState): Me {
+  return { user: raw.user, mfaVerified: !raw.mfaRequired, memberships: raw.memberships };
+}
+
 export interface HttpApiOptions {
   baseUrl?: string;
   fetchImpl?: typeof fetch;
@@ -69,7 +81,11 @@ export function createHttpApi(options: HttpApiOptions = {}): Api {
     auth: {
       async me() {
         try {
-          return await request<Me>('GET', '/auth/me');
+          const raw = await request<RawAuthState>('GET', '/auth/me');
+          // A session whose MFA step is still pending is not usable for the workspace; the
+          // sign-in page starts over (a new sign-in issues a fresh session). Known limitation.
+          if (raw.mfaRequired) return null;
+          return toMe(raw);
         } catch (error) {
           if (error instanceof ApiError && error.status === 401) return null;
           throw error;
@@ -77,17 +93,19 @@ export function createHttpApi(options: HttpApiOptions = {}): Api {
       },
       async signIn(input): Promise<SignInResult> {
         try {
-          const me = await request<Me>('POST', '/auth/sign-in', input);
-          return { kind: 'signed_in', me };
+          // apps/api answers 200 with `mfaRequired: true` when the password was accepted and
+          // the authenticator code is still needed (CONTRACTS §13); the §2 401 form is kept too.
+          const raw = await request<RawAuthState>('POST', '/auth/sign-in', input);
+          if (raw.mfaRequired) return { kind: 'mfa_required' };
+          return { kind: 'signed_in', me: toMe(raw) };
         } catch (error) {
-          // §2: 401 with details.mfaRequired means the password was accepted and MFA is pending.
           if (error instanceof ApiError && error.status === 401 && error.details.mfaRequired === true) return { kind: 'mfa_required' };
           throw error;
         }
       },
       async verifyMfa(input) {
         await request<unknown>('POST', '/auth/mfa/verify', input);
-        return request<Me>('GET', '/auth/me');
+        return toMe(await request<RawAuthState>('GET', '/auth/me'));
       },
       signOut: () => request<void>('POST', '/auth/sign-out'),
       requestRecovery: (input) => request<void>('POST', '/auth/recovery/request', input),
