@@ -6,9 +6,11 @@ import type { AppConfig } from '../config.js';
  * Private storage layout under FOOTBALLOS_DATA_DIR (CONTRACTS §14, brief B2 deliverable 2):
  *
  *   media/<teamId>/<assetId>/original.<ext>      the uploaded bytes, moved here at completion
- *   media/<teamId>/<assetId>/proxy.mp4           playback proxy (job `proxy`)
- *   media/<teamId>/<assetId>/thumbs/sheet.jpg    thumbnail sheet (job `thumbnails`)
- *   media/<teamId>/<assetId>/thumbs/sheet.jpg.frames/frame-00001.jpg … individual tiles
+ *   media/<teamId>/<assetId>/proxy.mp4           playback proxy (job `proxy`, @footballos/media PROXY_FILENAME)
+ *   media/<teamId>/<assetId>/thumbs.jpg          thumbnail sheet (job `thumbnails`, THUMBNAIL_SHEET_FILENAME)
+ *   media/<teamId>/<assetId>/thumbs.jpg.json     sheet sidecar (mapping) read by thumbTileJpeg
+ *   media/<teamId>/<assetId>/thumbs.jpg.frames/frame-00001.jpg … individual tiles
+ *   media/<teamId>/<assetId>/segments.json       the last segment proposal, for inspection
  *   uploads/<uploadId>.part                      partial uploads until completion or expiry
  *
  * Directories are created 0700 and files 0600: nothing under the data directory is ever
@@ -45,10 +47,6 @@ export function proxyKey(teamId: string, assetId: string): string {
   return path.posix.join(assetDirKey(teamId, assetId), 'proxy.mp4');
 }
 
-export function thumbnailSheetKey(teamId: string, assetId: string): string {
-  return path.posix.join(assetDirKey(teamId, assetId), 'thumbs', 'sheet.jpg');
-}
-
 /** Absolute path for a storage key; refuses keys that would escape the data directory. */
 export function absolutePath(config: AppConfig, key: string): string {
   const abs = path.resolve(config.dataDir, key);
@@ -71,7 +69,6 @@ export function partPath(config: AppConfig, uploadId: string): string {
 export function ensureAssetDir(config: AppConfig, teamId: string, assetId: string): string {
   const dir = absolutePath(config, assetDirKey(teamId, assetId));
   fs.mkdirSync(dir, { recursive: true, mode: DIR_MODE });
-  fs.mkdirSync(path.join(dir, 'thumbs'), { recursive: true, mode: DIR_MODE });
   return dir;
 }
 

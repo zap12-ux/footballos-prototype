@@ -7,6 +7,7 @@ import { policy, requireAuth, requireMembership, assert, type AppEnv } from '../
 import { serialize } from '../services/serialize.js';
 import { createInvite, getTeam, listAudit, listOpenInvites, listStaff, listTeamsForUser, patchStaff, revokeInvite } from '../services/teams.js';
 import { errors } from '../errors.js';
+import { computeUsage } from '../services/usage.js';
 
 const teamParam = z.object({ teamId: IdSchema });
 
@@ -68,11 +69,8 @@ export function teamRoutes(ctx: AppContext) {
     .get('/teams/:teamId/usage', zv('param', teamParam), (c) => {
       const { teamId } = c.req.valid('param');
       requireMembership(c.var.auth, teamId);
-      // Cost rows arrive with the AI jobs (Milestone B); until then the shape is served with zeros.
-      const usage: Usage = {
-        teamId, month: ctx.now().toISOString().slice(0, 7), inputTokens: 0, outputTokens: 0, costUsd: 0,
-        monthlyCostCapUsd: ctx.config.limits.monthlyCostCapUsd, jobsSucceeded: 0, jobsFailed: 0, byKind: [],
-      };
+      // §14.2 cost accounting: sums model_provenance.costUsd for the current UTC month; the cap comes from MONTHLY_COST_CAP_USD.
+      const usage: Usage = computeUsage(ctx, teamId);
       return c.json(usage, 200);
     });
 }
