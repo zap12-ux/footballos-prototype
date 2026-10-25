@@ -46,7 +46,8 @@ Contract: `docs/team/CONTRACTS.md` §14. Briefs: `docs/team/briefs/*-milestone-b
 | B4-lib | `createInferLabelsHandler`, `applyInference` (corrections survive reprocessing), `bulkAcceptPlan` | D (subagent `ai` #2) | Verified (ai vitest 65/65 on integration 9d30d6f) | A5 | `packages/ai/**`, `docs/ai/**` |
 | B4 / B5 | Label routes, inference enqueue, scouting route and snapshots in the API | B (same agent) | Verified (api 68/68 on integration; chain ran end to end on play-1) | B4-lib, B5-lib | `apps/api/**` |
 | B5-lib | `buildScoutingReport`, `snapshotFromReport` | D (same agent) | Verified | — | `packages/ai/**` |
-| B6 | QA: interrupted upload, worker restart, provider failure, correction persistence, counts, a11y of A2/B3 | E (subagent `qa` #2) | In progress (API/worker scope now; UI scope after B3) | B1–B5 integrated | `tests/e2e/**`, `docs/qa/**` |
+| B6 | QA: interrupted upload, worker restart, provider failure, correction persistence, counts, a11y of A2/B3 | E (subagent `qa` #2) | Integrated (API/worker scope: `docs/qa/QA_REPORT_B6.md`; D-1 High stored-XSS via media stream, D-2 lease recovery, D-3 tsx scripts, D-4/5/7 low; UI a11y scope pending) | B1–B5 integrated | `tests/e2e/**`, `docs/qa/**` |
+| B7 | Fix QA B6 defects D-1..D-5, D-7 (CONTRACTS §14.10) | B (subagent `backend` #3) | In progress | B6 | `apps/api/**`, `packages/contracts/**` |
 | K5 | Console defects D-1..D-4, `agentctl wait --poll-until-answered` | console-fix (subagent) | Verified (console 45/45 on re-run after one load-related timing failure, ui 41/41, fixture 52/52 on integration) | K4 | `tools/agent-console/**`, `tools/agent-console-ui/**` |
 
 ## Milestones C–E

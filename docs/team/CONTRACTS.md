@@ -365,8 +365,8 @@ Implemented by B in `apps/api`; consumed by A in `apps/web`; library pieces from
 
 ### 14.9 Adjustments made during implementation (B, 2026-10-25)
 - `processing_jobs` also carries `depends_on_job_id` (chain ordering; a job is claimable only
-  when its dependency `succeeded`); dependents of a failed or canceled job become
-  `failed` with `error.code = 'upstream_failed'`. `JobError.retryable?` added.
+  when its dependency `succeeded`); dependents of a failed job become `failed` and dependents of a canceled job become
+  `canceled`, in both cases with `error.code = 'upstream_failed'` (QA D-6 correction). `JobError.retryable?` added.
   `ProcessingJob.notBeforeAt` and `cancelRequestedAt` are optional in the schema.
 - `MediaAsset.sha256` is `null` while `status = 'uploading'`.
 - Every `PlaySegment` is created with one `Label` row per `LabelKey` (12) in
@@ -378,3 +378,19 @@ Implemented by B in `apps/api`; consumed by A in `apps/web`; library pieces from
 - New env: `UPLOAD_TTL_HOURS`, `MEDIA_GRANT_TTL_MIN`, `WORKER_INLINE`, `WORKER_POLL_MS`,
   `PROXY_HEIGHT`, `THUMBNAIL_EVERY_SEC`; removed `MODEL_ID`, `MAX_FRAMES_PER_SEGMENT` (the
   `FOOTBALLOS_AI_*` names are authoritative).
+
+### 14.10 Decisions after QA B6 (lead, 2026-10-25)
+- A `PATCH /labels/:id` whose `accepted` block equals the current one is a no-op: no version
+  bump, no revision row, `200 { label, changed: false }` (QA D-5).
+- `GET /media/:assetId/stream` and `thumb` serve only assets in `validated|processing|ready`;
+  anything else is `404`. The response `Content-Type` comes from the probe (container), never
+  from the client-supplied `mimeType`; responses carry `Content-Disposition: inline;
+  filename="<assetId>.<ext>"`, `X-Content-Type-Options: nosniff` and a restrictive
+  `Content-Security-Policy: default-src 'none'` (QA D-1).
+- Expired leases are recovered on every maintenance tick and `claim()` may take a `running`
+  row whose lease has expired (QA D-2).
+- A no-key provider failure reports `reason: 'no_api_key'` in its message, distinct from
+  "No model provider is configured"; the cost cap check runs after the provider check so the
+  error names the real cause (QA D-4). `retentionDays` minimum stays 1 (QA O-1).
+- `originalFilename` is sanitized on intake: control characters removed, a stem is required,
+  length capped at 255 (QA D-7).
