@@ -216,8 +216,11 @@ export interface GitInfo {
   branch: string | null;
   ahead: number;
   commits: Array<{ sha: string; subject?: string; message?: string; author?: string; date?: string }>;
-  changedFiles: string[];
+  /** Server v1.1 sends `{ status, path }` (git name-status); plain paths are accepted too. */
+  changedFiles: Array<string | { status?: string; path: string }>;
   mergedIntoIntegration: boolean;
+  exists?: boolean;
+  error?: string | null;
 }
 
 export interface ApiError {

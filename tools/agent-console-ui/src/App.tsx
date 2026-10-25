@@ -7,11 +7,14 @@ import { Queue } from './components/Queue';
 import { Graph } from './components/Graph';
 import { Drawer } from './components/Drawer';
 import { NowContext } from './hooks/NowContext';
+import { useLayoutMode } from './hooks/useLayoutMode';
 
 export function App({ api }: { api?: ApiClient }) {
   const c = useConsole(api);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [focusQuestionId, setFocusQuestionId] = useState<string | null>(null);
+  const [queueOpen, setQueueOpen] = useState(false);
+  const layout = useLayoutMode();
   const snapshot = c.state.snapshot;
 
   const views = useMemo(() => (snapshot ? buildAgentViews(snapshot, c.nowIso) : []), [snapshot, c.nowIso]);
@@ -37,7 +40,12 @@ export function App({ api }: { api?: ApiClient }) {
 
   return (
     <NowContext.Provider value={c.nowIso}>
-    <div className={`app${selected ? ' has-drawer' : ''}${banner ? ' has-banner' : ''}`}>
+    <div
+      className={`app${selected ? ' has-drawer' : ''}${banner ? ' has-banner' : ''}`}
+      data-drawer-mode={layout.drawerMode}
+      data-queue-mode={layout.queueMode}
+      data-testid="app"
+    >
       <TopBar
         runs={c.runs}
         selectedRunId={c.selectedRunId}
@@ -53,7 +61,7 @@ export function App({ api }: { api?: ApiClient }) {
           {banner}
         </div>
       )}
-      <Queue items={queue} onOpen={openQuestion} />
+      <Queue items={queue} onOpen={openQuestion} mode={layout.queueMode} open={queueOpen} onToggle={setQueueOpen} />
       {snapshot ? (
         <Graph snapshot={snapshot} nowIso={c.nowIso} selectedId={selectedId} onSelect={select} />
       ) : (
@@ -69,6 +77,7 @@ export function App({ api }: { api?: ApiClient }) {
           nowIso={c.nowIso}
           api={c.api}
           focusQuestionId={focusQuestionId}
+          mode={layout.drawerMode}
           onClose={() => select(null)}
           onSubmit={c.submitResponse}
         />

@@ -75,26 +75,43 @@ a {
   border: 0;
 }
 
-/* ---------- Layout ---------- */
+/* ---------- Layout ----------
+ * Responsive modes (D-2) are decided in JS (hooks/useLayoutMode.ts) and exposed as data attributes
+ * on .app: data-drawer-mode="docked|overlay" (overlay below 1180 px) and
+ * data-queue-mode="docked|collapsed" (collapsed below 960 px). No hard min-width: usable from 720 px.
+ */
 .app {
   display: grid;
   grid-template-rows: 48px 1fr;
-  grid-template-columns: 300px 1fr;
+  grid-template-columns: 300px minmax(0, 1fr);
   height: 100%;
-  min-width: 1024px;
+  min-width: 0;
+  overflow: hidden;
 }
 
-.app.has-drawer {
-  grid-template-columns: 300px 1fr 400px;
+.app.has-drawer[data-drawer-mode='docked'] {
+  grid-template-columns: 300px minmax(0, 1fr) 400px;
 }
 
 @media (max-width: 1280px) {
   .app {
-    grid-template-columns: 260px 1fr;
+    grid-template-columns: 260px minmax(0, 1fr);
   }
-  .app.has-drawer {
-    grid-template-columns: 240px 1fr 360px;
+  .app.has-drawer[data-drawer-mode='docked'] {
+    grid-template-columns: 240px minmax(0, 1fr) 360px;
   }
+}
+
+/* Queue collapsed: one column, a 40 px toggle bar under the top bar. */
+.app[data-queue-mode='collapsed'] {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 48px 40px 1fr;
+}
+.app[data-queue-mode='collapsed'].has-banner {
+  grid-template-rows: 48px auto 40px 1fr;
+}
+.app[data-queue-mode='collapsed'].has-drawer[data-drawer-mode='docked'] {
+  grid-template-columns: minmax(0, 1fr) 400px;
 }
 
 .topbar {
@@ -105,6 +122,8 @@ a {
   padding: 0 14px;
   background: var(--surface);
   border-bottom: 1px solid var(--line);
+  min-width: 0;
+  overflow: hidden;
 }
 
 .topbar .brand {
@@ -260,6 +279,76 @@ a {
   overflow: auto;
   display: flex;
   flex-direction: column;
+  min-width: 0;
+}
+
+/* Collapsed queue (below 960 px): toggle bar in the grid, list as a left overlay panel. */
+.queue-bar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+.queue-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 10px;
+  max-width: 100%;
+}
+.queue-toggle.has-items {
+  border-color: var(--crimson);
+}
+.queue-toggle-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.queue-toggle-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.queue.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: min(360px, 100%);
+  z-index: 30;
+  border-right: 1px solid var(--line-strong);
+  box-shadow: 12px 0 32px rgba(0, 0, 0, 0.5);
+  outline: none;
+}
+.queue.overlay .panel-head {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  z-index: 1;
+}
+.queue-close {
+  margin-left: auto;
+  text-transform: none;
+  letter-spacing: 0;
+  font-family: var(--sans);
+  font-weight: 500;
+}
+.queue-backdrop,
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(3, 6, 14, 0.55);
+  z-index: 29;
 }
 
 .panel-head {
@@ -546,6 +635,24 @@ a {
   overflow: auto;
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  outline: none;
+}
+/* Overlay drawer (below 1180 px): full height, at most 480 px wide, over the graph. */
+.drawer.overlay {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(480px, 100%);
+  z-index: 30;
+  border-left: 1px solid var(--line-strong);
+  box-shadow: -12px 0 32px rgba(0, 0, 0, 0.5);
+}
+/* D-3: cards scroll to just below the sticky header; Drawer.tsx measures the real height and
+ * overrides this inline before scrolling. */
+.drawer .qcard {
+  scroll-margin-top: 72px;
 }
 .drawer-head {
   display: flex;
@@ -558,6 +665,13 @@ a {
   top: 0;
   background: var(--surface);
   z-index: 1;
+  min-width: 0;
+}
+.drawer-head > div:first-child {
+  min-width: 0;
+}
+.drawer-close {
+  flex: none;
 }
 .drawer-head h2 {
   margin: 0;
@@ -812,4 +926,24 @@ a {
 }
 .app.has-banner {
   grid-template-rows: 48px auto 1fr;
+}
+
+/* Narrow top bar: drop the health prefix text so the controls stay visible down to 720 px. */
+@media (max-width: 959px) {
+  .topbar {
+    gap: 10px;
+  }
+  .topbar .health,
+  .topbar .health > span {
+    white-space: nowrap;
+  }
+  .topbar .health-label,
+  .topbar .health-seq,
+  .topbar .brand small {
+    display: none;
+  }
+  .topbar select {
+    max-width: 180px;
+    text-overflow: ellipsis;
+  }
 }

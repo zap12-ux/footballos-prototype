@@ -37,7 +37,13 @@ const opt = (name) => (flags[name] === undefined || flags[name] === true ? undef
 const runQuery = () => (opt('run') ? `?runId=${encodeURIComponent(opt('run'))}` : '');
 const parseBool = (v) => (v === 'true' || v === true ? true : v === 'false' ? false : fail(`expected true|false, got ${v}`));
 
-switch (`${cmd} ${sub ?? ''}`.trim()) {
+// Two-word commands (`run create`, `agent register`, `task set`, ...) dispatch on "<cmd> <sub>";
+// every other command dispatches on `cmd` alone so a positional argument (`answer <qid>`,
+// `git <agentId>`) is never mistaken for a sub-command (QA defect D-1).
+const TWO_WORD = new Set(['run', 'agent', 'task']);
+const key = TWO_WORD.has(cmd) ? `${cmd} ${sub ?? ''}`.trim() : cmd;
+
+switch (key) {
   case 'run create':
     expectOk(await call('POST', '/api/runs', { kind: need('kind'), label: need('label') }));
     break;

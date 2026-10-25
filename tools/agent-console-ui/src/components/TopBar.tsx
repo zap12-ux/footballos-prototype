@@ -39,7 +39,7 @@ export function TopBar({ runs, selectedRunId, onSelectRun, snapshot, connection,
       <div className="spacer" />
       <div className="health" aria-live="polite">
         <span>
-          latest runtime update:{' '}
+          <span className="health-label">latest runtime update: </span>
           {last ? (
             <>
               <span className="mono">{relativeTime(last, nowIso)}</span>
@@ -52,7 +52,7 @@ export function TopBar({ runs, selectedRunId, onSelectRun, snapshot, connection,
         <span aria-hidden="true">·</span>
         <span className={`dot ${connection}`} aria-hidden="true" />
         <span>
-          {connection} <span className="mono">seq {lastSeq}</span>
+          {connection} <span className="mono health-seq">seq {lastSeq}</span>
         </span>
         <button type="button" className="btn" onClick={onRefresh} title="Refetch the snapshot from the server">
           Refresh

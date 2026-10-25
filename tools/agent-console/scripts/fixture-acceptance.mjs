@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 
 const packageDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const agentctl = path.join(packageDir, 'bin', 'agentctl.mjs');
+const leadctl = path.join(packageDir, 'bin', 'leadctl.mjs');
 const results = [];
 let server;
 let dataDir;
@@ -82,6 +83,26 @@ function runAgentctl(agent, args, timeoutMs = 60000) {
         env: { ...process.env, CONSOLE_URL: server.url, CONSOLE_AGENT_ID: agent.id, CONSOLE_AGENT_TOKEN: agent.token },
         timeout: timeoutMs,
       },
+      (err, stdout, stderr) => {
+        let json = null;
+        try {
+          json = stdout ? JSON.parse(stdout) : null;
+        } catch {
+          json = null;
+        }
+        resolve({ code: err ? (typeof err.code === 'number' ? err.code : 1) : 0, stdout, stderr, json });
+      },
+    );
+  });
+}
+
+/** Run leadctl as a child process with the owner token in the env. Resolves { code, stdout, stderr, json }. */
+function runLeadctl(args, timeoutMs = 30000) {
+  return new Promise((resolve) => {
+    execFile(
+      process.execPath,
+      [leadctl, ...args],
+      { env: { ...process.env, CONSOLE_URL: server.url, CONSOLE_OWNER_TOKEN: server.ownerToken }, timeout: timeoutMs },
       (err, stdout, stderr) => {
         let json = null;
         try {
@@ -282,6 +303,18 @@ async function main() {
   const gitB = await owner('GET', `/api/git/agents/${B.id}`);
   check('git route answers for an existing branch', gitA.status === 200 && typeof gitA.body?.ahead === 'number' && Array.isArray(gitA.body?.commits), gitA.body?.error ?? gitA.status);
   check('git route handles a missing branch gracefully', gitB.status === 200 && gitB.body?.exists === false && /not found/.test(gitB.body?.error ?? ''), gitB.body);
+
+  // ---- leadctl single-word commands with a positional argument (D-1) ---------------------------
+  const askLead = await runAgentctl(B, ['ask', '--task', tB.id, '--question', 'Beta: answered via leadctl?', '--why', 'cli', '--options', 'yes|no', '--recommend', 'yes']);
+  const qLead = askLead.json?.questionId;
+  const leadAnswer = await runLeadctl(['answer', qLead, '--version', '1', '--option', 'yes']);
+  check('leadctl answer <questionId> submits the response (D-1)', leadAnswer.code === 0 && leadAnswer.json?.response?.questionId === qLead && leadAnswer.json?.response?.option === 'yes', leadAnswer.stderr || leadAnswer.json);
+  const waitLead = await runAgentctl(B, ['wait', qLead, '--poll-until-answered', '--ack']);
+  check('answer submitted via leadctl reaches the agent (agentctl wait --poll-until-answered --ack)', waitLead.code === 0 && waitLead.json?.response?.state === 'acknowledged' && waitLead.json?.response?.option === 'yes', waitLead.stderr);
+  const leadGit = await runLeadctl(['git', A.id]);
+  check('leadctl git <agentId> returns git corroboration (D-1)', leadGit.code === 0 && typeof leadGit.json?.exists === 'boolean' && Array.isArray(leadGit.json?.commits), leadGit.stderr || leadGit.json);
+  const leadBad = await runLeadctl(['answer']);
+  check('leadctl answer without an id prints usage, not "unknown command"', leadBad.code === 1 && /questionId is required/.test(leadBad.stderr) && !/unknown command/.test(leadBad.stderr), leadBad.stderr.trim().split('\n')[0]);
 
   // ---- redaction ---------------------------------------------------------------------------------------
   const leak = await runAgentctl(B, ['log', '--message', 'token sk-ABCDEFGHIJKLMNOPQRST and ghp_ABCDEFGHIJKLMNOP']);
