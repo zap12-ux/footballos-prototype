@@ -4,6 +4,8 @@ export { probe, validate, classifyContainer, UploadLimitsSchema, DEFAULT_UPLOAD_
 export type { ProbeResult, UploadLimits, ValidationResult, ContainerKind } from './probe.ts';
 export { makeProxy, makeThumbnailSheet, thumbnailAt, ProxyOptionsSchema, ThumbnailSheetOptionsSchema } from './proxy.ts';
 export type { ProxyOptions, ProxyResult, ThumbnailSheetOptions, ThumbnailSheetResult, ThumbnailAtResult, ProgressInfo } from './proxy.ts';
+export { extractFrames, extractFramesReport, ExtractFramesOptionsSchema, parseShowinfoTimes, jpegDimensions } from './frames.ts';
+export type { ExtractFramesOptions, ExtractedFrame, ExtractFramesReport } from './frames.ts';
 export { toSourceSec, toProxySec, thumbIndexToSourceSec, sourceSecToThumbIndex, thumbRect } from './timemap.ts';
 export type { ProxyTimeMapping, ThumbnailSheetMapping } from './timemap.ts';
 export { motionEnergy, bucketPerSecond, medianFilter, movingAverage, percentile, parseMetadataPrint } from './motion.ts';
