@@ -20,23 +20,23 @@ Installed third-party packages: 389.
 | BSD-3-Clause | 7 |
 | BSD | 2 |
 | UNKNOWN | 1 |
+| (MIT AND Zlib) | 1 |
+| 0BSD | 1 |
 | CC-BY-4.0 | 1 |
 | MPL-2.0 | 1 |
 | MIT-0 | 1 |
 | Unlicense | 1 |
 | GPL-3.0-or-later | 1 |
 | (MIT OR GPL-3.0-or-later) | 1 |
-| (MIT AND Zlib) | 1 |
-| 0BSD | 1 |
 
 ## Exceptions
 
 - **thirty-two@1.0.2** (UNKNOWN): allowlisted. package.json has no license field; the shipped LICENSE.txt is the MIT license text. Transitive dependency of otplib (@otplib/plugin-thirty-two) used for TOTP base32 encoding.
+- **pako@1.0.11** ((MIT AND Zlib)): allowlisted. Compound SPDX expression: MIT plus the permissive Zlib license (OSI-approved, attribution-style). Transitive dependency of jszip via mammoth (.docx text extraction).
 - **caniuse-lite@1.0.30001819** (CC-BY-4.0): allowlisted. Browser-support data table used at build time by browserslist (dev only; its data is not shipped in the built app). Credited here; review if it ever becomes a production dependency.
 - **@csstools/color-helpers@5.1.0** (MIT-0): allowlisted. MIT No Attribution: more permissive than MIT. Dev only (jsdom CSS parsing in tests).
 - **ffmpeg-static@5.3.0** (GPL-3.0-or-later): allowlisted. Ships prebuilt GPL ffmpeg binaries that FootballOS runs as a separate process (spawned tool, not linked into application code). Not redistributed to end users; the app runs on the staff's own host. Revisit before any binary redistribution.
 - **parse-cache-control@1.0.1** (BSD): allowlisted. Transitive dependency of ffmpeg-static's installer (@derhuerst/http-basic), used only at npm install time to download the ffmpeg binary. Declares the bare string 'BSD' (BSD-style permissive license, clause count unspecified in package.json). Not loaded by application code.
-- **pako@1.0.11** ((MIT AND Zlib)): allowlisted. Compound SPDX expression: MIT plus the permissive Zlib license (OSI-approved, attribution-style). Transitive dependency of jszip via mammoth (.docx text extraction).
 - **duck@0.1.12** (BSD): allowlisted. Declares the bare string 'BSD'; shipped license evidence: BSD-style text. Transitive dependency of mammoth (.docx text extraction).
 
 ## Packages
@@ -145,7 +145,9 @@ Installed third-party packages: 389.
 | @otplib/plugin-thirty-two | 12.0.1 | MIT | @footballos/api | prod |
 | @otplib/preset-default | 12.0.1 | MIT | @footballos/api | prod |
 | @otplib/preset-v11 | 12.0.1 | MIT | @footballos/api | prod |
+| @pdf-lib/standard-fonts | 1.0.0 | MIT | @footballos/api | prod |
 | @pdf-lib/standard-fonts | 1.0.0 | MIT | @footballos/media | dev |
+| @pdf-lib/upng | 1.0.1 | MIT | @footballos/api | prod |
 | @pdf-lib/upng | 1.0.1 | MIT | @footballos/media | dev |
 | @rolldown/pluginutils | 1.0.0-beta.27 | MIT | @footballos/agent-console-ui | dev |
 | @rolldown/pluginutils | 1.0.0-beta.27 | MIT | @footballos/web | dev |
@@ -618,6 +620,7 @@ Installed third-party packages: 389.
 | opencollective-postinstall | 2.0.3 | MIT | @footballos/media | prod |
 | option | 0.2.4 | BSD-2-Clause | @footballos/media | prod |
 | otplib | 12.0.1 | MIT | @footballos/api | prod |
+| pako | 1.0.11 | (MIT AND Zlib) | @footballos/api | prod |
 | pako | 1.0.11 | (MIT AND Zlib) | @footballos/media | prod |
 | parse-cache-control | 1.0.1 | BSD | @footballos/media | prod |
 | parse5 | 7.3.0 | MIT | @footballos/agent-console-ui | dev |
@@ -641,6 +644,7 @@ Installed third-party packages: 389.
 | pathval | 2.0.1 | MIT | @footballos/media | dev |
 | pathval | 2.0.1 | MIT | @footballos/ops | dev |
 | pathval | 2.0.1 | MIT | @footballos/web | dev |
+| pdf-lib | 1.17.1 | MIT | @footballos/api | prod |
 | pdf-lib | 1.17.1 | MIT | @footballos/media | dev |
 | pdfjs-dist | 6.4.299 | Apache-2.0 | @footballos/media | prod |
 | picocolors | 1.1.1 | ISC | @footballos/agent-console | dev |
@@ -822,6 +826,7 @@ Installed third-party packages: 389.
 | tr46 | 5.1.1 | MIT | @footballos/agent-console-ui | dev |
 | tr46 | 5.1.1 | MIT | @footballos/web | dev |
 | ts-algebra | 2.0.0 | MIT | @footballos/ai | prod |
+| tslib | 1.14.1 | 0BSD | @footballos/api | prod |
 | tslib | 1.14.1 | 0BSD | @footballos/media | dev |
 | tsx | 4.23.15 | MIT | @footballos/agent-console | dev |
 | tsx | 4.23.15 | MIT | @footballos/api | dev |
