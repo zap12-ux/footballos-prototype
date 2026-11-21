@@ -19,6 +19,7 @@ import {
 const u = (n: number) => `${String(n).padStart(8, "0")}-0000-4000-8000-000000000000`;
 const TEAM = u(1), OPP = u(2), GAME = u(3), G1 = u(11), G2 = u(12), ASSET = u(21), SEASON = u(30), VERSION = u(40), OLD_VERSION = u(41);
 const NOW = () => new Date("2026-10-25T18:00:00.000Z");
+const TS = "2026-10-25T17:00:00.000Z";
 let idn = 0;
 const newId = () => u(9000 + idn++);
 
@@ -45,7 +46,7 @@ const findings: ScoutingFinding[] = [
 ];
 
 function concept(id: number, kind: Concept["kind"], name: string, extra: Partial<Concept> = {}): Concept {
-  return { id: u(200 + id), teamId: TEAM, versionId: VERSION, name, kind, description: "", installed: true, sources: [], status: "approved", version: 1, ...extra };
+  return { id: u(200 + id), teamId: TEAM, versionId: VERSION, name, kind, description: "", installed: true, sources: [], status: "approved", basis: "text", note: "", decidedBy: null, decidedAt: null, version: 1, createdAt: TS, updatedAt: TS, ...extra };
 }
 const concepts: Concept[] = [
   concept(1, "front", "Over"),
@@ -59,16 +60,16 @@ const concepts: Concept[] = [
 ];
 
 function player(id: number, lastName: string, extra: Partial<PersonnelPlayer> = {}): PersonnelPlayer {
-  return { id: u(300 + id), teamId: TEAM, seasonId: SEASON, jersey: String(id), firstName: "Demo", lastName, positions: ["LB"], classYear: "JR", status: "active", strengths: [], developmentPriorities: [], notes: "", version: 1, ...extra };
+  return { id: u(300 + id), teamId: TEAM, seasonId: SEASON, jersey: String(id), firstName: "Demo", lastName, positions: ["LB"], classYear: "JR", status: "active", strengths: [], developmentPriorities: [], notes: "", availability: [], version: 1, createdAt: TS, updatedAt: TS, ...extra };
 }
 const players: PersonnelPlayer[] = [
   player(1, "Alpha"),
   player(2, "Bravo", { availability: [{ week: 5, status: "out", note: "ankle" }] }),
-  player(3, "Charlie", { availability: [{ week: 5, status: "limited", note: null }, { week: 4, status: "out", note: null }] }),
+  player(3, "Charlie", { availability: [{ week: 5, status: "limited", note: "" }, { week: 4, status: "out", note: "" }] }),
   player(4, "Delta", { status: "inactive" }),
 ];
 function pkg(id: number, name: string, playerIds: string[], unit: PersonnelPackage["unit"] = "defense"): PersonnelPackage {
-  return { id: u(400 + id), teamId: TEAM, seasonId: SEASON, unit, name, playerIds, description: "", version: 1 };
+  return { id: u(400 + id), teamId: TEAM, seasonId: SEASON, unit, name, playerIds, description: "", version: 1, createdAt: TS, updatedAt: TS };
 }
 const packages: PersonnelPackage[] = [
   pkg(1, "Base", [u(301)]),
@@ -291,10 +292,10 @@ describe("recommendationInputsHash", () => {
     expect(recommendationInputHashes(inputs({ playbook: { ...base.playbook, versionId: OLD_VERSION } })).playbookHash).not.toBe(parts.playbookHash);
 
     // Availability, week, package membership, depth chart.
-    const a2 = recommendationInputHashes(inputs({ personnel: { ...base.personnel, players: players.map((p) => (p.id === u(301) ? { ...p, availability: [{ week: 5, status: "out" }] } : p)) } }));
+    const a2 = recommendationInputHashes(inputs({ personnel: { ...base.personnel, players: players.map((p) => (p.id === u(301) ? { ...p, availability: [{ week: 5, status: "out", note: "" }] } : p)) } }));
     expect(a2.personnelHash).not.toBe(parts.personnelHash);
     expect(recommendationInputHashes(inputs({ personnel: { ...base.personnel, week: 6 } })).personnelHash).not.toBe(parts.personnelHash);
-    expect(recommendationInputHashes(inputs({ personnel: { ...base.personnel, depthChart: { id: u(500), teamId: TEAM, seasonId: SEASON, unit: "defense", slots: [], version: 3 } } })).personnelHash).not.toBe(parts.personnelHash);
+    expect(recommendationInputHashes(inputs({ personnel: { ...base.personnel, depthChart: { id: u(500), teamId: TEAM, seasonId: SEASON, unit: "defense", slots: [], version: 3, updatedAt: TS } } })).personnelHash).not.toBe(parts.personnelHash);
 
     // Different game or unit → different combined hash, same components.
     const g2 = recommendationInputHashes(inputs({ gameId: u(4) }));

@@ -271,7 +271,8 @@ export function createMockApi(options: MockApiOptions = {}): Api {
     for (const [assetId, chain] of byAsset) {
       const job = chain[0];
       const asset = db.assets.find((a) => a.id === assetId);
-      if (!asset) continue;
+      // Documents (`gameId: null`, §15.1) never carry film jobs; only game film is simulated.
+      if (!asset || !asset.gameId) continue;
       const ts = nowIso();
       if (job.status === 'queued') {
         Object.assign(job, { status: 'running', attempt: 1, startedAt: ts, workerId: 'worker-demo', leaseExpiresAt: new Date(Date.now() + 60_000).toISOString(), progress: { done: 0, total: SIMULATED_STEPS, message: `${humanKind(job.kind)} started` } });
@@ -684,6 +685,7 @@ export function createMockApi(options: MockApiOptions = {}): Api {
       async createSegment(assetId, input) {
         requireLabeler();
         const asset = assetOrFail(assetId);
+        if (!asset.gameId) fail('conflict', 'Only game film has plays; this asset is a document.', 409);
         if (input.endSec <= input.startSec) fail('validation_error', 'A play must end after it starts.', 400);
         const segment = newSegment({ teamId: asset.teamId, assetId: asset.id, gameId: asset.gameId }, input.startSec, input.endSec, 'coach_created', 'accepted');
         liveSegments(assetId);
