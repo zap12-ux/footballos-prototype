@@ -15,7 +15,7 @@ tools/review-agents/run.sh position-coach round-2
 
 Each invocation starts one fresh Codex session and one local instance of the web app in mock mode. Use Node/npm as specified by the app, a signed-in Codex CLI (or a native Codex agent), Python 3.10+ with `jsonschema`, and a working browser automation tool when available. For Python Playwright, install `playwright` and its Chromium browser or use an installed Chromium executable. The launcher runs `npm install`, `npm run typecheck`, `npm test` and `npm run dev:web` in a temporary copy of the current working tree. Each review sees the current application, including local iteration changes. Only its own outputs are copied back. The round number labels a review of the current checkout. It does not select or change the application revision.
 
-The launcher prints the two report paths and up to five ranked findings with the verdict. If a project check fails, it records the exit status in the report, completes the review and returns a nonzero exit after publishing the validated files. Reports, screenshots and the shared validator can be used without Codex. To check a published report in its reviewed checkout, run `python3 tools/review-agents/report.py tools/review-agents/reports/round-1/head-coach.json`. Use [the round comparison instructions](compare.md) for the second round.
+The launcher prints the report paths, the measured success criteria, up to five findings with their cost-of-delay ranks and MoSCoW tags, Q11–Q13 and the verdict. If a project check fails, it records the exit status in the report, completes the review and returns a nonzero exit after publishing the validated files. Reports, screenshots and the shared validator can be used without Codex. To check a published report in its reviewed checkout, run `python3 tools/review-agents/report.py tools/review-agents/reports/round-1/head-coach.json`. Use [the round comparison instructions](compare.md) for the second round.
 
 The three native Codex roles are `footballos_head_coach`, `footballos_coordinator` and `footballos_position_coach`. Each points to one role file under `agents/`. The shell entry point passes that same role file and this protocol to a fresh agent. Use one role per session, with a fresh browser context and the matching demo account. Keep the other interviews and reports out of the session. When invoked inside Codex, the native definition runs the same launcher with `--native` and conducts the session itself. The launcher prints a temporary working directory and instruction file, keeps Vite running, and validates the agent’s output when it signals completion. This path uses the active Codex session’s authentication.
 
@@ -27,6 +27,23 @@ Use only the fictional demo team and local mock data. Use role titles, jersey nu
 
 Use browser automation to interact with the running UI and capture screenshots of consequential states, including dialogs *before* confirming and any denial or redirect. Use normal controls and direct navigation to documented routes. If browser automation cannot run, still start the app, run the checks and inspect the pages, screens, film components, routes and mock handlers under `apps/web/src`. Describe the loss of live coverage. Do not turn a handler, screenshot of another build, successful HTTP response, or passing test into an observed interaction.
 
+## Phase 0 · Success criteria
+
+Before the first landing-page view, the launcher writes the role’s task IDs, UTC time and four targets to `.session/phase-0.json`. The report repeats those targets and measures each as **Met** or **Not met** in its header. All four must be met for the role to meet its goal. This applies Perri’s outcome-based definition of done (2018, ch. 19).
+
+| Goal fixed before the session | How to decide |
+| --- | --- |
+| At least 80% of role tasks completed unaided | Divide the number coded `unaided` by **all** H, C or P tasks **plus W1**. This gives seven tasks for the head coach and eight for each other role. Retain blocked tasks in the denominator. G1–G5 are shared orientation tasks. Evaluate the exact fraction before rounding. |
+| Zero findings of silent loss of coach input | Follow recognizable, fictional input through a normal save, approval, navigation or hand-off, then reopen the destination. Record the input, triggering action, warning or absence of one, and the value before and after. Count distinct findings in which the action silently discarded a pending or saved coach entry. An explicit informed discard or a disabled feature alone does not establish loss. Zero observed losses meets the goal in a live session with an exercised input check. |
+| Every AI output encountered reaches its supporting evidence within two interactions | Start on the displayed proposal. Count each deliberate interaction to reach its actual supporting play, frame, source document or reviewed finding. Supporting evidence already visible takes zero. A substitute clip at the wrong time, a contrary example alone or a dead link fails. Continue counting beyond two if evidence is eventually reached. |
+| The persona would use this version in season | Preserve the actual `would_use` answer and its condition. A current `yes` meets the adoption goal. `conditional` and `no` are reported as given and scored Not met. |
+
+Record each input probe in `input_checks` with its task ID, the before/action/after observation in `probe`, the result (`preserved`, `warned`, `lost` or `unverified`) and a current screenshot or source citation. Every `lost` row cites the ID of a finding tagged `data_loss: true`. Use null in the other rows. Record a lack of a live test as unverified.
+
+Inventory **all distinct AI outputs presented in the reviewed task flow**, including W1. Include proposed cuts, labels or abstentions, scouting claims under each review basis, extraction candidates, recommendations or AI-derived plan items, and prototype grades/focus where encountered. List the viewed routes, role and scope limitations in `ai_evidence.scope`. If a feature is unavailable, record the blocked task and count only the outputs actually presented. For each output, record its route and identity, task ID, ordered `actions` from its display, result, observed destination and a primary evidence reference. Use `reached` only when the evidence can actually be inspected, `wrong_target` for an unusable or unrelated destination, `missing` when no support is available, and `unverified` for an untested output. A checked explanation of what made a play ungradable can support an abstention. A confidence badge alone cannot support a prediction.
+
+Count a repeated appearance of the same output and basis once. For a large grid, group only explicitly identified members with identical routes, action sequences and results. Credit a group as reached only if **every** member was individually verified in the live UI. Put displayed but untested members in separate unverified rows and explain any unknown scope. Set `complete` only when the inventory accounts for everything encountered, including unverified entries. The header gives the count reaching support in at most two actions over the full inventory. An empty or incomplete inventory, or any unverified item, cannot meet this goal. The result applies to the observed role workflow. After freezing the task counts, revisit the remaining outputs through the same role’s UI. Keep these audit actions outside the unaided task and W1 counts. Record any fresh browser context or recreated fixture in the inventory scope.
+
 ## Phase 1 · Expectations
 
 Visit only the public landing page. In the supplied review work directory, save the three answers as a JSON array in `expectations.json` before opening sign-in or another screen. Use only what the landing page communicates. In a source-only run inspect the landing component alone for this step and say so. The earlier moderator preparation is not knowledge the persona gained from the landing page.
@@ -37,7 +54,7 @@ Visit only the public landing page. In the supplied review work directory, save 
 
 ## Phase 2 · Task walkthrough
 
-Give the persona a goal, a success criterion and room to act before using a hint. Keep the first attempt and any misunderstanding even if corrected later. Run G1–G5 in order, then the role tasks in the chosen definition. Count deliberate clicks, selections, submissions, navigations or key presses. Count a typed field value as one action. Exclude automated waits, screenshots and source reads. Use zero when no interface action was possible. These are reproducible interaction counts, not measurements of coach time.
+Give the persona a goal, a success criterion and room to act before using a hint. Keep the first attempt and any misunderstanding even if corrected later. Run G1–G5 in order, the original role tasks, and finally W1. Count deliberate clicks, selections, submissions, navigations or key presses. Count a typed field value as one action. Exclude automated waits, screenshots and source reads. Use zero when no interface action was possible. These are reproducible interaction counts, not measurements of coach time.
 
 | ID | Prompt and success check |
 | --- | --- |
@@ -53,9 +70,21 @@ Use the human protocol's neutral prompts, blind decision, evidence inspection, c
 
 For each task record the attempted action, observed result, completion, step count, a concrete evidence reference and one first-person think-aloud note. Use `unaided` for success through the UI, `with_help` for success after looking up a hint (name it), `wrong` when the persona finished with the wrong outcome or interpretation, and `abandoned` when the goal remained unmet. A correctly enforced denial can complete G5 unaided. For source-only work use `abandoned` on tasks requiring unobserved interaction, retain any actual earlier steps and label the inference. Tie a missing route, feature or fixture that prevents a task to a finding, with severity reflecting the effect on that role. If the review environment itself is unavailable, report the run as blocked outside the product findings.
 
+### W1 · Weekly cycle scenario
+
+Run W1 as a separate, continuous work period in the persona’s setting (Perri, 2018, ch. 24). Use one game/week or asset and carry each result into the next stage. Count the actions again as they happen in W1. A clean sign-in before W1 is acceptable when an earlier exercise has exhausted a fixture. Describe that setup and keep context through the scenario. Document the destination or missing hand-off, which work had to move to another tool, and where the routine stalled. The scenario is unaided only if its full goal was reached unaided.
+
+| Role | Stages in order |
+| --- | --- |
+| Head coach | Sunday staff check. Identify decisions owed, follow an item awaiting approval, then establish what a parent could see. Stage IDs are `decisions_owed`, `awaiting_approval`, `parent_access`. |
+| Offensive coordinator | Carry Sunday self-scout into opponent breakdown, a draft, Monday install and approval for the same game. Stage IDs are `self_scout`, `opponent_breakdown`, `draft_plan`, `monday_install`, `approval`. |
+| Offensive-line coach | Grade one asset on Saturday night from the queue through labels, corrections and hand-off to the unit. Stage IDs are `queue`, `labels`, `corrections`, `handoff`. |
+
+In the W1 task add `context` (the game, unit or asset) and ordered `stages`. Each stage records its ID, actual steps, the observable result carried forward and evidence. A blocked stage stays in the sequence with its actual count, including zero where appropriate. Sum these counts into W1’s `steps`. The task’s `note` records the persona’s experience of doing this as part of the week.
+
 ## Phase 3 · Interview
 
-Answer all ten questions in order, in the first person. Refer to specific actions and screens from this session. “I couldn't tell” is a legitimate answer. Repeat a conditional adoption decision in the verdict.
+Answer all thirteen questions in order, in the first person. Refer to specific actions and screens from this session. “I couldn't tell” is a legitimate answer. Repeat a conditional adoption decision in the verdict.
 
 1. First impression in one sentence.
 2. Did the product match what the landing page led you to expect? Where not?
@@ -67,10 +96,15 @@ Answer all ten questions in order, in the first person. Refer to specific action
 8. What should they not touch?
 9. Would you use this during the season? Would you recommend it to your staff? Answer yes, no or conditional, with the condition.
 10. Anything else.
+11. Is the problem this solves one you would switch tools for? What do you use today and what would make this better enough to switch?
+12. Would you choose to use this on your own time, unprompted? If not, why not?
+13. What single outcome would you measure to know it worked for you this season?
+
+Q1–Q10 preserve the initial interview. Q11–Q13 probe switching costs, voluntary demand and one measurable outcome (Cagan, 2017, ch. 51). Record the simulated persona’s proposed season measure as a target for a future trial.
 
 ## Phase 4 · Findings, keep list and verdict
 
-Use the exact schema in [report.schema.json](report.schema.json). The findings use a neutral reviewer voice for the observation, expectation, severity and proposed change. Only the explicitly simulated quote is in character. Assign stable role IDs such as HC-01, OC-01 or PC-01. Rank distinct findings starting at 1 by effect on this role's work. Keep their IDs stable when their ranks change. Show the top five, or all verified findings if fewer than five exist. Never fill a quota by inventing an observation.
+Use the exact schema in [report.schema.json](report.schema.json). The findings use a neutral reviewer voice for the observation, expectation, severity and proposed change. Only the explicitly simulated quote is in character. Assign stable role IDs such as HC-01, OC-01 or PC-01. Rank distinct findings starting at 1 by qualitative cost of delay. Keep their IDs stable when their ranks change. Show the top five, or all verified findings if fewer than five exist. Never fill a quota by inventing an observation.
 
 | Severity | Effect |
 | --- | --- |
@@ -79,6 +113,12 @@ Use the exact schema in [report.schema.json](report.schema.json). The findings u
 | minor | The user could complete it with friction. |
 | cosmetic | Presentation issue with no observed task impact. |
 
+For every finding, rate `urgency` and `value` as high (3), medium (2) or low (1). Rate urgency high when another week risks lost inputs or a deadline, medium for recurring rework with a workaround, and low for deferrable friction. Rate value high when a fix restores a core decision or trust boundary, medium when it materially improves a usable workflow, and low for a small convenience. Explain both in `weekly_cost` using the task’s evidence. Perri (2018, ch. 19) informs the focus on outcomes and Javed (2025) discusses prioritization across stakeholders. The weights express this kit’s qualitative judgement of weekly cost of delay. The renderer multiplies urgency by value and orders findings by decreasing product, then higher urgency, then ascending numeric finding ID. Severity continues to describe task impact.
+
+Assign `moscow` as `must` for a release condition, `should` for an important fix with a viable temporary workflow, `could` for a discretionary improvement or `wont` for work deferred this iteration. Set `stakeholder` to the role with authority to veto the affected decision, using `head_coach`, `athletic_director`, `coordinator` or `none` when no separate veto is implicated (Cagan, 2017, ch. 61). MoSCoW and severity are reported separately from the score.
+
 Each finding names the route and element, what happened, the role's expectation, evidence, a one-sentence proposed change, and the persona's simulated words. Store the narrowest adequate primary evidence reference as a string. Use `ui: evidence/<role>/<run-id>/<file>.png`, relative to the report's round directory, for a screenshot captured in this run. For implementation evidence use `source: apps/web/src/.../Component.tsx:42` with a repository-relative path and a real 1-based line. Label any interpretation from code explicitly in the observation. Task evidence uses the same syntax. Describe cross-checks in the observation. Keep items name the control and the specific behavior an iteration must preserve. The verdict records both use and recommendation as yes, no or conditional, with a reason or a condition for each as appropriate.
 
-The Markdown order is disclaimer, persona, expectations, task table, interview, ranked findings, keep list, verdict. The renderer uses the same reviewed JSON for the Markdown, ranking and printed summary. The Markdown header records the checkout, evidence methods and check results. The JSON carries the same disclaimer and shared fields for all roles. Keep simulated quotes inside these labeled reports. Use round 1 as the comparison baseline only after the matching role has completed its review on the intended product.
+End with **Learnings** (Cagan, 2017, ch. 62). Write one specific takeaway each for what worked, what did not and what to try next. Tie the next trial to a decision or measurable outcome from this session.
+
+The Markdown order is disclaimer and Phase 0 scorecard, persona, expectations, task table with W1 and evidence checks, interview, ranked findings, keep list, verdict and Learnings. The runner derives `phase_0`, `success_criteria`, and each finding’s `cost_of_delay` and `rank` from the frozen goals and raw observations. The renderer uses the same reviewed JSON for the Markdown, ranking and printed summary. The Markdown header records the checkout, evidence methods and check results. The JSON carries the same disclaimer and shared fields for all roles. Keep simulated quotes inside these labeled reports. Use round 1 as the comparison baseline only after the matching role has completed its review on the intended product.

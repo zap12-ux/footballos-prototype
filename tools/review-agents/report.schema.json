@@ -26,6 +26,146 @@
       "type": "string",
       "format": "date-time"
     },
+    "phase_0": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "set_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "role_task_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^([GHCP][1-7]|W1)$"
+          },
+          "minItems": 7
+        },
+        "unaided_percent_min": {
+          "const": 80
+        },
+        "data_loss_max": {
+          "const": 0
+        },
+        "evidence_interactions_max": {
+          "const": 2
+        },
+        "would_use_target": {
+          "const": "yes"
+        }
+      },
+      "required": [
+        "set_at",
+        "role_task_ids",
+        "unaided_percent_min",
+        "data_loss_max",
+        "evidence_interactions_max",
+        "would_use_target"
+      ]
+    },
+    "success_criteria": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "role_tasks": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "met": {
+              "type": "boolean"
+            },
+            "unaided": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "total": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "met",
+            "unaided",
+            "total"
+          ]
+        },
+        "data_loss": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "met": {
+              "type": "boolean"
+            },
+            "finding_ids": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^(HC|OC|PC)-[0-9]{2,}$"
+              },
+              "minItems": 0
+            }
+          },
+          "required": [
+            "met",
+            "finding_ids"
+          ]
+        },
+        "ai_evidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "met": {
+              "type": "boolean"
+            },
+            "within_budget": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "total": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "met",
+            "within_budget",
+            "total"
+          ]
+        },
+        "would_use": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "met": {
+              "type": "boolean"
+            },
+            "answer": {
+              "type": "string",
+              "enum": [
+                "yes",
+                "no",
+                "conditional"
+              ]
+            }
+          },
+          "required": [
+            "met",
+            "answer"
+          ]
+        },
+        "overall_met": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "role_tasks",
+        "data_loss",
+        "ai_evidence",
+        "would_use",
+        "overall_met"
+      ]
+    },
     "method": {
       "type": "object",
       "additionalProperties": false,
@@ -60,8 +200,134 @@
       "items": {
         "$ref": "#/$defs/task"
       },
-      "minItems": 11,
-      "maxItems": 12
+      "minItems": 12,
+      "maxItems": 13
+    },
+    "input_checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "pattern": "^([GHCP][1-7]|W1)$"
+          },
+          "probe": {
+            "type": "string",
+            "minLength": 1
+          },
+          "result": {
+            "type": "string",
+            "enum": [
+              "preserved",
+              "warned",
+              "lost",
+              "unverified"
+            ]
+          },
+          "finding_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(HC|OC|PC)-[0-9]{2,}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidence": {
+            "$ref": "#/$defs/evidence"
+          }
+        },
+        "required": [
+          "task_id",
+          "probe",
+          "result",
+          "finding_id",
+          "evidence"
+        ]
+      },
+      "minItems": 1
+    },
+    "ai_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "complete": {
+          "type": "boolean"
+        },
+        "scope": {
+          "type": "string",
+          "minLength": 1
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "task_id": {
+                "type": "string",
+                "pattern": "^([GHCP][1-7]|W1)$"
+              },
+              "output": {
+                "type": "string",
+                "minLength": 1
+              },
+              "route": {
+                "type": "string",
+                "pattern": "^/"
+              },
+              "count": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "actions": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "minItems": 0
+              },
+              "result": {
+                "type": "string",
+                "enum": [
+                  "reached",
+                  "missing",
+                  "wrong_target",
+                  "unverified"
+                ]
+              },
+              "observed": {
+                "type": "string",
+                "minLength": 1
+              },
+              "evidence": {
+                "$ref": "#/$defs/evidence"
+              }
+            },
+            "required": [
+              "task_id",
+              "output",
+              "route",
+              "count",
+              "actions",
+              "result",
+              "observed",
+              "evidence"
+            ]
+          },
+          "minItems": 0
+        }
+      },
+      "required": [
+        "complete",
+        "scope",
+        "checks"
+      ]
     },
     "interview": {
       "type": "array",
@@ -72,7 +338,7 @@
           "q": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 10
+            "maximum": 13
           },
           "answer": {
             "type": "string",
@@ -84,8 +350,8 @@
           "answer"
         ]
       },
-      "minItems": 10,
-      "maxItems": 10
+      "minItems": 13,
+      "maxItems": 13
     },
     "findings": {
       "type": "array",
@@ -130,6 +396,29 @@
         "condition",
         "would_recommend"
       ]
+    },
+    "learnings": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "worked": {
+          "type": "string",
+          "minLength": 1
+        },
+        "did_not": {
+          "type": "string",
+          "minLength": 1
+        },
+        "try_next": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "worked",
+        "did_not",
+        "try_next"
+      ]
     }
   },
   "required": [
@@ -137,13 +426,18 @@
     "role",
     "round",
     "generated_at",
+    "phase_0",
+    "success_criteria",
     "method",
     "expectations",
     "tasks",
+    "input_checks",
+    "ai_evidence",
     "interview",
     "findings",
     "keep",
-    "verdict"
+    "verdict",
+    "learnings"
   ],
   "$defs": {
     "evidence": {
@@ -156,7 +450,7 @@
       "properties": {
         "id": {
           "type": "string",
-          "pattern": "^[GHCP][1-7]$"
+          "pattern": "^([GHCP][1-7]|W1)$"
         },
         "title": {
           "type": "string",
@@ -189,6 +483,17 @@
         "note": {
           "type": "string",
           "minLength": 1
+        },
+        "context": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/stage"
+          },
+          "minItems": 3
         }
       },
       "required": [
@@ -200,6 +505,39 @@
         "observed",
         "evidence",
         "note"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "id": {
+                "const": "W1"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "context",
+              "stages"
+            ]
+          },
+          "else": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "context"
+                  ]
+                },
+                {
+                  "required": [
+                    "stages"
+                  ]
+                }
+              ]
+            }
+          }
+        }
       ]
     },
     "finding": {
@@ -253,6 +591,48 @@
         "rank": {
           "type": "integer",
           "minimum": 1
+        },
+        "urgency": {
+          "$ref": "#/$defs/level"
+        },
+        "value": {
+          "$ref": "#/$defs/level"
+        },
+        "weekly_cost": {
+          "type": "string",
+          "minLength": 1
+        },
+        "moscow": {
+          "type": "string",
+          "enum": [
+            "must",
+            "should",
+            "could",
+            "wont"
+          ]
+        },
+        "stakeholder": {
+          "type": "string",
+          "enum": [
+            "head_coach",
+            "athletic_director",
+            "coordinator",
+            "none"
+          ]
+        },
+        "data_loss": {
+          "type": "boolean"
+        },
+        "cost_of_delay": {
+          "type": "integer",
+          "enum": [
+            1,
+            2,
+            3,
+            4,
+            6,
+            9
+          ]
         }
       },
       "required": [
@@ -266,7 +646,49 @@
         "evidence",
         "proposed_change",
         "quote",
-        "rank"
+        "rank",
+        "urgency",
+        "value",
+        "weekly_cost",
+        "moscow",
+        "stakeholder",
+        "data_loss",
+        "cost_of_delay"
+      ]
+    },
+    "level": {
+      "type": "string",
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ]
+    },
+    "stage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "steps": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "observed": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence": {
+          "$ref": "#/$defs/evidence"
+        }
+      },
+      "required": [
+        "id",
+        "steps",
+        "observed",
+        "evidence"
       ]
     }
   }

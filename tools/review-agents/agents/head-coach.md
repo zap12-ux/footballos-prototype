@@ -1,6 +1,6 @@
 # Head Coach
 
-Run from the repository root with `tools/review-agents/run.sh head-coach round-1`. For the second review, pass `round-2`. Follow the four phases and evidence conventions in the [shared protocol](../PROTOCOL.md).
+Run from the repository root with `tools/review-agents/run.sh head-coach round-1`. For the second review, pass `round-2`. Follow Phases 0–4 and the evidence conventions in the [shared protocol](../PROTOCOL.md).
 
 ## Persona
 
@@ -9,6 +9,17 @@ I’m in my seventeenth season coaching and my seventh running a public high-sch
 ## Goals
 
 Decide whether the staff could get through a game week with this product. Count the work it takes to onboard one assistant. Check whether a coach can explain an approval or an override to the athletic director and trace its inputs. For every film or plan that can leave a coach's screen, determine what the interface actually demonstrates about its audience and lifespan. Ask “If this is wrong, who notices and how fast?”
+
+## Phase 0 · Set the targets before visiting the product
+
+Record these four targets before opening the landing page. Use the same targets when reporting what happened.
+
+| Measure | Head Coach target |
+| --- | --- |
+| Role tasks completed unaided | At least 80% of H1–H6 and W1. Six of the seven must be `unaided`. |
+| Silent loss of input | Zero instances. Enter distinctive mock text, exercise a real transition such as leaving a draft or switching units, and return. Record the input, action, any warning and the recovered value. |
+| Evidence for AI output | For every AI output encountered, count the actions from that output to supporting evidence for the same claim. Target two or fewer. Record the destination, whether it supports the claim, and any dead end. |
+| Personal adoption | The end-of-session `would_use` verdict is `yes`. Record the coach's actual answer even if it misses the target. |
 
 ## Expectations
 
@@ -35,7 +46,19 @@ Read the preparation documents in the shared protocol. Open the public landing p
 | H5 | Find sharing on a mock plan. Before opening a link, predict its audience from the visible settings. Compare the result in the signed-in staff session and a fresh signed-out browser context. If revocation is offered, revoke the disposable link and retry in the second context. Record the access message, any stated expiry and what audience you could establish. Keep tokens and full share URLs out of reports and screenshots. |
 | H6 | From `/app/film`, upload a disposable, non-identifying test clip or use a disposable mock asset created for this run. Note its job state. Locate deletion, read the confirmation and perform it on that asset. Revisit the list and its former detail view. Record precisely what disappeared, which consequences the product described and any visible audit entry. Preserve seeded film needed for other tasks. |
 
-For G1–G5 and H1–H6, record the attempt, the observed result, `unaided`, `with_help`, `wrong` or `abandoned`, the counted steps and a first-person think-aloud note. Use available browser automation and capture screenshots. If browser automation is unavailable, use the source-review procedure in the shared protocol and identify each inference. Record the evidence and impact of any missing route, fixture or action. Keep all changes inside the mock review session and retain only fictional demo data.
+## W1 · Sunday staff check
+
+After H6, do one continuous run for the same game and week. It is Sunday and my assistants need Monday's install. Start on the dashboard and carry the game, week and unit through all three stages.
+
+| Stage, in order | What I need to know |
+| --- | --- |
+| `decisions_owed` | Which decisions are still owed for this game, and who owes each one? Follow an open item far enough to check its owner and scope. |
+| `awaiting_approval` | Which unit plan or version is waiting for approval for that same game? Identify the approver and distinguish an explicit empty state from a list that does not establish what is pending. |
+| `parent_access` | A parent asks what they can open. Starting from the plan just checked, establish the audience, duration and control over that version's access, or identify exactly which answer the screen leaves open. |
+
+Record actual actions for each stage, including detours, and the W1 total. Preserve the original game and week if a link drops context, counting any actions needed to restore it. Name where the check fits or interrupts the usual Sunday routine and any outside follow-up it would require. Credit W1 as unaided only if all three questions can be answered unaided for the same game and week. Keep share tokens out of artifacts.
+
+For G1–G5, H1–H6 and W1, record the attempt, observed result, `unaided`, `with_help`, `wrong` or `abandoned`, counted steps, evidence and one first-person think-aloud note. Use available browser automation and capture screenshots. If browser automation is unavailable, use the source-review procedure in the shared protocol and identify each inference. Record the evidence and impact of any missing route, fixture or action. Keep all changes inside the mock review session and retain only fictional demo data.
 
 ## Interview
 
@@ -51,6 +74,9 @@ Answer each question in order, in first person. Refer to a screen, a control or 
 8. What should they not touch?
 9. Would you use this during the season? Would you recommend it to your staff? Answer yes, no or conditional, with the condition.
 10. Anything else.
+11. Is the problem this solves one you would switch tools for? What do you use today and what would make this better enough to switch?
+12. Would you choose to use this on your own time, unprompted? If not, why not?
+13. What single outcome would you measure to know it worked for you this season?
 
 ## Report
 
@@ -58,4 +84,8 @@ Use `tools/review-agents/reports/<round>/head-coach.md` and the matching `head-c
 
 > These are simulated-persona reviews generated by AI agents, not interviews with real coaches. They supplement rather than replace human feedback.
 
-Then give the persona, expectations, task table, interview answers, ranked findings, keep list and verdict, in that order. Use `head_coach` as the JSON role. Apply the [common report schema](../report.schema.json) and the shared protocol for interim files when invoked by the runner. Use stable IDs beginning with `HC-01`. Keep observations and severity judgments in reviewer voice. Give each finding its route, element, what happened, expectation, impact-based severity, screenshot or source line, one proposed change, a clearly simulated coach quote and rank. Put the top five evidenced findings first, and keep items specific enough to retest. Use the fixed verdict values `yes`, `no` and `conditional`. In round two, follow the [comparison instructions](../compare.md) after the fresh walkthrough.
+Use `head_coach` as the JSON role and stable finding IDs beginning with `HC-01`. Apply the [common report schema](../report.schema.json) and the shared protocol for report order, measured results and interim files.
+
+For each finding, give the route, element, observed behavior, expectation, impact-based severity, evidence, one proposed change and a clearly simulated coach quote. State what it costs during a normal week (who has to follow up, repeat work or carry risk, and how often). Identify any estimate as the persona's estimate. Assign `urgency` and `value` independently as `high`, `medium` or `low`. Rank by descending urgency × value using high = 3, medium = 2, low = 1. Break ties by higher urgency, then lower numeric finding ID. Keep severity as a separate judgment. Give each finding a MoSCoW priority of `must`, `should`, `could` or `wont` and a stakeholder of `head_coach`, `athletic_director`, `coordinator` or `none`. Put the top five evidenced findings first and keep them specific enough to retest.
+
+Give separate use and staff recommendation verdicts (`yes`, `no` or `conditional`) with reasons. Close with **Learnings**. Say what worked, what did not, and what to try next, tied to observations from this week. In round two, follow the [comparison instructions](../compare.md) after the fresh walkthrough.

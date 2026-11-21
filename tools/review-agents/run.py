@@ -1,6 +1,7 @@
 """Run one independent, evidence-backed FootballOS review in a disposable checkout."""
 import argparse
 import contextlib
+from datetime import datetime, timezone
 import fcntl
 import json
 import linecache
@@ -17,8 +18,8 @@ from urllib.error import URLError
 from urllib.request import urlopen
 from uuid import uuid4
 
-from report import (DISCLAIMER, HERE, ROLE_SPECS, comparison_markdown, markdown,
-                    read_json, require, summary, validate)
+from report import (DISCLAIMER, HERE, ROLE_SPECS, assemble_report, comparison_markdown, evidence_rows,
+                    markdown, phase_zero, read_json, require, summary, validate)
 
 ROOT = HERE.parent.parent
 REVIEW_PATH = HERE.relative_to(ROOT)
@@ -56,7 +57,8 @@ def copy_checkout(app, slug):
     shutil.copytree(ROOT, app, ignore=ignore, symlinks=True)
     reports = app / REVIEW_PATH / "reports"
     reports.mkdir()
-    shutil.copy2(HERE / "reports/README.md", reports)
+    # The public index summarizes prior runs. Expose only the disclosure in a fresh session.
+    (reports / "README.md").write_text(DISCLAIMER + "\n", encoding="utf-8")
 
 
 def copy_baseline(app, slug):
@@ -69,7 +71,7 @@ def copy_baseline(app, slug):
     dest = app / REVIEW_PATH / "reports/round-1"
     dest.mkdir()
     shutil.copy2(baseline_path, dest)
-    refs = {row["evidence"] for row in [*baseline["tasks"], *baseline["findings"]]}
+    refs = {row["evidence"] for row in evidence_rows(baseline)}
     for ref in refs:
         if ref.startswith("ui: "):
             name = ref.removeprefix("ui: ")
@@ -143,6 +145,7 @@ def agent_prompt(slug, round_name, url, evidence_relative, checks, run_work, lan
     return f"""Conduct ONE FootballOS simulated-persona review as {role} for {round_name}.
 You are already inside the runner. Read the product documents listed in tools/review-agents/PROTOCOL.md
 first, then that protocol, tools/review-agents/agents/{slug}.md and tools/review-agents/report.schema.json.
+Read {run_work}/phase-0.json before the first view. The goals were frozen before the app opened.
 Use only this role. Do not launch another agent or run the launcher again. Keep application code and tests intact.
 The lone permitted fixture exception is an absent matching demo identity in this disposable copy, as the protocol describes.
 Drive the running local mock UI at {url} and capture screenshots using available browser automation.
@@ -153,13 +156,19 @@ Inspect source as needed. Keep environment failures separate from product findin
 Before visiting /sign-in, save the three landing-only expectations as a JSON array in {run_work}/expectations.json.
 Write screenshots into tools/review-agents/reports/{round_name}/{evidence_relative}. In JSON use exactly
 "ui: {evidence_relative}/file.png" or "source: repo/relative/file.tsx:42". Tag source interpretations in observed text.
-Choose the highest-impact supported findings. Give one disposition for missing role tasks as described in the protocol.
-In {run_work}/report.json write the schema-conforming sidecar with role {role}, round {round_name}, {prefix}- IDs
+Run the full original tasks and W1 as a fresh, connected week scenario. Log W1 context and stages with separate
+step counts and evidence. Log every encountered AI output in ai_evidence and your before/action/after input_checks.
+Once task counts are frozen, audit the remaining output paths through the same role. Document any new context.
+Tag genuine silent loss, apply weekly urgency, value, MoSCoW and veto holder to findings and explain weekly cost.
+Answer Q1–Q13 and finish Learnings (worked, did_not, try_next). Include missing role tasks per protocol.
+In {run_work}/report.json write the observation fields for the sidecar with role {role}, round {round_name}, {prefix}- IDs
 and the current UTC ISO timestamp. The tests ran; exit codes are {checks}. Use the exact saved expectations.
 Include attempted, observed, evidence and the simulated note in every task. The first JSON key is disclaimer with the
 exact text "{DISCLAIMER}".
 For round-2 only, AFTER the independent task walkthrough consult tools/review-agents/reports/round-1/{slug}.json.
 Follow tools/review-agents/compare.md and write {run_work}/comparison.json. Keep unresolved original IDs.
+The launcher supplies the frozen phase_0, derives success_criteria, and computes each cost_of_delay and rank.
+To precheck, call report.assemble_report(raw, report.read_json(phase_file)) then report.validate(...) in this checkout.
 The parent validates and renders Markdown, then publishes results. Do not write output into the original checkout.
 """
 
@@ -242,6 +251,9 @@ def run(slug, round_name, native):
         evidence_dir.mkdir(parents=True)
         work = round_dir / ".session"
         work.mkdir()
+        plan = phase_zero(slug, datetime.now(timezone.utc).isoformat())
+        plan_file = work / "phase-0.json"
+        plan_file.write_text(json.dumps(plan, indent=2) + "\n", encoding="utf-8")
         subprocess.run(["npm", "install", "--no-audit", "--no-fund"], cwd=app, env=env, check=True)
         checks = {}
         for label, command in [("Typecheck", ["npm", "run", "typecheck"]), ("Tests", ["npm", "test"])]:
@@ -250,14 +262,15 @@ def run(slug, round_name, native):
             landing_captured = capture_landing(url, evidence_dir)
             prompt = agent_prompt(slug, round_name, url, evidence_relative, checks, work.relative_to(app), landing_captured)
             run_agent(prompt, app, work, env, slug, native)
-        data = read_json(work / "report.json")
+        require(read_json(plan_file) == plan, "The pre-session Phase 0 record changed")
+        data = assemble_report(read_json(work / "report.json"), plan)
         require(data["expectations"] == read_json(work / "expectations.json"), "Landing expectations changed after phase 1")
         if landing_captured:
             require(data["method"]["live_ui"], "A live browser was available; record the browser walkthrough")
         validate(data, app, round_dir, slug, run_id=run_id)
         require(data["method"]["tests_run"], "Test execution is missing from the method record")
         files = {f"{slug}.md": markdown(data, app, round_dir, slug, source, checks)}
-        rows = [*data["tasks"], *data["findings"]]
+        rows = evidence_rows(data)
         if baseline is not None:
             comparison = read_json(work / "comparison.json")
             files[f"{slug}-comparison.md"] = comparison_markdown(
