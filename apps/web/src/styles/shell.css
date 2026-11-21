@@ -315,6 +315,9 @@ input[type='email'], input[type='password'], input[type='datetime-local'], input
 .play-row.active { background: var(--navy-soft); box-shadow: inset 3px 0 0 var(--gold); }
 .chip-state { display: inline-block; margin-left: 6px; font-size: var(--text-2xs); font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-faint); }
 .chip-state.in-queue { color: var(--gold-text); }
+.chip-state.pending { display: block; margin-left: 0; color: var(--gold-text); }
+.review-table td.pending .cell-btn { border-color: var(--gold-line); border-style: dashed; }
+.add-item .small.muted { align-self: center; }
 .keys-hint { margin-top: 8px; }
 
 .review-filters { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: flex-end; margin-bottom: 10px; }
