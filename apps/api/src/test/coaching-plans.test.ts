@@ -217,11 +217,21 @@ describe('§15.3 recommendations and §15.4 unit plans', () => {
     const reopened = await call(t, 'POST', api(`/plan-versions/${draft.body.version.id}/reopen`), { note: 'add the goal-line package' }, dc.cookie);
     expect(reopened.body.version.status).toBe('draft');
     expect((await call(t, 'POST', api(`/plan-versions/${draft.body.version.id}/submit`), {}, f.hc.cookie)).status).toBe(200);
-    const override = await call(t, 'POST', api(`/plan-versions/${draft.body.version.id}/approve`), {}, f.hc.cookie);
+    // D-014: an override without a reason is refused; with one it is recorded on the version and in the audit row.
+    const noReason = await call(t, 'POST', api(`/plan-versions/${draft.body.version.id}/approve`), {}, f.hc.cookie);
+    expect(noReason.status).toBe(400);
+    expect(noReason.body.error.details.reason).toBe('override_reason_required');
+    const override = await call(t, 'POST', api(`/plan-versions/${draft.body.version.id}/approve`), { overrideReason: 'Goal-line package must ship before Friday walkthrough' }, f.hc.cookie);
     expect(override.status).toBe(200);
-    expect(override.body.version).toMatchObject({ status: 'approved', override: true, approvedBy: f.hc.user.id });
+    expect(override.body.version).toMatchObject({ status: 'approved', override: true, approvedBy: f.hc.user.id, overrideReason: 'Goal-line package must ship before Friday walkthrough', supersededAt: null });
     const after = await call(t, 'GET', api(`/games/${gameId}/plans/defense`), undefined, f.vw.cookie);
     expect(after.body.versions.map((v: any) => [v.number, v.status])).toEqual([[1, 'superseded'], [2, 'approved']]);
+    // The superseded version keeps its original approver and time and names what superseded it (HC-03).
+    const superseded = after.body.versions[0];
+    expect(superseded).toMatchObject({ approvedBy: dc.user.id, override: false, overrideReason: null, supersededByVersionId: draft.body.version.id });
+    expect(superseded.approvedAt).toBeTruthy();
+    expect(superseded.supersededAt).toBeTruthy();
+    expect(listAuditByActions(t.ctx, f.team.id, ['plan.override_approved'])[0]!.details).toMatchObject({ overrideReason: 'Goal-line package must ship before Friday walkthrough' });
     expect(after.body.current.id).toBe(draft.body.version.id);
     expect(listAuditByActions(t.ctx, f.team.id, ['plan.override_approved']).length).toBe(1);
     expect(listAuditByActions(t.ctx, f.team.id, ['plan.reopened']).length).toBe(1);

@@ -313,7 +313,7 @@ describe("planReviewFlags", () => {
         { key: "fronts", title: "Fronts", items: items.slice(0, 1).map((i, order) => ({ id: i.id, text: "x", sourceRecommendationId: i.rec, conceptIds: [], packageIds: [], order })) },
         { key: "coverages", title: "Coverages", items: items.slice(1).map((i, order) => ({ id: i.id, text: "y", sourceRecommendationId: i.rec, conceptIds: [], packageIds: [], order })) },
       ],
-      createdBy: u(5), createdAt: "2026-10-20T12:00:00.000Z", approvedBy: u(5), approvedAt: "2026-10-21T12:00:00.000Z", override: false, version: 1, ...extra,
+      createdBy: u(5), createdAt: "2026-10-20T12:00:00.000Z", approvedBy: u(5), approvedAt: "2026-10-21T12:00:00.000Z", override: false, overrideReason: null, supersededAt: null, supersededByVersionId: null, version: 1, ...extra,
     };
   }
   const base = inputs();

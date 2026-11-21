@@ -308,7 +308,7 @@ export const plans: GamePlan[] = [
 export const planVersions: GamePlanVersion[] = [
   {
     id: 'pv-off-1', planId: 'plan-w10-off', number: 1, status: 'approved', basedOn: null, createdBy: 'user-oc', createdAt: '2026-10-19T12:00:00.000Z',
-    approvedBy: 'user-oc', approvedAt: '2026-10-22T21:10:00.000Z', override: false, version: 3,
+    approvedBy: 'user-oc', approvedAt: '2026-10-22T21:10:00.000Z', override: false, overrideReason: null, supersededAt: null, supersededByVersionId: null, version: 3,
     sections: sectionsFor('offense', {
       objectives: ['Win first down: stay ahead of the chains against the even front.', 'Protect the quarterback against the fifth rusher on third and long.'],
       personnel: ['11 personnel as the base; 12 personnel for short yardage.'],
@@ -319,7 +319,7 @@ export const planVersions: GamePlanVersion[] = [
   },
   {
     id: 'pv-off-2', planId: 'plan-w10-off', number: 2, status: 'draft', basedOn: 'pv-off-1', createdBy: 'user-oc', createdAt: '2026-10-24T13:30:00.000Z',
-    approvedBy: null, approvedAt: null, override: false, version: 2,
+    approvedBy: null, approvedAt: null, override: false, overrideReason: null, supersededAt: null, supersededByVersionId: null, version: 2,
     sections: sectionsFor('offense', {
       objectives: ['Win first down: stay ahead of the chains against the even front.', 'Protect the quarterback against the fifth rusher on third and long.'],
       personnel: ['11 personnel as the base; 12 personnel for short yardage.', 'Jumbo package inside the 5.'],
@@ -334,7 +334,7 @@ export const planVersions: GamePlanVersion[] = [
   },
   {
     id: 'pv-def-1', planId: 'plan-w10-def', number: 1, status: 'in_review', basedOn: null, createdBy: 'user-dc', createdAt: '2026-10-23T15:00:00.000Z',
-    approvedBy: null, approvedAt: null, override: false, version: 4,
+    approvedBy: null, approvedAt: null, override: false, overrideReason: null, supersededAt: null, supersededByVersionId: null, version: 4,
     sections: sectionsFor('defense', {
       opponent_tendencies: ['Trips on first down (19 of 54 reviewed snaps).', 'Run on second and 3 or fewer (9 of 11; includes unreviewed labels).'],
       fronts: ['Over front against trips; set the strength to the three-receiver side.'],
@@ -347,7 +347,7 @@ export const planVersions: GamePlanVersion[] = [
   },
   {
     id: 'pv-st-1', planId: 'plan-w10-st', number: 1, status: 'draft', basedOn: null, createdBy: 'user-dc', createdAt: '2026-10-24T09:00:00.000Z',
-    approvedBy: null, approvedAt: null, override: false, version: 1,
+    approvedBy: null, approvedAt: null, override: false, overrideReason: null, supersededAt: null, supersededByVersionId: null, version: 1,
     sections: sectionsFor('special_teams', {
       punt_protection_return: ['Rugby punt alert: contain the roll-out side (6 of 8 reviewed punts).'],
       opponent_alerts: ['Possible fake punt on fourth and short at midfield: one snap, not a tendency.'],

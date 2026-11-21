@@ -31,7 +31,7 @@ export const serializePlan = (p: PlanRow): GamePlan => ({ id: p.id, teamId: p.te
 
 export const serializeVersion = (v: PlanVersionRow): GamePlanVersion => ({
   id: v.id, planId: v.planId, number: v.number, status: v.status as GamePlanVersion['status'], basedOn: v.basedOn, sections: v.sections, createdBy: v.createdBy, createdAt: v.createdAt,
-  approvedBy: v.approvedBy, approvedAt: v.approvedAt, override: v.override, version: v.version,
+  approvedBy: v.approvedBy, approvedAt: v.approvedAt, override: v.override, overrideReason: v.overrideReason, supersededAt: v.supersededAt, supersededByVersionId: v.supersededByVersionId, version: v.version,
 });
 
 export const serializeVersionSummary = (v: PlanVersionRow): GamePlanVersionSummary => {
@@ -94,7 +94,7 @@ export function ensurePlan(ctx: AppContext, tx: Db, game: GameRow, unit: Unit, a
   const planId = crypto.randomUUID();
   const version: PlanVersionRow = {
     id: crypto.randomUUID(), teamId: game.teamId, planId, number: 1, status: 'draft', basedOn: null, sections: templateSections(unit), createdBy: actorUserId, createdAt: nowIso,
-    submittedAt: null, approvedBy: null, approvedAt: null, override: false, baselineHashes: baseline(hashes, nowIso), version: 1, updatedAt: nowIso,
+    submittedAt: null, approvedBy: null, approvedAt: null, override: false, overrideReason: null, supersededAt: null, supersededByVersionId: null, baselineHashes: baseline(hashes, nowIso), version: 1, updatedAt: nowIso,
   };
   const plan: PlanRow = { id: planId, teamId: game.teamId, gameId: game.id, unit, currentVersionId: version.id, createdAt: nowIso };
   tx.insert(gamePlans).values(plan).run();
@@ -120,7 +120,7 @@ function insertDraft(ctx: AppContext, tx: Db, plan: PlanRow, basedOn: PlanVersio
   const number = (listVersions(tx, plan.id).at(-1)?.number ?? 0) + 1;
   const row: PlanVersionRow = {
     id: crypto.randomUUID(), teamId: plan.teamId, planId: plan.id, number, status: 'draft', basedOn: basedOn?.id ?? null, sections: structuredClone(sections), createdBy: actorUserId, createdAt: nowIso,
-    submittedAt: null, approvedBy: null, approvedAt: null, override: false, baselineHashes: baseline(hashes, nowIso), version: 1, updatedAt: nowIso,
+    submittedAt: null, approvedBy: null, approvedAt: null, override: false, overrideReason: null, supersededAt: null, supersededByVersionId: null, baselineHashes: baseline(hashes, nowIso), version: 1, updatedAt: nowIso,
   };
   tx.insert(planVersions).values(row).run();
   tx.update(gamePlans).set({ currentVersionId: row.id }).where(eq(gamePlans.id, plan.id)).run();
@@ -204,21 +204,27 @@ export function submitVersion(ctx: AppContext, actorUserId: string, v: PlanVersi
   return { ...v, status: 'in_review', submittedAt: nowIso, version: v.version + 1, updatedAt: nowIso };
 }
 
-export function approveVersion(ctx: AppContext, actorUserId: string, v: PlanVersionRow, override: boolean, note: string | undefined, hashes: InputHashes): PlanVersionRow {
+/**
+ * Approve a draft or in-review version (§15.4, D-014). A head-coach override must carry a
+ * reason; the previously approved version becomes `superseded` and records when and by which
+ * version, keeping its own approver, time, override flag and reason untouched.
+ */
+export function approveVersion(ctx: AppContext, actorUserId: string, v: PlanVersionRow, override: boolean, body: { note?: string; overrideReason?: string }, hashes: InputHashes): PlanVersionRow {
   if (v.status !== 'draft' && v.status !== 'in_review') throw errors.conflict(`Plan version is ${v.status} and cannot be approved`, { currentStatus: v.status });
+  const overrideReason = body.overrideReason?.trim() || null;
+  if (override && !overrideReason) throw errors.validation('A head-coach override needs a reason; it is kept with the version and in the audit log', { reason: 'override_reason_required' });
   const nowIso = ctx.now().toISOString();
   return ctx.db.transaction((tx) => {
     const previous = approvedPlanVersion(tx, v.planId);
-    if (previous) tx.update(planVersions).set({ status: 'superseded', updatedAt: nowIso }).where(eq(planVersions.id, previous.id)).run();
-    tx.update(planVersions)
-      .set({ status: 'approved', approvedBy: actorUserId, approvedAt: nowIso, override, baselineHashes: baseline(hashes, nowIso), version: v.version + 1, updatedAt: nowIso })
-      .where(eq(planVersions.id, v.id)).run();
+    if (previous) tx.update(planVersions).set({ status: 'superseded', supersededAt: nowIso, supersededByVersionId: v.id, updatedAt: nowIso }).where(eq(planVersions.id, previous.id)).run();
+    const approved = { status: 'approved' as const, approvedBy: actorUserId, approvedAt: nowIso, override, overrideReason: override ? overrideReason : null, baselineHashes: baseline(hashes, nowIso), version: v.version + 1, updatedAt: nowIso };
+    tx.update(planVersions).set(approved).where(eq(planVersions.id, v.id)).run();
     tx.update(gamePlans).set({ currentVersionId: v.id }).where(eq(gamePlans.id, v.planId)).run();
     writeAudit(ctx, {
       teamId: v.teamId, actorUserId, action: override ? 'plan.override_approved' : 'plan.approved', targetType: 'plan_version', targetId: v.id,
-      details: { planId: v.planId, number: v.number, override, superseded: previous?.id ?? null, note: note ?? null },
+      details: { planId: v.planId, number: v.number, override, overrideReason: approved.overrideReason, superseded: previous?.id ?? null, note: body.note ?? null },
     });
-    return { ...v, status: 'approved', approvedBy: actorUserId, approvedAt: nowIso, override, baselineHashes: baseline(hashes, nowIso), version: v.version + 1, updatedAt: nowIso };
+    return { ...v, ...approved };
   });
 }
 

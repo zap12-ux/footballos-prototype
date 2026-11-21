@@ -80,7 +80,13 @@ export const GamePlanSchema = z.object({
 });
 export type GamePlan = z.infer<typeof GamePlanSchema>;
 
-export const GamePlanVersionSchema = z.object({
+/**
+ * Approval history lives on the version and is never cleared (iteration 1, HC-03): a
+ * superseded version keeps `approvedBy`, `approvedAt`, `override` and `overrideReason`, and
+ * records when and by which later version it was superseded. A head-coach override always
+ * carries a reason.
+ */
+const GamePlanVersionBaseSchema = z.object({
   id: IdSchema,
   planId: IdSchema,
   number: z.number().int().positive(),
@@ -92,8 +98,17 @@ export const GamePlanVersionSchema = z.object({
   approvedBy: IdSchema.nullable(),
   approvedAt: TimestampSchema.nullable(),
   override: z.boolean(),
+  /** Required when `override` is true; null otherwise. Kept forever with the version and in the audit event. */
+  overrideReason: z.string().trim().min(1).max(2000).nullable(),
+  /** Set when a later version was approved over this one; the approval fields above stay as they were. */
+  supersededAt: TimestampSchema.nullable(),
+  supersededByVersionId: IdSchema.nullable(),
   version: VersionSchema,
 });
+const overrideNeedsReason = (v: { override: boolean; overrideReason: string | null }) => !v.override || (v.overrideReason !== null && v.overrideReason.trim().length > 0);
+const OVERRIDE_REASON_MESSAGE = { message: 'a head-coach override records a reason', path: ['overrideReason'] as (string | number)[] };
+
+export const GamePlanVersionSchema = GamePlanVersionBaseSchema.refine(overrideNeedsReason, OVERRIDE_REASON_MESSAGE);
 export type GamePlanVersion = z.infer<typeof GamePlanVersionSchema>;
 
 export const PlanCommentSchema = z.object({
@@ -144,9 +159,11 @@ export const ReviewFlagSchema = z.object({
 });
 export type ReviewFlag = z.infer<typeof ReviewFlagSchema>;
 
-export const GamePlanVersionSummarySchema = GamePlanVersionSchema.omit({ sections: true }).extend({
-  itemCount: z.number().int().nonnegative(),
-});
+export const GamePlanVersionSummarySchema = GamePlanVersionBaseSchema.omit({ sections: true })
+  .extend({
+    itemCount: z.number().int().nonnegative(),
+  })
+  .refine(overrideNeedsReason, OVERRIDE_REASON_MESSAGE);
 export type GamePlanVersionSummary = z.infer<typeof GamePlanVersionSummarySchema>;
 
 export const GamePlanResponseSchema = z.object({
@@ -168,6 +185,12 @@ export type PlanVersionResponse = z.infer<typeof PlanVersionResponseSchema>;
 
 export const PlanTransitionRequestSchema = z.object({ note: z.string().max(2000).optional() });
 export type PlanTransitionRequest = z.infer<typeof PlanTransitionRequestSchema>;
+
+/** `POST /plan-versions/:id/approve`: a head coach approving a unit plan must give `overrideReason` (400 otherwise). */
+export const ApprovePlanVersionRequestSchema = PlanTransitionRequestSchema.extend({
+  overrideReason: z.string().trim().min(1).max(2000).optional(),
+});
+export type ApprovePlanVersionRequest = z.infer<typeof ApprovePlanVersionRequestSchema>;
 
 export const CreatePlanCommentRequestSchema = z.object({
   sectionKey: PlanSectionKeySchema.optional(),

@@ -525,6 +525,10 @@ export const planVersions = sqliteTable('plan_versions', {
   approvedBy: text('approved_by'),
   approvedAt: text('approved_at'),
   override: integer('override', { mode: 'boolean' }).notNull().default(false),
+  /** Iteration 1 (migration 0004, D-014): approval history that survives supersession. */
+  overrideReason: text('override_reason'),
+  supersededAt: text('superseded_at'),
+  supersededByVersionId: text('superseded_by_version_id'),
   baselineHashes: text('baseline_hashes', { mode: 'json' }).$type<PlanBaselineHashes>().notNull(),
   version: integer('version').notNull().default(1),
   updatedAt: text('updated_at').notNull(),

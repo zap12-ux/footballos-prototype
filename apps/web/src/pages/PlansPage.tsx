@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from 'react';
 import { useApi, useAction, useResource } from '../api/hooks';
-import type { GamePlanBundle } from '../api';
+import { ApiError, type GamePlanBundle } from '../api';
 import { UNIT_LABELS, type GamePlanVersion, type PlanComment, type PlanSection, type StaffMembership, type Unit } from '../api/contracts';
 import { useMe } from '../auth/AuthContext';
 import { DataState, EmptyState, PageHeader, SaveStatus, StatusBadge, formatDateTime } from '../components/shell/ui';
@@ -140,6 +140,27 @@ function CommentsPanel({ teamId, version, comments, authorName, onPosted }: { te
   );
 }
 
+/**
+ * Who approved a version, when, and whether it was overridden and why; shown for approved
+ * and superseded versions alike, since the history is never cleared (HC-03, D-014).
+ */
+function ApprovalHistory({ version, versions, authorName }: { version: GamePlanVersion; versions: GamePlanVersion[]; authorName: (id: string) => string }) {
+  if (version.status !== 'approved' && version.status !== 'superseded') return null;
+  const by = version.supersededByVersionId ? versions.find((v) => v.id === version.supersededByVersionId) : undefined;
+  return (
+    <p className="small approval-history" data-testid="approval-history">
+      Approved {formatDateTime(version.approvedAt)} by {version.approvedBy ? authorName(version.approvedBy) : 'unknown'}
+      {version.override ? <> · head-coach override{version.overrideReason ? <>: “{version.overrideReason}”</> : ' (no reason recorded)'}</> : ''}
+      {version.status === 'superseded' ? (
+        <>
+          {' '}· Superseded {formatDateTime(version.supersededAt)}
+          {by ? <> by v{by.number} (approved by {by.approvedBy ? authorName(by.approvedBy) : 'unknown'}{by.override ? ', head-coach override' : ''})</> : ''}
+        </>
+      ) : null}
+    </p>
+  );
+}
+
 function PlanBody({
   data,
   teamId,
@@ -163,7 +184,12 @@ function PlanBody({
   const version = data.versions.find((v) => v.id === viewing) ?? data.versions.find((v) => v.id === data.plan.currentVersionId) ?? data.versions[data.versions.length - 1];
   const canEdit = !!membership && (membership.role === 'head_coach' || ((membership.role === 'coordinator' || membership.role === 'position_coach') && membership.units.includes(unit)));
   const canApprove = !!membership && (membership.role === 'head_coach' || (membership.role === 'coordinator' && membership.units.includes(unit)));
+  // CONTRACTS §3: a head coach's approval is recorded as an override, whatever units they list.
+  const isOverride = membership?.role === 'head_coach';
   const editable = canEdit && version.status === 'draft';
+  const [approving, setApproving] = useState(false);
+  const [overrideReason, setOverrideReason] = useState('');
+  const [routed, setRouted] = useState<string | null>(null);
 
   // Section edits are a draft keyed by version (HC-01, OC-10): they outlive unit switches and navigation.
   const sectionsKey = draftKeys.planSections(teamId, version.id);
@@ -193,14 +219,37 @@ function PlanBody({
     return next;
   });
   const approve = useAction(async (v: GamePlanVersion) => {
-    const next = await api.plans.approve(v.id);
+    const reason = overrideReason.trim();
+    if (isOverride && !reason) throw new Error('A head-coach override needs a reason; it is kept with the version and in the audit log.');
+    const next = await api.plans.approve(v.id, isOverride ? { overrideReason: reason } : {});
+    setApproving(false);
+    setOverrideReason('');
     reload();
     return next;
   });
+  // One draft per unit and game (HC-07): an existing draft is opened and named, never duplicated.
   const newDraft = useAction(async (v: GamePlanVersion) => {
-    const next = await api.plans.createDraft(v.id);
-    reload();
-    return next;
+    const existing = data.versions.find((x) => x.status === 'draft');
+    if (existing) {
+      onView(existing.id);
+      setRouted(`v${existing.number} is already this unit's open draft; opened it instead of creating another.`);
+      return existing;
+    }
+    try {
+      const next = await api.plans.createDraft(v.id);
+      setRouted(null);
+      reload();
+      return next;
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 409 && typeof error.details.versionId === 'string') {
+        const open = data.versions.find((x) => x.id === error.details.versionId);
+        onView(error.details.versionId);
+        setRouted(`${open ? `v${open.number}` : 'A draft'} is already this unit's open draft; opened it instead of creating another.`);
+        reload();
+        return open;
+      }
+      throw error;
+    }
   });
 
   return (
@@ -219,14 +268,14 @@ function PlanBody({
             </select>
           </label>
           <StatusBadge value={version.status} />
-          {version.status === 'approved' ? (
-            <span className="small muted">
-              Approved {formatDateTime(version.approvedAt)} by {version.approvedBy ? authorName(version.approvedBy) : 'unknown'}
-              {version.override ? ' (head-coach override)' : ''}
-            </span>
-          ) : null}
           {version.basedOn ? <span className="small muted">Based on v{data.versions.find((v) => v.id === version.basedOn)?.number ?? '?'}</span> : null}
         </div>
+        <ApprovalHistory version={version} versions={data.versions} authorName={authorName} />
+        {routed ? (
+          <p className="callout small" role="status" data-testid="draft-routed">
+            {routed}
+          </p>
+        ) : null}
         <div className="btn-row plan-actions">
           {editable ? (
             <button type="button" className="primary" disabled={!dirty || save.status === 'saving'} onClick={() => void save.run(version)}>
@@ -250,9 +299,9 @@ function PlanBody({
             </button>
           ) : null}
           {canApprove && (version.status === 'in_review' || version.status === 'draft') ? (
-            <button type="button" className="accept" disabled={approve.status === 'saving'} onClick={() => void approve.run(version)}>
+            <button type="button" className="accept" disabled={approve.status === 'saving' || (isOverride && approving)} onClick={() => (isOverride ? setApproving(true) : void approve.run(version))}>
               Approve v{version.number}
-              {membership?.role === 'head_coach' && !membership.units.includes(unit) ? ' (override)' : ''}
+              {isOverride ? ' (override)' : ''}
             </button>
           ) : null}
           {canEdit && version.status === 'approved' ? (
@@ -265,6 +314,32 @@ function PlanBody({
           <SaveStatus status={approve.status} error={approve.error} savedText="Approved" />
           <SaveStatus status={newDraft.status} error={newDraft.error} savedText="Draft created" />
         </div>
+        {approving && isOverride && (version.status === 'in_review' || version.status === 'draft') ? (
+          <form
+            className="callout override-form"
+            data-testid="override-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void approve.run(version);
+            }}
+          >
+            <p className="small">
+              <strong>Head-coach override.</strong> Approving v{version.number} yourself supersedes the current approved version. The reason is kept with this version and in the audit log so staff can reconstruct it later.
+            </p>
+            <label htmlFor={`${sectionsKey}-reason`} className="small">
+              Reason for the override (required)
+            </label>
+            <input id={`${sectionsKey}-reason`} type="text" value={overrideReason} onChange={(e) => setOverrideReason(e.target.value)} placeholder="What changed and why it cannot wait for the coordinator" />
+            <div className="btn-row">
+              <button type="submit" className="accept" disabled={!overrideReason.trim() || approve.status === 'saving'}>
+                Confirm override approval
+              </button>
+              <button type="button" onClick={() => { setApproving(false); setOverrideReason(''); approve.reset(); }}>
+                Cancel
+              </button>
+            </div>
+          </form>
+        ) : null}
         {!editable && draftSections ? (
           <p className="callout warn small" role="alert" data-testid="stale-draft">
             You have unsaved edits to v{version.number} from before it became {version.status.replace('_', ' ')}; they were not applied and are kept here until you discard them.{' '}

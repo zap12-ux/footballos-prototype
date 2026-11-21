@@ -802,7 +802,7 @@ export function createMockApi(options: MockApiOptions = {}): Api {
           db.plans.push(plan);
           db.planVersions.push({
             id: versionId, planId: plan.id, number: 1, status: 'draft', basedOn: null, createdBy: session!.userId, createdAt: ts, approvedBy: null,
-            approvedAt: null, override: false, version: 1,
+            approvedAt: null, override: false, overrideReason: null, supersededAt: null, supersededByVersionId: null, version: 1,
             sections: PLAN_SECTION_TEMPLATES[unit].map((t) => ({ key: t.key, title: t.title, items: [] })),
           });
         }
@@ -815,10 +815,13 @@ export function createMockApi(options: MockApiOptions = {}): Api {
         const plan = db.plans.find((p) => p.id === base.planId)!;
         if (!canEditUnit(plan.unit)) fail('forbidden', 'You cannot edit this unit’s plan.', 403);
         if (base.status !== 'approved') fail('conflict', 'Only an approved version can be the base of a new draft.', 409);
+        // §15.4 / D-014: at most one draft per plan (HC-07). The existing draft is named so the UI can open it.
+        const open = db.planVersions.find((v) => v.planId === plan.id && v.status === 'draft');
+        if (open) fail('conflict', `This unit already has an open draft (v${open.number}); edit that one instead of starting another.`, 409, { reason: 'draft_exists', versionId: open.id, currentStatus: open.status });
         const ts = nowIso();
         const draft: GamePlanVersion = {
           ...clone(base), id: newId('pv'), number: Math.max(...db.planVersions.filter((v) => v.planId === plan.id).map((v) => v.number)) + 1,
-          status: 'draft', basedOn: base.id, createdBy: session!.userId, createdAt: ts, approvedBy: null, approvedAt: null, override: false, version: 1,
+          status: 'draft', basedOn: base.id, createdBy: session!.userId, createdAt: ts, approvedBy: null, approvedAt: null, override: false, overrideReason: null, supersededAt: null, supersededByVersionId: null, version: 1,
         };
         db.planVersions.push(draft);
         plan.currentVersionId = draft.id;
@@ -841,7 +844,7 @@ export function createMockApi(options: MockApiOptions = {}): Api {
         version.version += 1;
         return delay(version);
       },
-      async approve(versionId) {
+      async approve(versionId, input = {}) {
         const version = versionOrFail(versionId);
         const plan = db.plans.find((p) => p.id === version.planId)!;
         const { memberships } = requireUser();
@@ -849,11 +852,24 @@ export function createMockApi(options: MockApiOptions = {}): Api {
         const coordinator = memberships.find((m) => m.role === 'coordinator' && m.units.includes(plan.unit));
         if (!head && !coordinator) fail('forbidden', 'Only the unit coordinator or the head coach can approve.', 403);
         if (version.status !== 'in_review' && version.status !== 'draft') fail('conflict', 'This version cannot be approved from its current state.', 409);
-        for (const other of db.planVersions) if (other.planId === plan.id && other.status === 'approved') other.status = 'superseded';
+        // D-014: a head-coach approval is an override and records why; the reason stays with the version.
+        const override = !coordinator && !!head;
+        const overrideReason = input.overrideReason?.trim() || null;
+        if (override && !overrideReason) fail('validation_error', 'A head-coach override needs a reason; it is kept with the version and in the audit log.', 400, { reason: 'override_reason_required' });
+        const ts = nowIso();
+        // The previous approved version keeps its approver, time, flag and reason; it only learns what superseded it (HC-03).
+        for (const other of db.planVersions) {
+          if (other.planId === plan.id && other.status === 'approved') {
+            other.status = 'superseded';
+            other.supersededAt = ts;
+            other.supersededByVersionId = version.id;
+          }
+        }
         version.status = 'approved';
         version.approvedBy = session!.userId;
-        version.approvedAt = nowIso();
-        version.override = !coordinator && !!head;
+        version.approvedAt = ts;
+        version.override = override;
+        version.overrideReason = override ? overrideReason : null;
         version.version += 1;
         plan.currentVersionId = version.id;
         return delay(version);

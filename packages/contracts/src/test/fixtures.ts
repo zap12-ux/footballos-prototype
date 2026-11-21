@@ -110,7 +110,7 @@ export const fixtures = {
   GamePlanVersion: {
     id: ID.planVersion, planId: ID.plan, number: 1, status: 'draft', basedOn: null,
     sections: [{ key: 'runs', title: 'Runs', items: [{ id: ID.item, text: 'Inside Zone from 11', sourceRecommendationId: ID.recommendation, conceptIds: [ID.concept], packageIds: [ID.pkg], order: 0 }] }],
-    createdBy: ID.user, createdAt: NOW, approvedBy: null, approvedAt: null, override: false, version: 1,
+    createdBy: ID.user, createdAt: NOW, approvedBy: null, approvedAt: null, override: false, overrideReason: null, supersededAt: null, supersededByVersionId: null, version: 1,
   },
   PlanComment: { id: ID.comment, versionId: ID.planVersion, sectionKey: 'runs', itemId: ID.item, authorUserId: ID.user, body: 'Add the counter', createdAt: NOW, resolvedAt: null },
   ShareLink: { id: ID.share, teamId: ID.team, targetType: 'plan_version', targetId: ID.planVersion, tokenHash: 'abc', expiresAt: LATER, createdBy: ID.user, revokedAt: null },

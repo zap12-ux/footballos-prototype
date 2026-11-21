@@ -234,7 +234,8 @@ export interface Api {
       patch: { sections: GamePlanVersion['sections']; expectedVersion: number },
     ): Promise<GamePlanVersion>;
     submit(versionId: string): Promise<GamePlanVersion>;
-    approve(versionId: string): Promise<GamePlanVersion>;
+    /** §15.4 / D-014: a head coach's approval is an override and must carry `overrideReason` (400 otherwise). */
+    approve(versionId: string, input?: { note?: string; overrideReason?: string }): Promise<GamePlanVersion>;
     comment(versionId: string, input: { sectionKey: string | null; itemId: string | null; body: string }): Promise<PlanComment>;
   };
   playbook: {

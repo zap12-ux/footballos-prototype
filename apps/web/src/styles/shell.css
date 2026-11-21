@@ -217,6 +217,9 @@ input[type='email'], input[type='password'], input[type='datetime-local'], input
 .plan-toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
 .plan-toolbar label { display: flex; gap: 8px; align-items: center; margin: 0; }
 .plan-actions { margin-bottom: 12px; }
+.approval-history { margin: -4px 0 10px; color: var(--ink-soft); }
+.override-form { display: grid; gap: 8px; margin-bottom: 12px; }
+.override-form input[type='text'] { width: 100%; }
 .plan-sections { display: grid; gap: 12px; }
 .plan-section { background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
 .plan-section h3 { color: var(--ink-strong); }

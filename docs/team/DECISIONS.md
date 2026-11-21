@@ -145,3 +145,27 @@ file, `rm` it and `git checkout -- <file>`.
 **Decision.** Plan share links expire at most 72 hours after creation (owner answer to the
 Backend question in Milestone C; the contract's 168 h was lowered). Shorter requests are
 allowed; longer ones are rejected with 400.
+
+## D-014 · 2026-11-21 · Plan approval history is immutable; overrides need a reason; one draft per unit
+**Decision.** `GamePlanVersion` gains `overrideReason: string | null` (required, non-empty,
+when `override` is true), `supersededAt` and `supersededByVersionId`. Approving a later
+version marks the previous approved one `superseded` and fills those two fields; its
+`approvedBy`, `approvedAt`, `override` and `overrideReason` are never cleared. A head-coach
+approval is always an override (the role, not the unit list, decides) and
+`POST /plan-versions/:id/approve` rejects it with `400` unless `overrideReason` is given; the
+`plan.override_approved` audit event carries the reason. A plan keeps at most one `draft`:
+the API already answered `409 draft_exists`; the mock now does too, and the web app opens the
+existing draft and says so instead of creating another. Contract and `packages/contracts`
+amended together (iteration 1, commit for HC-03 / HC-07).
+**Why.** Round-1 findings HC-03 (superseding hid the original approver and time and captured
+no reason) and HC-07 (two editable drafts for one unit). The contract already said "at most
+one draft per plan"; the product disagreed with it in mock mode. The brief leaves the
+override-reason shape open: a required free-text reason was chosen over an optional note
+because the athletic-director scenario in HC-03 needs the "why" a week later, and a
+required field is the only way to guarantee it is there. Coach input is kept: the reason is
+stored with the version and in the audit row, never only in a transient note.
+**Consequences.** `apps/api` migration `0004_plan_approval_history` adds the three columns
+(nullable, so existing rows stay valid; existing override rows have no reason and are shown
+as such). `apps/web` mock seed carries the fields. Round 2 retraces HC-03 by selecting a
+superseded version and reading its approver, time, override flag and reason; HC-07 by
+starting a new draft while one exists and landing on the existing draft.
