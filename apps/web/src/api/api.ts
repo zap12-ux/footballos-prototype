@@ -147,6 +147,15 @@ export interface ScoutingQuery {
  */
 export interface Api {
   readonly mode: 'mock' | 'http';
+  /**
+   * Demo-only controls (mock mode). `reset` clears every record changed in this browser and
+   * returns the seed; `savedAt` is when the browser last stored a change, or null.
+   */
+  demo?: {
+    readonly persisted: boolean;
+    savedAt(): string | null;
+    reset(): Promise<void>;
+  };
   auth: {
     me(): Promise<Me | null>;
     signIn(input: { email: string; password: string }): Promise<SignInResult>;

@@ -28,8 +28,10 @@ import type {
 import { PLAN_SECTION_TEMPLATES } from '../contracts';
 import * as demo from './data';
 import { DEMO_LABEL_KEYS, DEMO_MFA_CODE, DEMO_NOW } from './data';
+import { clearMockStore, fingerprint, mockStoreSavedAt, readMockStore, writeMockStore } from './persistence';
 
 export { DEMO_MFA_CODE, DEMO_NOW };
+export { MOCK_STORE_KEY, MOCK_SCHEMA_VERSION } from './persistence';
 
 /** Demo clips that stand in for a proxy stream in mock mode (credited CC BY-NC footage, see README). */
 const DEMO_CLIP_COUNT = 6;
@@ -50,6 +52,7 @@ const SIMULATED_STEPS = 2;
 
 export interface MockApiOptions {
   latencyMs?: number;
+  /** Keep the session in `sessionStorage` and every mutation in `localStorage` (default true; tests pass false). */
   persist?: boolean;
   /** Start signed in as this demo user (tests). */
   signedInAs?: string;
@@ -78,12 +81,9 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
-export function createMockApi(options: MockApiOptions = {}): Api {
-  const latency = options.latencyMs ?? 250;
-  const persist = options.persist ?? true;
-
-  // Fresh copies per instance so one test's mutations never reach another.
-  const db = {
+/** Fresh copies of the seed per instance so one test's mutations never reach another. */
+function seedDb() {
+  return {
     team: clone(demo.team),
     seasons: clone(demo.seasons),
     users: clone(demo.users),
@@ -112,9 +112,51 @@ export function createMockApi(options: MockApiOptions = {}): Api {
     imports: [] as ScheduleImport[],
     uploads: [] as Upload[],
   };
+}
+type MockDb = ReturnType<typeof seedDb>;
+
+/** What survives a reload (OC-01, PC-04): the records plus the mock worker's bookkeeping. */
+interface PersistedState {
+  db: MockDb;
+  simulated: string[];
+  uploadSha: Record<string, string | undefined>;
+}
+
+/** Changes to the seed invalidate stored state, so a demo never shows records from an older seed. */
+const SEED_FINGERPRINT = fingerprint(JSON.stringify(seedDb()));
+
+/** Methods that change records; each is followed by a write-through to `localStorage`. */
+const MUTATING: Record<string, string[]> = {
+  teams: ['invite', 'updateMembership', 'updateSettings'],
+  seasons: ['createGame', 'updateGame', 'previewImport', 'applyImport'],
+  media: ['createUpload', 'putChunk', 'completeUpload', 'deleteAsset', 'jobs', 'job', 'cancelJob', 'retryJob', 'splitSegment', 'mergeSegments', 'updateSegment', 'createSegment'],
+  labels: ['correct', 'bulkAccept', 'infer'],
+  scouting: ['saveSnapshot'],
+  plans: ['get', 'createDraft', 'update', 'submit', 'approve', 'comment'],
+  playbook: ['decideConcept'],
+};
+
+export function createMockApi(options: MockApiOptions = {}): Api {
+  const latency = options.latencyMs ?? 250;
+  const persist = options.persist ?? true;
+
+  const stored = persist ? readMockStore<PersistedState>(SEED_FINGERPRINT) : null;
+  let db: MockDb = stored?.state.db ?? seedDb();
   /** Jobs created in this session whose progress the mock worker simulates on every poll. */
-  const simulated = new Set<string>();
-  const uploadSha = new Map<string, string | undefined>();
+  const simulated = new Set<string>(stored?.state.simulated ?? []);
+  const uploadSha = new Map<string, string | undefined>(Object.entries(stored?.state.uploadSha ?? {}));
+
+  const serialize = (): string => JSON.stringify({ db, simulated: [...simulated], uploadSha: Object.fromEntries(uploadSha) } satisfies PersistedState);
+  /** What the store last held, so reads that change nothing (job polls, first plan reads) write nothing. */
+  let lastSerialized = stored ? JSON.stringify(stored.state) : serialize();
+
+  function save() {
+    if (!persist) return;
+    const next = serialize();
+    if (next === lastSerialized) return;
+    lastSerialized = next;
+    writeMockStore(next, SEED_FINGERPRINT);
+  }
 
   let session: MockSession | null = options.signedInAs ? { userId: options.signedInAs, mfaVerified: true } : readSession();
   let pendingMfaUser: string | null = null;
@@ -323,6 +365,20 @@ export function createMockApi(options: MockApiOptions = {}): Api {
 
   const api: Api = {
     mode: 'mock',
+    demo: {
+      persisted: persist,
+      savedAt: () => (persist ? mockStoreSavedAt() : null),
+      async reset() {
+        requireUser();
+        clearMockStore();
+        db = seedDb();
+        simulated.clear();
+        uploadSha.clear();
+        pendingMfaUser = null;
+        lastSerialized = serialize();
+        return delay(undefined);
+      },
+    },
     auth: {
       async me() {
         if (!session || !session.mfaVerified) return delay(null);
@@ -927,6 +983,23 @@ export function createMockApi(options: MockApiOptions = {}): Api {
       },
     },
   };
+
+  // Write-through after every mutating call, so a reload finds the same records (OC-01, PC-04).
+  if (persist) {
+    for (const [group, methods] of Object.entries(MUTATING)) {
+      const target = (api as unknown as Record<string, Record<string, (...args: unknown[]) => Promise<unknown>>>)[group];
+      for (const method of methods) {
+        const original = target[method];
+        target[method] = async (...args: unknown[]) => {
+          try {
+            return await original(...args);
+          } finally {
+            save();
+          }
+        };
+      }
+    }
+  }
 
   return api;
 }

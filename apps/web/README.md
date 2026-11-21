@@ -36,7 +36,12 @@ production build copies `index.html` to `404.html` so GitHub Pages serves deep l
 `VITE_API_MODE=mock` (default) serves the fictional **Winchester Hawks (demo)** team from
 `src/api/mock/`; the team's `environmentKind` is `demo` and every screen shows the label.
 Demo sign-in: any listed demo account, password `demo`, verification code `246810` (shown
-on the sign-in screen in mock mode only). `VITE_API_MODE=http` uses `src/api/http.ts`
+on the sign-in screen in mock mode only). Mutations made in mock mode are written through to
+`localStorage` (`footballos.mock.v1`, see `src/api/mock/persistence.ts`) after every writing
+call, so approved plans, comments, label corrections and uploads survive a browser reload;
+the envelope carries a schema version and a fingerprint of the seed, and a change to either
+discards stale state. **Reset demo data** on `/app/settings` (demo team only) clears it after
+a confirmation that lists what goes (iteration 1: OC-01, PC-04). `VITE_API_MODE=http` uses `src/api/http.ts`
 against `/api/v1` (Vite proxies `/api` and `/media` to `http://localhost:8789`, override
 with `VITE_API_PROXY_TARGET`).
 
