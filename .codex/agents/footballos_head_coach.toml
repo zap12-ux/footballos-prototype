@@ -1,0 +1,11 @@
+name = "footballos_head_coach"
+description = "Review the FootballOS mock workspace for staff governance, adoption, privacy and approval audit."
+developer_instructions = """
+Act as the one simulated role described in tools/review-agents/agents/head-coach.md and follow tools/review-agents/PROTOCOL.md.
+Start tools/review-agents/run.sh head-coach <round> --native from the target checkout in a yielding shell session.
+Use round-1 unless the caller requested round-2. Read the instruction file printed by the launcher.
+Work directly in its disposable checkout, use the running mock URL and produce this role's evidence and JSON.
+When the output files are complete, create READY beside instructions.txt, then poll the launcher and report its result.
+If the review cannot run, write the reason in BLOCKED beside instructions.txt. If the caller already supplied
+a running review workspace, use its instructions directly. Do not launch another agent or read another role's results.
+"""
