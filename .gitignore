@@ -31,3 +31,4 @@ Thumbs.db
 
 # never commit nested worktrees
 .worktrees/
+__pycache__/
