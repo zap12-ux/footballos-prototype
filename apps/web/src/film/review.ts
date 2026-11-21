@@ -3,6 +3,7 @@
  * adjacency and thumbnail-tile arithmetic. No React, no I/O, so each is unit-tested directly.
  */
 import type { AcceptedStatus, Label, LabelKey, PlaySegment } from '../api/contracts';
+import type { ProxyInfo } from '../api/api';
 
 export interface LabelFilter {
   status: AcceptedStatus | 'all';
@@ -81,4 +82,62 @@ export function uncertaintyWord(label: Label): string {
     default:
       return 'uncertainty not reported';
   }
+}
+
+// Evidence seeks (iteration 1: HC-05, OC-02, PC-01) ------------------------------------------------
+
+function mmss(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+/** The play whose range contains `sec`, if any. */
+export function segmentAt(segments: PlaySegment[], sec: number): PlaySegment | null {
+  return segments.find((s) => sec >= s.startSec && sec <= s.endSec) ?? null;
+}
+
+export type SeekPlan =
+  /** The stream is the real proxy: seek straight to the requested time. */
+  | { kind: 'direct'; requestedSec: number; mediaSec: number; segment: PlaySegment | null; message: null }
+  /** A stand-in clip: the cited play is mapped onto it and the player says so. */
+  | { kind: 'stand_in'; requestedSec: number; mediaSec: number; segment: PlaySegment; message: string }
+  /** Nothing playable shows this moment: do not seek, say so at the control and the player. */
+  | { kind: 'unavailable'; requestedSec: number; mediaSec: null; segment: PlaySegment | null; message: string };
+
+/**
+ * Where a request for `requestedSec` (seconds in the original upload) lands on the stream a
+ * grant serves. Never seeks silently to footage that cannot show the cited moment: a real
+ * proxy shorter than the request, or a stand-in clip with no play covering the time, yields
+ * `unavailable` with a sentence for the coach.
+ */
+export function planSeek(requestedSec: number, segments: PlaySegment[], proxy: ProxyInfo | null | undefined): SeekPlan {
+  const segment = segmentAt(segments, requestedSec);
+  const at = mmss(requestedSec);
+  if (!proxy?.standIn) {
+    if (proxy && proxy.durationSec !== null && requestedSec > proxy.durationSec + 0.5) {
+      return { kind: 'unavailable', requestedSec, mediaSec: null, segment, message: `Footage for ${at} is not in this proxy: the file ends at ${mmss(proxy.durationSec)}.` };
+    }
+    return { kind: 'direct', requestedSec, mediaSec: Math.max(0, requestedSec), segment, message: null };
+  }
+  if (!segment) {
+    return { kind: 'unavailable', requestedSec, mediaSec: null, segment: null, message: `Footage for ${at} is not in this proxy: no play on this film covers that moment, and the demo clip stands in for plays only.` };
+  }
+  const clip = proxy.durationSec !== null && proxy.durationSec > 0 ? proxy.durationSec : null;
+  // Clip position = seconds into the cited play, so the playhead reads play start + clip time.
+  // A clip shorter than the play stops short of the play's last moments; the caption says it stands in.
+  const offset = Math.max(0, requestedSec - segment.startSec);
+  const mediaSec = clip === null ? offset : Math.min(offset, Math.max(0, clip - 0.25));
+  return {
+    kind: 'stand_in',
+    requestedSec,
+    mediaSec: Math.round(mediaSec * 10) / 10,
+    segment,
+    message: `Demo proxy: stand-in footage for ${at} (play ${segment.index}, ${mmss(segment.startSec)}–${mmss(segment.endSec)}). The credited clip is not this snap; the playhead stands for where the cited moment falls in the play.`,
+  };
+}
+
+/** Original-file time for a stand-in clip position, given the play the clip currently stands for. */
+export function standInToOriginal(mediaSec: number, segment: PlaySegment): number {
+  return Math.round((segment.startSec + Math.max(0, mediaSec)) * 10) / 10;
 }

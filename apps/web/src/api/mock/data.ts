@@ -244,6 +244,8 @@ export const segments: PlaySegment[] = Array.from({ length: 48 }, (_, i) => {
 });
 
 const ev = (atSec: number, note: string | null = null) => ({ assetId: 'asset-westmoor-1', atSec, toSec: null, frameIndex: null, note });
+/** A moment inside seeded play `index` (plays start at 120 s and repeat every 128.5 s; see `segments`). */
+export const snapSec = (index: number, offsetSec = 1.5) => Math.round((120 + (index - 1) * 128.5 + offsetSec) * 10) / 10;
 
 function finding(
   id: string,
@@ -266,19 +268,19 @@ function finding(
 
 export const findings: ScoutingFinding[] = [
   finding('f-1', 'opp-westmoor', 'offense', 'formation_frequency', 'Westmoor lines up in a trips formation on first down.', 19, 54, 'reviewed_only', {
-    supportingEvidence: [ev(312.4, 'Trips right, 1st and 10'), ev(1988.1, 'Trips left, 1st and 10')],
+    supportingEvidence: [ev(snapSec(2), 'Trips right, 1st and 10'), ev(snapSec(15), 'Trips left, 1st and 10')],
     excludedSegmentIds: ['seg-westmoor-1-33', 'seg-westmoor-1-34'], excludedReason: { 'seg-westmoor-1-33': 'formation label not reviewed', 'seg-westmoor-1-34': 'far-side receivers hidden' },
   }),
   finding('f-2', 'opp-westmoor', 'offense', 'tendency_by_situation', 'On second down with 3 yards or fewer to go, Westmoor runs the ball.', 9, 11, 'includes_inferred', {
-    supportingEvidence: [ev(2455.0, '2nd and 2, inside zone')], contraryEvidence: [ev(4010.6, '2nd and 1, quick pass to the flat')],
+    supportingEvidence: [ev(snapSec(19, 2.0), '2nd and 2, inside zone')], contraryEvidence: [ev(snapSec(31, 2.0), '2nd and 1, quick pass to the flat')],
   }),
-  finding('f-3', 'opp-westmoor', 'offense', 'play_type_by_formation', 'From 12 personnel, Westmoor passes.', 6, 17, 'reviewed_only', { supportingEvidence: [ev(3302.2)] }),
+  finding('f-3', 'opp-westmoor', 'offense', 'play_type_by_formation', 'From 12 personnel, Westmoor passes.', 6, 17, 'reviewed_only', { supportingEvidence: [ev(snapSec(26))] }),
   finding('f-4', 'opp-westmoor', 'offense', 'uncertain', 'Westmoor may favour screens on third and long; the sample is too small to call a tendency.', 3, 7, 'includes_inferred', {
     excludedReason: { 'seg-westmoor-1-41': 'down and distance not visible' }, excludedSegmentIds: ['seg-westmoor-1-41'],
   }),
   finding('f-5', 'opp-westmoor', 'defense', 'formation_frequency', 'Against 11 personnel, Westmoor shows an even front.', 31, 44, 'reviewed_only', { supportingEvidence: [ev(640.0)] }),
   finding('f-6', 'opp-westmoor', 'defense', 'strength', 'Westmoor brings a fifth rusher on third and 7 or more.', 8, 13, 'includes_inferred'),
-  finding('f-7', 'opp-westmoor', 'defense', 'weakness', 'The boundary corner plays off coverage against a single receiver.', 14, 22, 'reviewed_only', { contraryEvidence: [ev(5120.3, 'Press at the goal line')] }),
+  finding('f-7', 'opp-westmoor', 'defense', 'weakness', 'The boundary corner plays off coverage against a single receiver.', 14, 22, 'reviewed_only', { contraryEvidence: [ev(snapSec(40), 'Press at the goal line')] }),
   finding('f-8', 'opp-westmoor', 'defense', 'uncertain', 'Westmoor may rotate the safety late toward trips; the camera framing hides the far safety on most of these snaps.', 4, 9, 'includes_inferred', {
     excludedReason: { 'seg-westmoor-1-12': 'far safety outside the frame' }, excludedSegmentIds: ['seg-westmoor-1-12'],
   }),

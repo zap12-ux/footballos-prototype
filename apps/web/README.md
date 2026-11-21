@@ -81,8 +81,15 @@ worker that advances a job one step per poll.
    (`GET /assets/:id/grant`, §14.3) that is renewed a minute before it expires and once more
    if the stream answers with an error. The thumbnail strip is built from `thumbUrlTemplate`;
    the tile interval comes from the grant when it states one, otherwise 10 s is assumed and
-   said. `?t=<sec>` (evidence links from scouting) opens the player at that time on the
-   nearest play. In mock mode a short credited demo clip stands in for the proxy.
+   said. `?t=<sec>` (evidence links from scouting) opens the player at that time on the play
+   that contains it. Every seek goes through `planSeek` (`src/film/review.ts`): a real proxy
+   seeks straight to the time, or refuses with "Footage for m:ss is not in this proxy" when
+   the file is shorter; in mock mode the grant marks its stream as a stand-in (`proxy.standIn`,
+   `proxy.durationSec`) and the player maps the cited play onto the short credited clip (clip
+   position = seconds into the play), anchors the clip to the selected play, reads the
+   playhead in original-file time, and says at the player and at the control that was used
+   which play the footage stands for. A time no play covers is never seeked silently
+   (iteration 1: HC-05, OC-02, PC-01).
 4. **Segment timeline** (`src/film/SegmentTimeline.tsx`, §14.4). Proposed cuts start out in
    the review queue (owner decision, 2026-10-25); *Next in queue* and the `N` key step through
    them. Accept and reject are `PATCH /segments/:id`; *Split at playhead* is
@@ -106,7 +113,9 @@ worker that advances a job one step per poll.
    basis (reviewed labels only / includes unreviewed model labels) select a report computed
    on the server; the page shows the sample size, the games and processed film it came from,
    each finding's numerator, denominator, percentage and excluded plays with reasons, and the
-   evidence timestamps as links into the asset view. Uncertain findings are listed apart.
+   evidence timestamps as links into the asset view; a finding without a supporting play says
+   "No supporting play on file" in place of the link, and contrary examples stay under
+   "Against" (iteration 1: OC-06). Uncertain findings are listed apart.
    *Save snapshot* posts `…/scouting/snapshots`; saved snapshots are listed below.
 7. **Settings** (`/app/settings`, §14.7): retention days with `expectedVersion` (head coach
    only); the server's upload limits are shown, not edited.
@@ -134,7 +143,9 @@ The play list is one tab stop (`role="listbox"` with `aria-activedescendant`).
   cuts; `infer_labels` always fails with `provider_unavailable` because the mock has no model
   provider (it never invents a label).
 - The mock media grant streams one of the credited SWOSU demo clips (`public/demo-film/`) in
-  place of a proxy, and its thumbnail tiles are generated SVGs that name their own index.
+  place of a proxy and says so (`proxy: { standIn: true, durationSec }`); the player labels
+  every seek as stand-in footage for the cited play. Its thumbnail tiles are generated SVGs
+  that name their own index.
 - The 12 plays with model output and their provenance are authored demo records; the
   findings on the scouting page are authored, not computed.
 - Hashing in a Web Worker needs a browser; under vitest the hasher is injected.

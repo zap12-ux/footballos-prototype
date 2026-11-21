@@ -11,7 +11,7 @@ import { SegmentTimeline } from '../film/SegmentTimeline';
 import { ThumbnailStrip } from '../film/ThumbnailStrip';
 import { VideoPlayer, type VideoPlayerHandle } from '../film/VideoPlayer';
 import { isJobActive, useJobPolling } from '../film/jobPolling';
-import { nextAdjacent } from '../film/review';
+import { nextAdjacent, planSeek, standInToOriginal, type SeekPlan } from '../film/review';
 import { useGrant } from '../film/useGrant';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 
@@ -70,8 +70,15 @@ export function AssetPage() {
   const [queue, setQueue] = useState<Set<string>>(new Set());
   const [conflict, setConflict] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // Evidence seeks (HC-05, OC-02, PC-01): the last resolved seek, said at the player, and the
+  // play a stand-in clip currently stands for so the playhead reads original-file time.
+  const [seekPlan, setSeekPlan] = useState<SeekPlan | null>(null);
+  const [mediaDuration, setMediaDuration] = useState<number | null>(null);
+  const standIn = useRef<PlaySegment | null>(null);
   const seededQueue = useRef(false);
   const seekedToParam = useRef(false);
+  /** Set by the first seek of any kind; until then a stand-in clip follows the selected play. */
+  const everSeeked = useRef(false);
 
   const data = useResource<AssetData>(async () => {
     const asset = await api.media.asset(assetId);
@@ -92,6 +99,9 @@ export function AssetPage() {
   const asset = data.data?.asset ?? null;
   const playable = !!asset && (asset.status === 'ready' || asset.status === 'processing' || asset.status === 'validated');
   const grant = useGrant(api, assetId, playable);
+  // What the stream can show: the grant says so for a stand-in; a real proxy's length comes from the element.
+  const proxy = grant.grant?.proxy ?? (mediaDuration !== null ? { standIn: false, durationSec: mediaDuration } : null);
+  const segments = data.data?.segments ?? [];
   const canEdit = me.memberships.some((m) => m.teamId === team?.id && m.role !== 'viewer');
 
   // Owner decision (B3 question): proposed cuts start out in the review queue.
@@ -119,16 +129,44 @@ export function AssetPage() {
     });
   }, [data.data]);
 
-  // `?t=` seeks once the grant exists.
+  const seekTo = useCallback(
+    (sec: number, play = true): SeekPlan => {
+      const plan = planSeek(sec, segments, proxy);
+      everSeeked.current = true;
+      if (plan.kind === 'stand_in') standIn.current = plan.segment;
+      else if (plan.kind === 'direct') standIn.current = null;
+      if (plan.mediaSec !== null) {
+        player.current?.seekTo(plan.mediaSec, play);
+        setCurrentTime(sec);
+      }
+      setSeekPlan(plan);
+      return plan;
+    },
+    [segments, proxy],
+  );
+
+  // `?t=` seeks once the grant and the plays exist; an unplayable moment is said, not skipped.
   useEffect(() => {
-    if (seekedToParam.current || !grant.grant || !params.has('t')) return;
+    if (seekedToParam.current || !grant.grant || !data.data || !params.has('t')) return;
     const t = Number(params.get('t'));
     if (Number.isFinite(t)) {
       seekedToParam.current = true;
-      player.current?.seekTo(t);
-      setCurrentTime(t);
+      seekTo(t);
     }
-  }, [grant.grant, params]);
+  }, [grant.grant, data.data, params, seekTo]);
+
+  // Without `?t=`, a stand-in clip is anchored to the selected play so the playhead and the
+  // caption name the moment it stands for instead of 0:00 of an unrelated clip.
+  useEffect(() => {
+    if (everSeeked.current || !grant.grant?.proxy?.standIn || !data.data || !activeId) return;
+    const active = data.data.segments.find((s) => s.id === activeId);
+    if (active) seekTo(active.startSec, false);
+  }, [grant.grant, data.data, activeId, seekTo]);
+
+  const onMediaTime = useCallback((mediaSec: number) => {
+    const anchor = standIn.current;
+    setCurrentTime(anchor ? standInToOriginal(mediaSec, anchor) : mediaSec);
+  }, []);
 
   // When a job chain finishes, the asset, its segments and labels may have changed.
   const wasActive = useRef(false);
@@ -138,13 +176,18 @@ export function AssetPage() {
     wasActive.current = active;
   }, [jobs.jobs, data]);
 
-  const seekTo = useCallback((sec: number) => {
-    player.current?.seekTo(sec);
-    setCurrentTime(sec);
-  }, []);
-
-  const segments = data.data?.segments ?? [];
   const active = segments.find((s) => s.id === activeId) ?? null;
+
+  // Selecting a play on a stand-in clip anchors the clip to it (no autoplay), so the playhead
+  // and caption always name the play the footage stands for.
+  const activate = useCallback(
+    (segmentId: string) => {
+      setActiveId(segmentId);
+      const segment = segments.find((s) => s.id === segmentId);
+      if (segment && proxy?.standIn) seekTo(segment.startSec, false);
+    },
+    [segments, proxy, seekTo],
+  );
 
   function onVersionConflict(error: unknown, what: string) {
     if (error instanceof ApiError && error.status === 409) {
@@ -267,7 +310,7 @@ export function AssetPage() {
             {playable ? (
               <div className="asset-layout">
                 <div className="asset-main">
-                  <VideoPlayer ref={player} grant={grant.grant} grantStatus={grant.status} grantError={grant.error} onRefreshGrant={grant.refresh} onTimeUpdate={setCurrentTime} demo={api.mode === 'mock'} label={assetLabel} />
+                  <VideoPlayer ref={player} grant={grant.grant} grantStatus={grant.status} grantError={grant.error} onRefreshGrant={grant.refresh} onTimeUpdate={onMediaTime} onDuration={setMediaDuration} notice={seekPlan} demo={api.mode === 'mock'} label={assetLabel} />
                   {grant.grant && a.durationSec ? <ThumbnailStrip grant={grant.grant} durationSec={a.durationSec} currentTime={currentTime} onSeek={seekTo} /> : null}
                   <p className="small muted" data-testid="playhead">
                     Playhead at <span className="mono">{formatSeconds(currentTime)}</span>
@@ -284,7 +327,7 @@ export function AssetPage() {
                     </div>
                   ) : null}
                   {notice ? (
-                    <p className="small save-status saved" role="status">
+                    <p className="small save-status saved" role="status" data-testid="action-notice">
                       {notice}
                     </p>
                   ) : null}
@@ -301,8 +344,10 @@ export function AssetPage() {
                       queue={queue}
                       currentTime={currentTime}
                       busy={busy || !canEdit}
-                      onActivate={setActiveId}
-                      onSeek={(s) => seekTo(s.startSec)}
+                      onActivate={activate}
+                      onSeek={(s) => {
+                        seekTo(s.startSec);
+                      }}
                       onAccept={(s) => void review.run(s, 'accepted')}
                       onReject={(s) => void review.run(s, 'rejected')}
                       onSplit={(s) => void split.run(s)}

@@ -110,7 +110,20 @@ export interface LabelCorrection {
  * thumbnail job knows its `everySec`, the grant is the only place the client learns it. Until
  * the API returns them the strip assumes 10 s per tile and says so.
  */
-export type MediaGrantInfo = MediaGrant & { thumbEverySec?: number; thumbCount?: number };
+export type MediaGrantInfo = MediaGrant & { thumbEverySec?: number; thumbCount?: number; proxy?: ProxyInfo };
+
+/**
+ * What the stream behind a grant can actually show (iteration 1, HC-05 / OC-02 / PC-01). A
+ * real proxy covers the whole file (`standIn: false`); the mock's credited demo clip is a
+ * stand-in a few seconds long, so the player maps the cited play onto it and says so, and
+ * never seeks silently to a moment the stream cannot show.
+ */
+export interface ProxyInfo {
+  standIn: boolean;
+  /** Length of the served file in seconds, when known. */
+  durationSec: number | null;
+  note?: string;
+}
 
 /** `GET /teams/:teamId/opponents/:opponentId/scouting` (§14.6): computed, never stored. */
 export interface ScoutingReport {

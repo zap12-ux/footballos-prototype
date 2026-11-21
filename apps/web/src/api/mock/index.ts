@@ -33,6 +33,8 @@ export { DEMO_MFA_CODE, DEMO_NOW };
 
 /** Demo clips that stand in for a proxy stream in mock mode (credited CC BY-NC footage, see README). */
 const DEMO_CLIP_COUNT = 6;
+/** Measured length of each `public/demo-film/play-N.mp4` (mvhd), so the player knows the playable range. */
+const DEMO_CLIP_DURATIONS = [6.374, 7.408, 6.407, 5.406, 7.908, 7.408];
 
 /**
  * Thumbnail tiles in mock mode: an SVG data URL that keeps the `{n}` placeholder, so the
@@ -603,6 +605,7 @@ export function createMockApi(options: MockApiOptions = {}): Api {
           expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
           thumbEverySec: 10,
           thumbCount: Math.ceil((asset.durationSec ?? 0) / 10),
+          proxy: { standIn: true, durationSec: DEMO_CLIP_DURATIONS[clip - 1], note: 'Credited demo clip (SWOSU vs UCO, CC BY-NC 4.0) standing in for the proxy; it is not footage of this game.' },
         });
       },
       async jobs(teamId, query = {}) {

@@ -6,6 +6,7 @@ import { LABEL_KEYS, LABEL_KEY_LABELS, EVIDENCE_ONLY_KEYS, type AcceptedStatus, 
 import { EmptyState, SaveStatus, StatusBadge, formatDateTime, formatSeconds, humanize } from '../components/shell/ui';
 import { DEFAULT_LABEL_FILTER, applyLabelFilter, planBulkAccept, uncertaintyWord, type LabelFilter } from './review';
 import { draftKeys, useDraft, useDrafts, type LabelCorrectionDraft } from '../workspace/drafts';
+import type { SeekPlan } from './review';
 
 interface Props {
   api: Api;
@@ -18,7 +19,8 @@ interface Props {
   canEdit: boolean;
   userName: (userId: string | null) => string;
   timeZone?: string;
-  onSeek: (sec: number) => void;
+  /** Resolves an original-file time against the stream; the result is shown at the control that asked. */
+  onSeek: (sec: number) => SeekPlan;
   onChanged: () => void;
 }
 
@@ -226,9 +228,19 @@ interface PanelProps {
   canEdit: boolean;
   userName: (userId: string | null) => string;
   timeZone?: string;
-  onSeek: (sec: number) => void;
+  onSeek: (sec: number) => SeekPlan;
   onClose: () => void;
   onChanged: () => void;
+}
+
+/** What the last evidence seek from this panel resolved to, when it was not a plain seek. */
+function SeekNote({ plan }: { plan: SeekPlan | null }) {
+  if (!plan || plan.kind === 'direct') return null;
+  return (
+    <span className={`small block ${plan.kind === 'unavailable' ? 'field-error' : 'muted'}`} role={plan.kind === 'unavailable' ? 'alert' : 'status'} data-testid="evidence-seek-note">
+      {plan.kind === 'unavailable' ? plan.message : `Stand-in footage: ${plan.message.replace(/^Demo proxy: stand-in footage for /, '')}`}
+    </span>
+  );
 }
 
 function LabelPanel({ api, assetId, label, segment, provenance, canEdit, userName, timeZone, onSeek, onClose, onChanged }: PanelProps) {
@@ -250,6 +262,7 @@ function LabelPanel({ api, assetId, label, segment, provenance, canEdit, userNam
   const setReason = (r: string) => update({ reason: r });
   const [historyOpen, setHistoryOpen] = useState(false);
   const [conflict, setConflict] = useState(false);
+  const [seekNote, setSeekNote] = useState<SeekPlan | null>(null);
   const history = useResource(async () => (historyOpen ? api.labels.revisions(label.id) : []), [api, label.id, label.version, historyOpen]);
 
   useEffect(() => setConflict(false), [label.version]);
@@ -293,12 +306,13 @@ function LabelPanel({ api, assetId, label, segment, provenance, canEdit, userNam
                 <span className="small block">
                   Looked at:{' '}
                   {label.inferred.evidence.map((e, i) => (
-                    <button key={i} type="button" className="link" onClick={() => onSeek(e.atSec)}>
+                    <button key={i} type="button" className="link" onClick={() => setSeekNote(onSeek(e.atSec))}>
                       {formatSeconds(e.atSec)}
                       {e.toSec !== null ? `–${formatSeconds(e.toSec)}` : ''}
                     </button>
                   ))}
                   {label.inferred.evidence.map((e) => e.note).filter(Boolean).join('; ')}
+                  <SeekNote plan={seekNote} />
                 </span>
               ) : null}
             </>
@@ -403,7 +417,8 @@ function LabelPanel({ api, assetId, label, segment, provenance, canEdit, userNam
   );
 }
 
-export function ProvenancePanel({ provenance, onSeek, timeZone }: { provenance: ModelProvenance | null; onSeek: (sec: number) => void; timeZone?: string }) {
+export function ProvenancePanel({ provenance, onSeek, timeZone }: { provenance: ModelProvenance | null; onSeek: (sec: number) => SeekPlan; timeZone?: string }) {
+  const [seekNote, setSeekNote] = useState<SeekPlan | null>(null);
   if (!provenance) {
     return (
       <p className="small muted" data-testid="provenance">
@@ -428,11 +443,12 @@ export function ProvenancePanel({ provenance, onSeek, timeZone }: { provenance: 
         {formatSeconds(provenance.inspected.fromSec)} to {formatSeconds(provenance.inspected.toSec)}:
         <span className="block frame-times">
           {provenance.inspected.frameTimestampsSec.map((t) => (
-            <button key={t} type="button" className="link mono small" onClick={() => onSeek(t)}>
+            <button key={t} type="button" className="link mono small" onClick={() => setSeekNote(onSeek(t))}>
               {t.toFixed(1)}s
             </button>
           ))}
         </span>
+        <SeekNote plan={seekNote} />
       </dd>
       <dt>Cost</dt>
       <dd>
