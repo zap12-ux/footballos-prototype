@@ -110,7 +110,20 @@ export interface LabelCorrection {
  * thumbnail job knows its `everySec`, the grant is the only place the client learns it. Until
  * the API returns them the strip assumes 10 s per tile and says so.
  */
-export type MediaGrantInfo = MediaGrant & { thumbEverySec?: number; thumbCount?: number };
+export type MediaGrantInfo = MediaGrant & { thumbEverySec?: number; thumbCount?: number; proxy?: ProxyInfo };
+
+/**
+ * What the stream behind a grant can actually show (iteration 1, HC-05 / OC-02 / PC-01). A
+ * real proxy covers the whole file (`standIn: false`); the mock's credited demo clip is a
+ * stand-in a few seconds long, so the player maps the cited play onto it and says so, and
+ * never seeks silently to a moment the stream cannot show.
+ */
+export interface ProxyInfo {
+  standIn: boolean;
+  /** Length of the served file in seconds, when known. */
+  durationSec: number | null;
+  note?: string;
+}
 
 /** `GET /teams/:teamId/opponents/:opponentId/scouting` (§14.6): computed, never stored. */
 export interface ScoutingReport {
@@ -134,6 +147,15 @@ export interface ScoutingQuery {
  */
 export interface Api {
   readonly mode: 'mock' | 'http';
+  /**
+   * Demo-only controls (mock mode). `reset` clears every record changed in this browser and
+   * returns the seed; `savedAt` is when the browser last stored a change, or null.
+   */
+  demo?: {
+    readonly persisted: boolean;
+    savedAt(): string | null;
+    reset(): Promise<void>;
+  };
   auth: {
     me(): Promise<Me | null>;
     signIn(input: { email: string; password: string }): Promise<SignInResult>;
@@ -221,7 +243,8 @@ export interface Api {
       patch: { sections: GamePlanVersion['sections']; expectedVersion: number },
     ): Promise<GamePlanVersion>;
     submit(versionId: string): Promise<GamePlanVersion>;
-    approve(versionId: string): Promise<GamePlanVersion>;
+    /** §15.4 / D-014: a head coach's approval is an override and must carry `overrideReason` (400 otherwise). */
+    approve(versionId: string, input?: { note?: string; overrideReason?: string }): Promise<GamePlanVersion>;
     comment(versionId: string, input: { sectionKey: string | null; itemId: string | null; body: string }): Promise<PlanComment>;
   };
   playbook: {

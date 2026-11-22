@@ -6,7 +6,10 @@ import { renderApp, stubMediaPlayback } from '../shell/harness';
 const HEAD = 'user-head';
 const ASSET = '/app/film/asset-westmoor-1?game=game-w10';
 
-/** jsdom has no media clock: pretend the player reached `sec` and fired `timeupdate`. */
+/**
+ * jsdom has no media clock: pretend the element reached `sec` and fired `timeupdate`. In mock
+ * mode the stand-in clip is anchored to the selected play, so `sec` is seconds into that play.
+ */
 function movePlayheadTo(sec: number) {
   const video = document.querySelector('video') as HTMLVideoElement;
   Object.defineProperty(video, 'currentTime', { configurable: true, writable: true, value: sec });
@@ -58,9 +61,9 @@ describe('asset view: timeline, split/merge, labels, provenance, inference', () 
     // Split needs the playhead inside play 1 (2:00–2:07): outside it, the page says so.
     await user.click(screen.getByRole('button', { name: /Split at playhead/ }));
     expect(await screen.findByText(/Move the playhead inside play 1/)).toBeInTheDocument();
-    movePlayheadTo(123.5);
+    movePlayheadTo(3.5); // play 1 starts at 2:00 → playhead 2:03.5
     await user.click(screen.getByRole('button', { name: /Split at playhead/ }));
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/Play 1 split at 2:03 into two cuts/));
+    await waitFor(() => expect(screen.getByTestId('action-notice')).toHaveTextContent(/Play 1 split at 2:03 into two cuts/));
     await waitFor(() => expect(options()).toHaveLength(49));
     expect(options()[0]).toHaveTextContent(/2:00–2:03/);
     expect(options()[1]).toHaveTextContent(/2:03–2:07/);
@@ -165,14 +168,15 @@ describe('asset view: timeline, split/merge, labels, provenance, inference', () 
     const user = userEvent.setup();
     const { router } = renderApp('/app/scouting?unit=offense&game=game-w10', { signedInAs: HEAD });
     await screen.findAllByTestId('finding-count');
-    await user.click(screen.getByRole('link', { name: '5:12' }));
+    await user.click(screen.getByRole('link', { name: '4:10' }));
     await waitFor(() => expect(router.state.location.pathname).toBe('/app/film/asset-westmoor-1'));
-    expect(router.state.location.search).toMatch(/t=312\.4/);
+    expect(router.state.location.search).toMatch(/t=250/);
     await screen.findByTestId('segment-counts');
     const list = screen.getByRole('listbox', { name: /Plays on this film/ });
-    // 312.4 s falls between play 2 (4:08) and play 3 (6:17); the nearest start wins.
+    // 250 s is inside play 2 (4:08–4:15): that play is selected and the stand-in clip is mapped onto it.
     expect(within(list).getByRole('option', { selected: true })).toHaveTextContent(/#2/);
-    expect(media.play).toHaveBeenCalled();
+    await waitFor(() => expect(media.play).toHaveBeenCalled());
+    expect(screen.getByTestId('seek-notice')).toHaveTextContent(/stand-in footage for 4:10 \(play 2, 4:08–4:15\)/);
   });
 
   it('film page: a chunked upload runs against the mock, polling shows the chain complete, and the asset appears', async () => {

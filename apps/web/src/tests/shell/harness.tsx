@@ -6,11 +6,13 @@ import { createMockApi } from '../../api/mock';
 import { AuthProvider } from '../../auth/AuthContext';
 import { createTestRouter } from '../../app/router';
 import { workspaceStore } from '../../workspace/store';
+import { draftStore } from '../../workspace/drafts';
 
 /** Render the whole product shell at `path` against a fresh, zero-latency mock API. */
-export function renderApp(path: string, options: { signedInAs?: string } = {}) {
+export function renderApp(path: string, options: { signedInAs?: string; persist?: boolean } = {}) {
   workspaceStore.reset();
-  const api = createMockApi({ latencyMs: 0, persist: false, signedInAs: options.signedInAs });
+  draftStore.reset();
+  const api = createMockApi({ latencyMs: 0, persist: options.persist ?? false, signedInAs: options.signedInAs });
   const router = createTestRouter(path);
   const utils = render(
     <ApiProvider api={api}>

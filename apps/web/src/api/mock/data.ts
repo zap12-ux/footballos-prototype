@@ -244,6 +244,8 @@ export const segments: PlaySegment[] = Array.from({ length: 48 }, (_, i) => {
 });
 
 const ev = (atSec: number, note: string | null = null) => ({ assetId: 'asset-westmoor-1', atSec, toSec: null, frameIndex: null, note });
+/** A moment inside seeded play `index` (plays start at 120 s and repeat every 128.5 s; see `segments`). */
+export const snapSec = (index: number, offsetSec = 1.5) => Math.round((120 + (index - 1) * 128.5 + offsetSec) * 10) / 10;
 
 function finding(
   id: string,
@@ -266,19 +268,19 @@ function finding(
 
 export const findings: ScoutingFinding[] = [
   finding('f-1', 'opp-westmoor', 'offense', 'formation_frequency', 'Westmoor lines up in a trips formation on first down.', 19, 54, 'reviewed_only', {
-    supportingEvidence: [ev(312.4, 'Trips right, 1st and 10'), ev(1988.1, 'Trips left, 1st and 10')],
+    supportingEvidence: [ev(snapSec(2), 'Trips right, 1st and 10'), ev(snapSec(15), 'Trips left, 1st and 10')],
     excludedSegmentIds: ['seg-westmoor-1-33', 'seg-westmoor-1-34'], excludedReason: { 'seg-westmoor-1-33': 'formation label not reviewed', 'seg-westmoor-1-34': 'far-side receivers hidden' },
   }),
   finding('f-2', 'opp-westmoor', 'offense', 'tendency_by_situation', 'On second down with 3 yards or fewer to go, Westmoor runs the ball.', 9, 11, 'includes_inferred', {
-    supportingEvidence: [ev(2455.0, '2nd and 2, inside zone')], contraryEvidence: [ev(4010.6, '2nd and 1, quick pass to the flat')],
+    supportingEvidence: [ev(snapSec(19, 2.0), '2nd and 2, inside zone')], contraryEvidence: [ev(snapSec(31, 2.0), '2nd and 1, quick pass to the flat')],
   }),
-  finding('f-3', 'opp-westmoor', 'offense', 'play_type_by_formation', 'From 12 personnel, Westmoor passes.', 6, 17, 'reviewed_only', { supportingEvidence: [ev(3302.2)] }),
+  finding('f-3', 'opp-westmoor', 'offense', 'play_type_by_formation', 'From 12 personnel, Westmoor passes.', 6, 17, 'reviewed_only', { supportingEvidence: [ev(snapSec(26))] }),
   finding('f-4', 'opp-westmoor', 'offense', 'uncertain', 'Westmoor may favour screens on third and long; the sample is too small to call a tendency.', 3, 7, 'includes_inferred', {
     excludedReason: { 'seg-westmoor-1-41': 'down and distance not visible' }, excludedSegmentIds: ['seg-westmoor-1-41'],
   }),
   finding('f-5', 'opp-westmoor', 'defense', 'formation_frequency', 'Against 11 personnel, Westmoor shows an even front.', 31, 44, 'reviewed_only', { supportingEvidence: [ev(640.0)] }),
   finding('f-6', 'opp-westmoor', 'defense', 'strength', 'Westmoor brings a fifth rusher on third and 7 or more.', 8, 13, 'includes_inferred'),
-  finding('f-7', 'opp-westmoor', 'defense', 'weakness', 'The boundary corner plays off coverage against a single receiver.', 14, 22, 'reviewed_only', { contraryEvidence: [ev(5120.3, 'Press at the goal line')] }),
+  finding('f-7', 'opp-westmoor', 'defense', 'weakness', 'The boundary corner plays off coverage against a single receiver.', 14, 22, 'reviewed_only', { contraryEvidence: [ev(snapSec(40), 'Press at the goal line')] }),
   finding('f-8', 'opp-westmoor', 'defense', 'uncertain', 'Westmoor may rotate the safety late toward trips; the camera framing hides the far safety on most of these snaps.', 4, 9, 'includes_inferred', {
     excludedReason: { 'seg-westmoor-1-12': 'far safety outside the frame' }, excludedSegmentIds: ['seg-westmoor-1-12'],
   }),
@@ -306,7 +308,7 @@ export const plans: GamePlan[] = [
 export const planVersions: GamePlanVersion[] = [
   {
     id: 'pv-off-1', planId: 'plan-w10-off', number: 1, status: 'approved', basedOn: null, createdBy: 'user-oc', createdAt: '2026-10-19T12:00:00.000Z',
-    approvedBy: 'user-oc', approvedAt: '2026-10-22T21:10:00.000Z', override: false, version: 3,
+    approvedBy: 'user-oc', approvedAt: '2026-10-22T21:10:00.000Z', override: false, overrideReason: null, supersededAt: null, supersededByVersionId: null, version: 3,
     sections: sectionsFor('offense', {
       objectives: ['Win first down: stay ahead of the chains against the even front.', 'Protect the quarterback against the fifth rusher on third and long.'],
       personnel: ['11 personnel as the base; 12 personnel for short yardage.'],
@@ -317,7 +319,7 @@ export const planVersions: GamePlanVersion[] = [
   },
   {
     id: 'pv-off-2', planId: 'plan-w10-off', number: 2, status: 'draft', basedOn: 'pv-off-1', createdBy: 'user-oc', createdAt: '2026-10-24T13:30:00.000Z',
-    approvedBy: null, approvedAt: null, override: false, version: 2,
+    approvedBy: null, approvedAt: null, override: false, overrideReason: null, supersededAt: null, supersededByVersionId: null, version: 2,
     sections: sectionsFor('offense', {
       objectives: ['Win first down: stay ahead of the chains against the even front.', 'Protect the quarterback against the fifth rusher on third and long.'],
       personnel: ['11 personnel as the base; 12 personnel for short yardage.', 'Jumbo package inside the 5.'],
@@ -332,7 +334,7 @@ export const planVersions: GamePlanVersion[] = [
   },
   {
     id: 'pv-def-1', planId: 'plan-w10-def', number: 1, status: 'in_review', basedOn: null, createdBy: 'user-dc', createdAt: '2026-10-23T15:00:00.000Z',
-    approvedBy: null, approvedAt: null, override: false, version: 4,
+    approvedBy: null, approvedAt: null, override: false, overrideReason: null, supersededAt: null, supersededByVersionId: null, version: 4,
     sections: sectionsFor('defense', {
       opponent_tendencies: ['Trips on first down (19 of 54 reviewed snaps).', 'Run on second and 3 or fewer (9 of 11; includes unreviewed labels).'],
       fronts: ['Over front against trips; set the strength to the three-receiver side.'],
@@ -345,7 +347,7 @@ export const planVersions: GamePlanVersion[] = [
   },
   {
     id: 'pv-st-1', planId: 'plan-w10-st', number: 1, status: 'draft', basedOn: null, createdBy: 'user-dc', createdAt: '2026-10-24T09:00:00.000Z',
-    approvedBy: null, approvedAt: null, override: false, version: 1,
+    approvedBy: null, approvedAt: null, override: false, overrideReason: null, supersededAt: null, supersededByVersionId: null, version: 1,
     sections: sectionsFor('special_teams', {
       punt_protection_return: ['Rugby punt alert: contain the roll-out side (6 of 8 reviewed punts).'],
       opponent_alerts: ['Possible fake punt on fourth and short at midfield: one snap, not a tendency.'],
@@ -360,33 +362,44 @@ export const planComments: PlanComment[] = [
 ];
 
 export const playbookDocuments: PlaybookDocument[] = [
-  { id: 'pbdoc-off-1', teamId: T, unit: 'offense', title: '2026 offensive installation (demo)', assetId: 'asset-doc-1', pageCount: 42, status: 'extracted', createdAt: '2026-08-05T12:00:00.000Z' },
-  { id: 'pbdoc-off-2', teamId: T, unit: 'offense', title: 'Red-zone supplement (demo)', assetId: 'asset-doc-2', pageCount: 9, status: 'review', createdAt: '2026-10-10T12:00:00.000Z' },
-  { id: 'pbdoc-def-1', teamId: T, unit: 'defense', title: 'Base 4-2-5 manual (demo)', assetId: 'asset-doc-3', pageCount: 31, status: 'extracting', createdAt: '2026-10-24T17:00:00.000Z' },
+  {
+    id: 'pbdoc-off-1', teamId: T, unit: 'offense', title: '2026 offensive installation (demo)', assetId: 'asset-doc-1', pageCount: 42, status: 'extracted',
+    extraction: { basis: 'text', note: 'Text layer read on every page; 4 concepts proposed from headings.', warnings: [], conceptsProposed: 4, termsProposed: 0, pagesWithoutText: 0 },
+    createdBy: 'user-oc', createdAt: '2026-08-05T12:00:00.000Z', updatedAt: '2026-08-05T12:40:00.000Z',
+  },
+  {
+    id: 'pbdoc-off-2', teamId: T, unit: 'offense', title: 'Red-zone supplement (demo)', assetId: 'asset-doc-2', pageCount: 9, status: 'review',
+    extraction: { basis: 'text', note: 'Scanned pages read by OCR; two low-confidence proposals need a coach to confirm the names.', warnings: ['OCR confidence below 0.6 on pages 4 and 7'], conceptsProposed: 2, termsProposed: 0, pagesWithoutText: 0 },
+    createdBy: 'user-oc', createdAt: '2026-10-10T12:00:00.000Z', updatedAt: '2026-10-10T12:30:00.000Z',
+  },
+  {
+    id: 'pbdoc-def-1', teamId: T, unit: 'defense', title: 'Base 4-2-5 manual (demo)', assetId: 'asset-doc-3', pageCount: 31, status: 'extracting',
+    extraction: null, createdBy: 'user-dc', createdAt: '2026-10-24T17:00:00.000Z', updatedAt: '2026-10-24T17:00:00.000Z',
+  },
 ];
 
 export const playbookVersions: PlaybookVersion[] = [
-  { id: 'pbv-off-1', teamId: T, unit: 'offense', seasonId: S, label: '2026 install', status: 'approved', approvedBy: 'user-oc', approvedAt: '2026-08-12T12:00:00.000Z', supersedes: null, createdAt: '2026-08-05T12:00:00.000Z' },
-  { id: 'pbv-off-2', teamId: T, unit: 'offense', seasonId: S, label: '2026 install + red zone', status: 'draft', approvedBy: null, approvedAt: null, supersedes: 'pbv-off-1', createdAt: '2026-10-10T12:00:00.000Z' },
-  { id: 'pbv-def-1', teamId: T, unit: 'defense', seasonId: S, label: '2026 base defense', status: 'draft', approvedBy: null, approvedAt: null, supersedes: null, createdAt: '2026-10-24T17:00:00.000Z' },
+  { id: 'pbv-off-1', teamId: T, unit: 'offense', seasonId: S, label: '2026 install', status: 'approved', approvedBy: 'user-oc', approvedAt: '2026-08-12T12:00:00.000Z', supersedes: null, createdBy: 'user-oc', createdAt: '2026-08-05T12:00:00.000Z' },
+  { id: 'pbv-off-2', teamId: T, unit: 'offense', seasonId: S, label: '2026 install + red zone', status: 'draft', approvedBy: null, approvedAt: null, supersedes: 'pbv-off-1', createdBy: 'user-oc', createdAt: '2026-10-10T12:00:00.000Z' },
+  { id: 'pbv-def-1', teamId: T, unit: 'defense', seasonId: S, label: '2026 base defense', status: 'draft', approvedBy: null, approvedAt: null, supersedes: null, createdBy: 'user-dc', createdAt: '2026-10-24T17:00:00.000Z' },
 ];
 
 const src = (documentId: string, pageNumber: number, excerpt: string) => ({ documentId, pageNumber, bbox: null, excerpt });
 
 export const concepts: Concept[] = [
-  { id: 'c-1', teamId: T, versionId: 'pbv-off-2', name: 'Inside Zone', kind: 'run', description: 'Zone run to the play side; back aims at the guard’s outside leg.', installed: true, sources: [src('pbdoc-off-1', 12, 'Inside Zone: covered linemen base, uncovered linemen combo to the backer.')], status: 'approved', version: 1 },
-  { id: 'c-2', teamId: T, versionId: 'pbv-off-2', name: 'Power', kind: 'run', description: 'Gap scheme with a backside guard pull.', installed: true, sources: [src('pbdoc-off-1', 15, 'Power: down, down, kick, pull.')], status: 'approved', version: 1 },
-  { id: 'c-3', teamId: T, versionId: 'pbv-off-2', name: 'Counter', kind: 'run', description: 'Gap scheme with two backside pullers.', installed: true, sources: [src('pbdoc-off-1', 17, 'Counter: guard kicks, tackle wraps.')], status: 'approved', version: 1 },
-  { id: 'c-4', teamId: T, versionId: 'pbv-off-2', name: 'Flood', kind: 'pass', description: 'Three-level stretch to the field.', installed: true, sources: [src('pbdoc-off-1', 28, 'Flood: corner, out, flat.')], status: 'approved', version: 1 },
-  { id: 'c-5', teamId: T, versionId: 'pbv-off-2', name: 'Sprint-out Smash', kind: 'pass', description: 'Extracted from the red-zone supplement; OCR text is unreviewed.', installed: false, sources: [src('pbdoc-off-2', 4, 'Sprint Smash (OCR): hitch-corner to the sprint side.')], status: 'proposed', version: 1 },
-  { id: 'c-6', teamId: T, versionId: 'pbv-off-2', name: 'Jumbo Wedge', kind: 'run', description: 'Extracted from the red-zone supplement; needs a coach to confirm the name.', installed: false, sources: [src('pbdoc-off-2', 7, 'Wedge (OCR, low confidence)')], status: 'proposed', version: 1 },
-  { id: 'c-7', teamId: T, versionId: 'pbv-off-2', name: 'Half Slide', kind: 'protection', description: 'Extracted from page 33; duplicates an approved concept name in version 1.', installed: false, sources: [src('pbdoc-off-1', 33, 'Half slide protection.')], status: 'rejected', version: 2 },
+  { id: 'c-1', teamId: T, versionId: 'pbv-off-2', name: 'Inside Zone', kind: 'run', description: 'Zone run to the play side; back aims at the guard’s outside leg.', installed: true, sources: [src('pbdoc-off-1', 12, 'Inside Zone: covered linemen base, uncovered linemen combo to the backer.')], status: 'approved', basis: 'text', note: 'Proposed from a page heading in the text layer.', decidedBy: 'user-oc', decidedAt: '2026-08-12T12:00:00.000Z', version: 1, createdAt: '2026-08-05T12:40:00.000Z', updatedAt: '2026-08-12T12:00:00.000Z' },
+  { id: 'c-2', teamId: T, versionId: 'pbv-off-2', name: 'Power', kind: 'run', description: 'Gap scheme with a backside guard pull.', installed: true, sources: [src('pbdoc-off-1', 15, 'Power: down, down, kick, pull.')], status: 'approved', basis: 'text', note: 'Proposed from a page heading in the text layer.', decidedBy: 'user-oc', decidedAt: '2026-08-12T12:00:00.000Z', version: 1, createdAt: '2026-08-05T12:40:00.000Z', updatedAt: '2026-08-12T12:00:00.000Z' },
+  { id: 'c-3', teamId: T, versionId: 'pbv-off-2', name: 'Counter', kind: 'run', description: 'Gap scheme with two backside pullers.', installed: true, sources: [src('pbdoc-off-1', 17, 'Counter: guard kicks, tackle wraps.')], status: 'approved', basis: 'text', note: 'Proposed from a page heading in the text layer.', decidedBy: 'user-oc', decidedAt: '2026-08-12T12:00:00.000Z', version: 1, createdAt: '2026-08-05T12:40:00.000Z', updatedAt: '2026-08-12T12:00:00.000Z' },
+  { id: 'c-4', teamId: T, versionId: 'pbv-off-2', name: 'Flood', kind: 'pass', description: 'Three-level stretch to the field.', installed: true, sources: [src('pbdoc-off-1', 28, 'Flood: corner, out, flat.')], status: 'approved', basis: 'text', note: 'Proposed from a page heading in the text layer.', decidedBy: 'user-oc', decidedAt: '2026-08-12T12:00:00.000Z', version: 1, createdAt: '2026-08-05T12:40:00.000Z', updatedAt: '2026-08-12T12:00:00.000Z' },
+  { id: 'c-5', teamId: T, versionId: 'pbv-off-2', name: 'Sprint-out Smash', kind: 'pass', description: 'Extracted from the red-zone supplement; OCR text is unreviewed.', installed: false, sources: [src('pbdoc-off-2', 4, 'Sprint Smash (OCR): hitch-corner to the sprint side.')], status: 'proposed', basis: 'text', note: 'Proposed from OCR text; the page image was not interpreted.', decidedBy: null, decidedAt: null, version: 1, createdAt: '2026-10-10T12:30:00.000Z', updatedAt: '2026-10-10T12:30:00.000Z' },
+  { id: 'c-6', teamId: T, versionId: 'pbv-off-2', name: 'Jumbo Wedge', kind: 'run', description: 'Extracted from the red-zone supplement; needs a coach to confirm the name.', installed: false, sources: [src('pbdoc-off-2', 7, 'Wedge (OCR, low confidence)')], status: 'proposed', basis: 'text', note: 'Proposed from OCR text; the page image was not interpreted.', decidedBy: null, decidedAt: null, version: 1, createdAt: '2026-10-10T12:30:00.000Z', updatedAt: '2026-10-10T12:30:00.000Z' },
+  { id: 'c-7', teamId: T, versionId: 'pbv-off-2', name: 'Half Slide', kind: 'protection', description: 'Extracted from page 33; duplicates an approved concept name in version 1.', installed: false, sources: [src('pbdoc-off-1', 33, 'Half slide protection.')], status: 'rejected', basis: 'text', note: 'Proposed from a page heading in the text layer.', decidedBy: 'user-oc', decidedAt: '2026-10-11T09:00:00.000Z', version: 2, createdAt: '2026-08-05T12:40:00.000Z', updatedAt: '2026-10-11T09:00:00.000Z' },
 ];
 
 const P = (
   id: string, jersey: string, firstName: string, lastName: string, positions: string[], classYear: string,
   status: Player['status'] = 'active', strengths: string[] = [], developmentPriorities: string[] = [], notes = '',
-): Player => ({ id, teamId: T, seasonId: S, jersey, firstName, lastName, positions, classYear, status, strengths, developmentPriorities, notes, version: 1 });
+): Player => ({ id, teamId: T, seasonId: S, jersey, firstName, lastName, positions, classYear, status, strengths, developmentPriorities, notes, availability: [], version: 1, createdAt: CREATED, updatedAt: CREATED });
 
 export const players: Player[] = [
   P('p-7', '7', 'Eli', 'Marchetti', ['QB'], 'Senior', 'active', ['Quick release'], ['Reads against two-high']),
@@ -418,7 +431,7 @@ export const players: Player[] = [
 
 export const depthCharts: DepthChart[] = [
   {
-    id: 'dc-off', teamId: T, seasonId: S, unit: 'offense', version: 2,
+    id: 'dc-off', teamId: T, seasonId: S, unit: 'offense', version: 2, updatedAt: '2026-10-20T12:00:00.000Z',
     slots: [
       { position: 'QB', order: 1, playerId: 'p-7' }, { position: 'QB', order: 2, playerId: 'p-12' },
       { position: 'RB', order: 1, playerId: 'p-22' }, { position: 'RB', order: 2, playerId: 'p-33' },
@@ -429,7 +442,7 @@ export const depthCharts: DepthChart[] = [
     ],
   },
   {
-    id: 'dc-def', teamId: T, seasonId: S, unit: 'defense', version: 1,
+    id: 'dc-def', teamId: T, seasonId: S, unit: 'defense', version: 1, updatedAt: CREATED,
     slots: [
       { position: 'DE', order: 1, playerId: 'p-90' }, { position: 'DT', order: 1, playerId: 'p-94' }, { position: 'DT', order: 2, playerId: 'p-99' },
       { position: 'LB', order: 1, playerId: 'p-44' }, { position: 'LB', order: 2, playerId: 'p-40' },
@@ -438,16 +451,16 @@ export const depthCharts: DepthChart[] = [
     ],
   },
   {
-    id: 'dc-st', teamId: T, seasonId: S, unit: 'special_teams', version: 1,
+    id: 'dc-st', teamId: T, seasonId: S, unit: 'special_teams', version: 1, updatedAt: CREATED,
     slots: [{ position: 'K', order: 1, playerId: 'p-17' }, { position: 'P', order: 1, playerId: 'p-17' }, { position: 'KR', order: 1, playerId: 'p-11' }],
   },
 ];
 
 export const packages: PersonnelPackage[] = [
-  { id: 'pkg-11', teamId: T, seasonId: S, unit: 'offense', name: '11 personnel', playerIds: ['p-7', 'p-22', 'p-1', 'p-4', 'p-11', 'p-85'], description: 'One back, one tight end, three receivers. Base package.', version: 1 },
-  { id: 'pkg-12', teamId: T, seasonId: S, unit: 'offense', name: '12 personnel', playerIds: ['p-7', 'p-22', 'p-1', 'p-4', 'p-85', 'p-88'], description: 'One back, two tight ends. Short yardage; second tight end currently unavailable.', version: 1 },
-  { id: 'pkg-jumbo', teamId: T, seasonId: S, unit: 'offense', name: 'Jumbo', playerIds: ['p-7', 'p-22', 'p-33', 'p-85', 'p-88', 'p-66'], description: 'Goal line.', version: 1 },
-  { id: 'pkg-dime', teamId: T, seasonId: S, unit: 'defense', name: 'Dime', playerIds: ['p-90', 'p-94', 'p-44', 'p-21', 'p-24', 'p-3', 'p-9', 'p-11'], description: 'Six defensive backs for third and long.', version: 1 },
+  { id: 'pkg-11', teamId: T, seasonId: S, unit: 'offense', name: '11 personnel', playerIds: ['p-7', 'p-22', 'p-1', 'p-4', 'p-11', 'p-85'], description: 'One back, one tight end, three receivers. Base package.', version: 1, createdAt: CREATED, updatedAt: CREATED },
+  { id: 'pkg-12', teamId: T, seasonId: S, unit: 'offense', name: '12 personnel', playerIds: ['p-7', 'p-22', 'p-1', 'p-4', 'p-85', 'p-88'], description: 'One back, two tight ends. Short yardage; second tight end currently unavailable.', version: 1, createdAt: CREATED, updatedAt: CREATED },
+  { id: 'pkg-jumbo', teamId: T, seasonId: S, unit: 'offense', name: 'Jumbo', playerIds: ['p-7', 'p-22', 'p-33', 'p-85', 'p-88', 'p-66'], description: 'Goal line.', version: 1, createdAt: CREATED, updatedAt: CREATED },
+  { id: 'pkg-dime', teamId: T, seasonId: S, unit: 'defense', name: 'Dime', playerIds: ['p-90', 'p-94', 'p-44', 'p-21', 'p-24', 'p-3', 'p-9', 'p-11'], description: 'Six defensive backs for third and long.', version: 1, createdAt: CREATED, updatedAt: CREATED },
 ];
 
 export const settings: TeamSettings = {

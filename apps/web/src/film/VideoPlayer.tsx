@@ -2,10 +2,11 @@ import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
 import type { MediaGrantInfo } from '../api/api';
 import { describeError } from '../api/hooks';
 import { formatSeconds } from '../components/shell/ui';
+import type { SeekPlan } from './review';
 
 export interface VideoPlayerHandle {
-  /** Seek to a time in seconds from the start of the original file and start playing. */
-  seekTo(sec: number): void;
+  /** Seek the media element to `mediaSec` (seconds in the served stream) and, by default, play. */
+  seekTo(mediaSec: number, play?: boolean): void;
   currentTime(): number;
 }
 
@@ -14,7 +15,12 @@ interface Props {
   grantStatus: 'loading' | 'ready' | 'error' | 'idle';
   grantError: unknown;
   onRefreshGrant: () => void;
-  onTimeUpdate: (sec: number) => void;
+  /** Media-element time; the page maps it back to original-file time when a stand-in is playing. */
+  onTimeUpdate: (mediaSec: number) => void;
+  /** The served file's length once the element knows it (real proxies do not state it in the grant). */
+  onDuration?: (sec: number) => void;
+  /** The last seek the page resolved: stand-in mapping or an unavailable moment, said at the player. */
+  notice: SeekPlan | null;
   demo: boolean;
   label: string;
 }
@@ -23,17 +29,23 @@ interface Props {
  * The proxy player (§14.3). The source is the grant's `streamUrl`; when the element reports an
  * error (an expired token answers 401) a fresh grant is requested once, then the error is shown.
  */
-export const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ grant, grantStatus, grantError, onRefreshGrant, onTimeUpdate, demo, label }, ref) {
+export const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ grant, grantStatus, grantError, onRefreshGrant, onTimeUpdate, onDuration, notice, demo, label }, ref) {
   const video = useRef<HTMLVideoElement>(null);
   const [mediaError, setMediaError] = useState<string | null>(null);
   const refreshed = useRef<string | null>(null);
 
   useImperativeHandle(ref, () => ({
-    seekTo(sec) {
+    seekTo(mediaSec, play = true) {
       const el = video.current;
       if (!el) return;
-      el.currentTime = Math.max(0, sec);
-      void el.play().catch(() => undefined);
+      el.currentTime = Math.max(0, mediaSec);
+      if (!play) return;
+      try {
+        const started = el.play();
+        if (started && typeof started.catch === 'function') started.catch(() => undefined);
+      } catch {
+        /* autoplay refused or no media implementation (tests): the coach presses play */
+      }
     },
     currentTime: () => video.current?.currentTime ?? 0,
   }));
@@ -69,6 +81,9 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPl
         playsInline
         aria-label={label}
         onTimeUpdate={(e) => onTimeUpdate(e.currentTarget.currentTime)}
+        onLoadedMetadata={(e) => {
+          if (Number.isFinite(e.currentTarget.duration)) onDuration?.(e.currentTarget.duration);
+        }}
         onError={() => {
           if (refreshed.current !== grant.streamUrl) {
             refreshed.current = grant.streamUrl;
@@ -79,7 +94,21 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPl
         }}
       />
       <figcaption className="small muted">
-        {demo ? 'Demo proxy: a short credited clip stands in for the full game file; times on this page still refer to the original upload.' : `Proxy stream; grant renews before ${formatSeconds(Math.max(0, Math.round((Date.parse(grant.expiresAt) - Date.now()) / 1000)))} from now.`}
+        {notice?.kind === 'unavailable' ? (
+          <span className="callout warn block" role="alert" data-testid="seek-notice">
+            <strong>Not shown.</strong> {notice.message}
+          </span>
+        ) : notice?.kind === 'stand_in' ? (
+          <span className="block" role="status" data-testid="seek-notice">
+            {notice.message}
+          </span>
+        ) : demo || grant.proxy?.standIn ? (
+          <span className="block" data-testid="seek-notice">
+            Demo proxy: a short credited clip stands in for the full game file. Select a play or follow an evidence link and the player says which moment it stands for.
+          </span>
+        ) : (
+          `Proxy stream; grant renews before ${formatSeconds(Math.max(0, Math.round((Date.parse(grant.expiresAt) - Date.now()) / 1000)))} from now.`
+        )}
         {mediaError ? (
           <span className="field-error" role="alert">
             {' '}

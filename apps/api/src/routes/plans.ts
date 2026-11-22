@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import {
-  CreatePlanCommentRequestSchema, CreateShareLinkRequestSchema, IdSchema, PatchPlanVersionRequestSchema, PlanTransitionRequestSchema, SHARE_LINK_MAX_HOURS, UnitSchema,
+  ApprovePlanVersionRequestSchema, CreatePlanCommentRequestSchema, CreateShareLinkRequestSchema, IdSchema, PatchPlanVersionRequestSchema, PlanTransitionRequestSchema, SHARE_LINK_MAX_HOURS, UnitSchema,
   type CreateShareLinkResponse, type GamePlanResponse, type PlanVersionResponse, type SharedPlanResponse, type Unit,
 } from '@footballos/contracts';
 import type { AppContext } from '../context.js';
@@ -85,13 +85,13 @@ export function planRoutes(ctx: AppContext) {
       assert(policy.canEditUnitPlan(m, unit), 'Head coach or staff assigned to this unit required');
       return c.json({ version: serializeVersion(submitVersion(ctx, c.var.auth.user.id, v, c.req.valid('json').note)) }, 200);
     })
-    .post('/plan-versions/:id/approve', zv('param', idParam), zv('json', PlanTransitionRequestSchema.optional().default({})), (c) => {
+    .post('/plan-versions/:id/approve', zv('param', idParam), zv('json', ApprovePlanVersionRequestSchema.optional().default({})), (c) => {
       const v = requireVersion(ctx, c.req.valid('param').id, teamIdsOf(c.var.auth));
       const m = requireMembership(c.var.auth, v.teamId);
       const { game, unit } = planOf(v);
       const perm = policy.canApproveUnitPlan(m, unit);
       assert(perm.allowed, 'Coordinator of the unit or head coach required');
-      const approved = approveVersion(ctx, c.var.auth.user.id, v, perm.override, c.req.valid('json').note, currentHashes(ctx, game, unit));
+      const approved = approveVersion(ctx, c.var.auth.user.id, v, perm.override, c.req.valid('json'), currentHashes(ctx, game, unit));
       return c.json({ version: serializeVersion(approved) }, 200);
     })
     .post('/plan-versions/:id/reopen', zv('param', idParam), zv('json', PlanTransitionRequestSchema.optional().default({})), (c) => {

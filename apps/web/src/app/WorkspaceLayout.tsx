@@ -5,6 +5,7 @@ import { DataState, EnvironmentLabel } from '../components/shell/ui';
 import { UNIT_LABELS, type Unit } from '../api/contracts';
 import { WorkspaceProvider, useWorkspace } from '../workspace/WorkspaceContext';
 import { workspaceStore } from '../workspace/store';
+import { describeDrafts, draftStore } from '../workspace/drafts';
 import { FocusOnNavigate } from './FocusOnNavigate';
 
 export const WORKSPACE_NAV: { to: string; label: string; end?: boolean }[] = [
@@ -106,6 +107,10 @@ function Shell() {
   const membership = me.memberships.find((m) => m.teamId === ws.team?.id) ?? me.memberships[0];
 
   async function onSignOut() {
+    // Sign-out is the one navigation that must drop drafts: say what goes before it does.
+    const pending = describeDrafts();
+    if (pending.length && !window.confirm(`Signing out discards unsaved work: ${pending.join('; ')}. Sign out anyway?`)) return;
+    draftStore.reset();
     await signOut();
     workspaceStore.reset();
     navigate('/sign-in', { replace: true });

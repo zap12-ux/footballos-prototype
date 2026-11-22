@@ -120,6 +120,9 @@ describe('extractDocument', () => {
       imageKey: p?.imagePath,
       ocrText: p?.text ?? null,
       ocrConfidence: p?.ocrConfidence ?? null,
+      textSource: p?.textSource,
+      width: p?.width ?? null,
+      height: p?.height ?? null,
     });
     expect(parsed.success, JSON.stringify(parsed.error)).toBe(true);
   });

@@ -17,10 +17,25 @@ function segmentName(id: string): string {
   return m ? `play ${m[1]}` : id.slice(0, 8);
 }
 
-function EvidenceList({ label, items, href }: { label: string; items: EvidenceRef[]; href: (path: string) => string }) {
-  if (!items.length) return null;
+/**
+ * Evidence links for one finding. A finding with no supporting play says so in place of the
+ * link (OC-06): a card never looks backed when it is not. Contrary examples stay under
+ * "Against" and never stand in for support.
+ */
+function EvidenceList({ label, items, href, emptyText }: { label: string; items: EvidenceRef[]; href: (path: string) => string; emptyText?: string }) {
+  if (!items.length) {
+    if (!emptyText) return null;
+    return (
+      <p className="small evidence-list">
+        <span className="muted">{label}: </span>
+        <span className="tag low" data-testid="no-supporting-play">
+          {emptyText}
+        </span>
+      </p>
+    );
+  }
   return (
-    <p className="small evidence-list">
+    <p className="small evidence-list" data-testid={label === 'Against' ? 'contrary-evidence' : 'supporting-evidence'}>
       <span className="muted">{label}: </span>
       {items.map((e, i) => (
         <span key={`${e.assetId}-${e.atSec}-${i}`}>
@@ -58,7 +73,7 @@ export function FindingCard({ finding, href }: { finding: ScoutingFinding; href:
           Left out ({excluded.length}): {excluded.map(([id, why]) => `${segmentName(id)} (${why})`).join('; ')}.
         </p>
       ) : null}
-      <EvidenceList label="Evidence" items={finding.supportingEvidence} href={href} />
+      <EvidenceList label="Evidence" items={finding.supportingEvidence} href={href} emptyText="No supporting play on file" />
       <EvidenceList label="Against" items={finding.contraryEvidence} href={href} />
       <p className="small muted">
         Computed {formatDate(finding.computedAt)} from {finding.gameIds.length} game{finding.gameIds.length === 1 ? '' : 's'} of film · {finding.computeVersion}

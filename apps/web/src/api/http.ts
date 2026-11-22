@@ -244,7 +244,7 @@ export function createHttpApi(options: HttpApiOptions = {}): Api {
       createDraft: (versionId) => raw('POST', `/plan-versions/${versionId}/draft`),
       update: (versionId, patch) => raw('PATCH', `/plan-versions/${versionId}`, patch),
       submit: (versionId) => raw('POST', `/plan-versions/${versionId}/submit`),
-      approve: (versionId) => raw('POST', `/plan-versions/${versionId}/approve`),
+      approve: (versionId, input = {}) => raw('POST', `/plan-versions/${versionId}/approve`, input),
       comment: (versionId, input) => raw('POST', `/plan-versions/${versionId}/comments`, input),
     },
     playbook: {

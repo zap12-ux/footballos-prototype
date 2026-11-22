@@ -5,6 +5,8 @@ import { describeError, useAction, useResource } from '../api/hooks';
 import { LABEL_KEYS, LABEL_KEY_LABELS, EVIDENCE_ONLY_KEYS, type AcceptedStatus, type Label, type MediaAsset, type ModelProvenance, type PlaySegment } from '../api/contracts';
 import { EmptyState, SaveStatus, StatusBadge, formatDateTime, formatSeconds, humanize } from '../components/shell/ui';
 import { DEFAULT_LABEL_FILTER, applyLabelFilter, planBulkAccept, uncertaintyWord, type LabelFilter } from './review';
+import { draftKeys, useDraft, useDrafts, type LabelCorrectionDraft } from '../workspace/drafts';
+import type { SeekPlan } from './review';
 
 interface Props {
   api: Api;
@@ -17,7 +19,8 @@ interface Props {
   canEdit: boolean;
   userName: (userId: string | null) => string;
   timeZone?: string;
-  onSeek: (sec: number) => void;
+  /** Resolves an original-file time against the stream; the result is shown at the control that asked. */
+  onSeek: (sec: number) => SeekPlan;
   onChanged: () => void;
 }
 
@@ -54,6 +57,9 @@ export function LabelReview({ api, asset, segments, labels, provenance, queue, a
   const byCell = new Map(labels.map((l) => [`${l.segmentId}:${l.key}`, l]));
   const plan = useMemo(() => planBulkAccept(visibleLabels), [visibleLabels]);
   const selected = labels.find((l) => l.id === selectedLabelId) ?? null;
+  // Cells with a correction typed but not saved (PC-03): the draft outlives selecting another cell.
+  const drafts = useDrafts();
+  const pendingIds = useMemo(() => new Set(labels.filter((l) => drafts[draftKeys.labelCorrection(asset.id, l.segmentId, l.key)] !== undefined).map((l) => l.id)), [drafts, labels, asset.id]);
 
   const bulk = useAction(async () => {
     const result = await api.labels.bulkAccept(asset.id, { segmentIds: plan.segmentIds, keys: plan.keys });
@@ -166,20 +172,22 @@ export function LabelReview({ api, asset, segments, labels, provenance, queue, a
                     const label = byCell.get(`${s.id}:${k}`);
                     if (!label) return <td key={k} className="muted">—</td>;
                     const hidden = !visibleLabels.includes(label);
+                    const pending = pendingIds.has(label.id);
                     return (
-                      <td key={k} className={`cell status-${label.accepted.status}${hidden ? ' dimmed' : ''}`}>
+                      <td key={k} className={`cell status-${label.accepted.status}${hidden ? ' dimmed' : ''}${pending ? ' pending' : ''}`}>
                         <button
                           type="button"
                           className={`cell-btn${selectedLabelId === label.id ? ' selected' : ''}`}
                           aria-pressed={selectedLabelId === label.id}
                           onClick={() => setSelectedLabelId(label.id)}
-                          aria-label={`${LABEL_KEY_LABELS[k]} for play ${s.index}: ${cellText(label)}, ${humanize(label.accepted.status)}, ${uncertaintyWord(label)}`}
+                          aria-label={`${LABEL_KEY_LABELS[k]} for play ${s.index}: ${cellText(label)}, ${humanize(label.accepted.status)}, ${uncertaintyWord(label)}${pending ? ', unsaved correction' : ''}`}
                         >
                           <span className="glyph" aria-hidden="true">
                             {STATUS_GLYPH[label.accepted.status]}
                           </span>{' '}
                           {cellText(label)}
                           <span className="small muted block">{uncertaintyWord(label)}</span>
+                          {pending ? <span className="chip-state pending">unsaved correction</span> : null}
                         </button>
                       </td>
                     );
@@ -195,6 +203,7 @@ export function LabelReview({ api, asset, segments, labels, provenance, queue, a
         <LabelPanel
           key={selected.id}
           api={api}
+          assetId={asset.id}
           label={selected}
           segment={segments.find((s) => s.id === selected.segmentId) ?? null}
           provenance={provenance.find((p) => p.id === selected.provenanceId) ?? null}
@@ -212,25 +221,48 @@ export function LabelReview({ api, asset, segments, labels, provenance, queue, a
 
 interface PanelProps {
   api: Api;
+  assetId: string;
   label: Label;
   segment: PlaySegment | null;
   provenance: ModelProvenance | null;
   canEdit: boolean;
   userName: (userId: string | null) => string;
   timeZone?: string;
-  onSeek: (sec: number) => void;
+  onSeek: (sec: number) => SeekPlan;
   onClose: () => void;
   onChanged: () => void;
 }
 
-function LabelPanel({ api, label, segment, provenance, canEdit, userName, timeZone, onSeek, onClose, onChanged }: PanelProps) {
+/** What the last evidence seek from this panel resolved to, when it was not a plain seek. */
+function SeekNote({ plan }: { plan: SeekPlan | null }) {
+  if (!plan || plan.kind === 'direct') return null;
+  return (
+    <span className={`small block ${plan.kind === 'unavailable' ? 'field-error' : 'muted'}`} role={plan.kind === 'unavailable' ? 'alert' : 'status'} data-testid="evidence-seek-note">
+      {plan.kind === 'unavailable' ? plan.message : `Stand-in footage: ${plan.message.replace(/^Demo proxy: stand-in footage for /, '')}`}
+    </span>
+  );
+}
+
+function LabelPanel({ api, assetId, label, segment, provenance, canEdit, userName, timeZone, onSeek, onClose, onChanged }: PanelProps) {
   const id = useId();
   const canAccept = !!label.inferred && !label.inferred.abstained;
-  const [status, setStatus] = useState<'accepted' | 'corrected' | 'unknown' | 'rejected'>(canAccept ? 'accepted' : 'corrected');
-  const [value, setValue] = useState(label.accepted.value ?? label.inferred?.value ?? '');
-  const [reason, setReason] = useState('');
+  // The correction form is a draft per play and label (PC-03): selecting another cell and
+  // coming back restores the pending value and reason. Saved or discarded explicitly.
+  const defaults: LabelCorrectionDraft = { status: canAccept ? 'accepted' : 'corrected', value: label.accepted.value ?? label.inferred?.value ?? '', reason: '' };
+  const [pending, setPending, clearPending] = useDraft<LabelCorrectionDraft>(draftKeys.labelCorrection(assetId, label.segmentId, label.key));
+  const form = pending ?? defaults;
+  const { status, value, reason } = form;
+  const update = (patch: Partial<LabelCorrectionDraft>) => {
+    const next = { ...form, ...patch };
+    if (next.status === defaults.status && next.value === defaults.value && next.reason === defaults.reason) clearPending();
+    else setPending(next);
+  };
+  const setStatus = (s: LabelCorrectionDraft['status']) => update({ status: s });
+  const setValue = (v: string) => update({ value: v });
+  const setReason = (r: string) => update({ reason: r });
   const [historyOpen, setHistoryOpen] = useState(false);
   const [conflict, setConflict] = useState(false);
+  const [seekNote, setSeekNote] = useState<SeekPlan | null>(null);
   const history = useResource(async () => (historyOpen ? api.labels.revisions(label.id) : []), [api, label.id, label.version, historyOpen]);
 
   useEffect(() => setConflict(false), [label.version]);
@@ -238,7 +270,7 @@ function LabelPanel({ api, label, segment, provenance, canEdit, userName, timeZo
   const save = useAction(async () => {
     try {
       const next = await api.labels.correct(label.id, { accepted: { value: status === 'corrected' ? value.trim() : null, status }, reason: reason.trim() || undefined, expectedVersion: label.version });
-      setReason('');
+      clearPending();
       onChanged();
       return next;
     } catch (error) {
@@ -274,12 +306,13 @@ function LabelPanel({ api, label, segment, provenance, canEdit, userName, timeZo
                 <span className="small block">
                   Looked at:{' '}
                   {label.inferred.evidence.map((e, i) => (
-                    <button key={i} type="button" className="link" onClick={() => onSeek(e.atSec)}>
+                    <button key={i} type="button" className="link" onClick={() => setSeekNote(onSeek(e.atSec))}>
                       {formatSeconds(e.atSec)}
                       {e.toSec !== null ? `–${formatSeconds(e.toSec)}` : ''}
                     </button>
                   ))}
                   {label.inferred.evidence.map((e) => e.note).filter(Boolean).join('; ')}
+                  <SeekNote plan={seekNote} />
                 </span>
               ) : null}
             </>
@@ -333,6 +366,16 @@ function LabelPanel({ api, label, segment, provenance, canEdit, userName, timeZo
             <button type="submit" className="primary" disabled={save.status === 'saving'}>
               Save label
             </button>
+            {pending ? (
+              <>
+                <span className="tag gold" role="status" data-testid="pending-correction">
+                  Pending, not saved
+                </span>
+                <button type="button" className="link small" onClick={clearPending}>
+                  Discard
+                </button>
+              </>
+            ) : null}
             <SaveStatus status={save.status} error={save.error} savedText="Label saved" />
           </div>
           {conflict ? (
@@ -374,7 +417,8 @@ function LabelPanel({ api, label, segment, provenance, canEdit, userName, timeZo
   );
 }
 
-export function ProvenancePanel({ provenance, onSeek, timeZone }: { provenance: ModelProvenance | null; onSeek: (sec: number) => void; timeZone?: string }) {
+export function ProvenancePanel({ provenance, onSeek, timeZone }: { provenance: ModelProvenance | null; onSeek: (sec: number) => SeekPlan; timeZone?: string }) {
+  const [seekNote, setSeekNote] = useState<SeekPlan | null>(null);
   if (!provenance) {
     return (
       <p className="small muted" data-testid="provenance">
@@ -399,11 +443,12 @@ export function ProvenancePanel({ provenance, onSeek, timeZone }: { provenance: 
         {formatSeconds(provenance.inspected.fromSec)} to {formatSeconds(provenance.inspected.toSec)}:
         <span className="block frame-times">
           {provenance.inspected.frameTimestampsSec.map((t) => (
-            <button key={t} type="button" className="link mono small" onClick={() => onSeek(t)}>
+            <button key={t} type="button" className="link mono small" onClick={() => setSeekNote(onSeek(t))}>
               {t.toFixed(1)}s
             </button>
           ))}
         </span>
+        <SeekNote plan={seekNote} />
       </dd>
       <dt>Cost</dt>
       <dd>

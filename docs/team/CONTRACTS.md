@@ -59,7 +59,7 @@ Rules (enforced server-side on every route, including media byte ranges and expo
 | View team records, comment | any active membership |
 | Upload film, correct labels | `head_coach`, `coordinator`, `position_coach`, `analyst` |
 | Edit a unit's draft plan | `head_coach`; `coordinator`/`position_coach` whose `units` contains the unit |
-| Approve a unit plan | `coordinator` of that unit; `head_coach` (recorded as `override: true`) |
+| Approve a unit plan | `coordinator` of that unit; `head_coach` (recorded as `override: true` with a required `overrideReason`, iteration 1 / D-014) |
 | Approve playbook extraction / roster edits | `head_coach`, `coordinator` of the unit |
 | Manage staff, invites, retention, settings | `head_coach` |
 | Share link creation | anyone who can view the shared record; links are team-scoped and expire |
@@ -215,7 +215,10 @@ playbook or personnel that a recommendation depends on sets `status:'stale'` wit
 ```ts
 GamePlan { id, teamId, gameId, unit, currentVersionId, createdAt }
 GamePlanVersion { id, planId, number, status: 'draft'|'in_review'|'approved'|'superseded', basedOn: string|null,
-  sections: PlanSection[], createdBy, createdAt, approvedBy: string|null, approvedAt: string|null, override: boolean, version }
+  sections: PlanSection[], createdBy, createdAt, approvedBy: string|null, approvedAt: string|null, override: boolean,
+  overrideReason: string|null,            // required (non-empty) when override is true; iteration 1, D-014
+  supersededAt: string|null, supersededByVersionId: string|null,   // set on the old approved version when a later one is approved
+  version }
 PlanSection { key: OffenseSectionKey|DefenseSectionKey|SpecialTeamsSectionKey, title, items: PlanItem[] }
 PlanItem { id, text, sourceRecommendationId: string|null, conceptIds: string[], packageIds: string[], order }
 PlanComment { id, versionId, sectionKey: string|null, itemId: string|null, authorUserId, body, createdAt, resolvedAt }
@@ -228,6 +231,16 @@ SpecialTeamsSectionKey = 'kickoff_return'|'punt_protection_return'|'fg_pat'|'opp
 
 Editing an `approved` version creates a new `draft` with `basedOn` set; the approved
 snapshot is immutable. Concurrent edits use `expectedVersion` → `409 conflict`.
+
+Approval history (iteration 1, D-014, HC-03 / HC-07): a version's `approvedBy`, `approvedAt`,
+`override` and `overrideReason` are never cleared or rewritten. Approving a later version sets
+the previous approved version to `superseded` and fills its `supersededAt` and
+`supersededByVersionId`; the UI shows that history for a superseded version exactly as for an
+approved one. A head-coach approval is always an override and must carry `overrideReason`
+(`400 validation_error` without it); the audit event (`plan.override_approved`) carries the
+same reason. A plan has at most one `draft` at a time: `POST /plan-versions/:id/draft` answers
+`409 conflict` with `details.reason: 'draft_exists'` and `details.versionId`, and the UI opens
+that draft instead of creating another.
 
 ## 12. API surface (v1, prefix `/api/v1`)
 
@@ -477,9 +490,11 @@ recommendation grounding). Records are §8–§11; this section fixes routes and
 - `POST /plan-versions/:id/draft` → new draft `basedOn` an approved version (copy of
   sections), `{ version }`; at most one draft per plan (`409` if one exists).
 - `POST /plan-versions/:id/submit` → `in_review`; `POST /plan-versions/:id/approve
-  { note? }` → `approved` (coordinator of the unit; head coach sets `override:true`),
-  previous approved → `superseded`; `POST /plan-versions/:id/reopen` → back to `draft`
-  (coordinator/head coach); every transition audited with actor and note.
+  { note?, overrideReason? }` → `approved` (coordinator of the unit; head coach sets
+  `override:true` and must send `overrideReason`, else `400`), previous approved →
+  `superseded` with `supersededAt` and `supersededByVersionId` set and its own approval fields
+  kept; `POST /plan-versions/:id/reopen` → back to `draft` (coordinator/head coach); every
+  transition audited with actor, note and, for overrides, the reason (iteration 1, D-014).
 - `ReviewFlag { kind: 'stale_recommendation'|'playbook_changed'|'personnel_changed'|'labels_changed',
   message, itemId?, since }` computed on read for the current approved and draft versions by
   comparing stored `inputsHash` values against current inputs; never mutates versions.

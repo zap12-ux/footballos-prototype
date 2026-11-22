@@ -28,11 +28,15 @@ import type {
 import { PLAN_SECTION_TEMPLATES } from '../contracts';
 import * as demo from './data';
 import { DEMO_LABEL_KEYS, DEMO_MFA_CODE, DEMO_NOW } from './data';
+import { clearMockStore, fingerprint, mockStoreSavedAt, readMockStore, writeMockStore } from './persistence';
 
 export { DEMO_MFA_CODE, DEMO_NOW };
+export { MOCK_STORE_KEY, MOCK_SCHEMA_VERSION } from './persistence';
 
 /** Demo clips that stand in for a proxy stream in mock mode (credited CC BY-NC footage, see README). */
 const DEMO_CLIP_COUNT = 6;
+/** Measured length of each `public/demo-film/play-N.mp4` (mvhd), so the player knows the playable range. */
+const DEMO_CLIP_DURATIONS = [6.374, 7.408, 6.407, 5.406, 7.908, 7.408];
 
 /**
  * Thumbnail tiles in mock mode: an SVG data URL that keeps the `{n}` placeholder, so the
@@ -48,6 +52,7 @@ const SIMULATED_STEPS = 2;
 
 export interface MockApiOptions {
   latencyMs?: number;
+  /** Keep the session in `sessionStorage` and every mutation in `localStorage` (default true; tests pass false). */
   persist?: boolean;
   /** Start signed in as this demo user (tests). */
   signedInAs?: string;
@@ -76,12 +81,9 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
-export function createMockApi(options: MockApiOptions = {}): Api {
-  const latency = options.latencyMs ?? 250;
-  const persist = options.persist ?? true;
-
-  // Fresh copies per instance so one test's mutations never reach another.
-  const db = {
+/** Fresh copies of the seed per instance so one test's mutations never reach another. */
+function seedDb() {
+  return {
     team: clone(demo.team),
     seasons: clone(demo.seasons),
     users: clone(demo.users),
@@ -110,9 +112,51 @@ export function createMockApi(options: MockApiOptions = {}): Api {
     imports: [] as ScheduleImport[],
     uploads: [] as Upload[],
   };
+}
+type MockDb = ReturnType<typeof seedDb>;
+
+/** What survives a reload (OC-01, PC-04): the records plus the mock worker's bookkeeping. */
+interface PersistedState {
+  db: MockDb;
+  simulated: string[];
+  uploadSha: Record<string, string | undefined>;
+}
+
+/** Changes to the seed invalidate stored state, so a demo never shows records from an older seed. */
+const SEED_FINGERPRINT = fingerprint(JSON.stringify(seedDb()));
+
+/** Methods that change records; each is followed by a write-through to `localStorage`. */
+const MUTATING: Record<string, string[]> = {
+  teams: ['invite', 'updateMembership', 'updateSettings'],
+  seasons: ['createGame', 'updateGame', 'previewImport', 'applyImport'],
+  media: ['createUpload', 'putChunk', 'completeUpload', 'deleteAsset', 'jobs', 'job', 'cancelJob', 'retryJob', 'splitSegment', 'mergeSegments', 'updateSegment', 'createSegment'],
+  labels: ['correct', 'bulkAccept', 'infer'],
+  scouting: ['saveSnapshot'],
+  plans: ['get', 'createDraft', 'update', 'submit', 'approve', 'comment'],
+  playbook: ['decideConcept'],
+};
+
+export function createMockApi(options: MockApiOptions = {}): Api {
+  const latency = options.latencyMs ?? 250;
+  const persist = options.persist ?? true;
+
+  const stored = persist ? readMockStore<PersistedState>(SEED_FINGERPRINT) : null;
+  let db: MockDb = stored?.state.db ?? seedDb();
   /** Jobs created in this session whose progress the mock worker simulates on every poll. */
-  const simulated = new Set<string>();
-  const uploadSha = new Map<string, string | undefined>();
+  const simulated = new Set<string>(stored?.state.simulated ?? []);
+  const uploadSha = new Map<string, string | undefined>(Object.entries(stored?.state.uploadSha ?? {}));
+
+  const serialize = (): string => JSON.stringify({ db, simulated: [...simulated], uploadSha: Object.fromEntries(uploadSha) } satisfies PersistedState);
+  /** What the store last held, so reads that change nothing (job polls, first plan reads) write nothing. */
+  let lastSerialized = stored ? JSON.stringify(stored.state) : serialize();
+
+  function save() {
+    if (!persist) return;
+    const next = serialize();
+    if (next === lastSerialized) return;
+    lastSerialized = next;
+    writeMockStore(next, SEED_FINGERPRINT);
+  }
 
   let session: MockSession | null = options.signedInAs ? { userId: options.signedInAs, mfaVerified: true } : readSession();
   let pendingMfaUser: string | null = null;
@@ -271,7 +315,8 @@ export function createMockApi(options: MockApiOptions = {}): Api {
     for (const [assetId, chain] of byAsset) {
       const job = chain[0];
       const asset = db.assets.find((a) => a.id === assetId);
-      if (!asset) continue;
+      // Documents (`gameId: null`, §15.1) never carry film jobs; only game film is simulated.
+      if (!asset || !asset.gameId) continue;
       const ts = nowIso();
       if (job.status === 'queued') {
         Object.assign(job, { status: 'running', attempt: 1, startedAt: ts, workerId: 'worker-demo', leaseExpiresAt: new Date(Date.now() + 60_000).toISOString(), progress: { done: 0, total: SIMULATED_STEPS, message: `${humanKind(job.kind)} started` } });
@@ -320,6 +365,20 @@ export function createMockApi(options: MockApiOptions = {}): Api {
 
   const api: Api = {
     mode: 'mock',
+    demo: {
+      persisted: persist,
+      savedAt: () => (persist ? mockStoreSavedAt() : null),
+      async reset() {
+        requireUser();
+        clearMockStore();
+        db = seedDb();
+        simulated.clear();
+        uploadSha.clear();
+        pendingMfaUser = null;
+        lastSerialized = serialize();
+        return delay(undefined);
+      },
+    },
     auth: {
       async me() {
         if (!session || !session.mfaVerified) return delay(null);
@@ -602,6 +661,7 @@ export function createMockApi(options: MockApiOptions = {}): Api {
           expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
           thumbEverySec: 10,
           thumbCount: Math.ceil((asset.durationSec ?? 0) / 10),
+          proxy: { standIn: true, durationSec: DEMO_CLIP_DURATIONS[clip - 1], note: 'Credited demo clip (SWOSU vs UCO, CC BY-NC 4.0) standing in for the proxy; it is not footage of this game.' },
         });
       },
       async jobs(teamId, query = {}) {
@@ -684,6 +744,7 @@ export function createMockApi(options: MockApiOptions = {}): Api {
       async createSegment(assetId, input) {
         requireLabeler();
         const asset = assetOrFail(assetId);
+        if (!asset.gameId) fail('conflict', 'Only game film has plays; this asset is a document.', 409);
         if (input.endSec <= input.startSec) fail('validation_error', 'A play must end after it starts.', 400);
         const segment = newSegment({ teamId: asset.teamId, assetId: asset.id, gameId: asset.gameId }, input.startSec, input.endSec, 'coach_created', 'accepted');
         liveSegments(assetId);
@@ -797,7 +858,7 @@ export function createMockApi(options: MockApiOptions = {}): Api {
           db.plans.push(plan);
           db.planVersions.push({
             id: versionId, planId: plan.id, number: 1, status: 'draft', basedOn: null, createdBy: session!.userId, createdAt: ts, approvedBy: null,
-            approvedAt: null, override: false, version: 1,
+            approvedAt: null, override: false, overrideReason: null, supersededAt: null, supersededByVersionId: null, version: 1,
             sections: PLAN_SECTION_TEMPLATES[unit].map((t) => ({ key: t.key, title: t.title, items: [] })),
           });
         }
@@ -810,10 +871,13 @@ export function createMockApi(options: MockApiOptions = {}): Api {
         const plan = db.plans.find((p) => p.id === base.planId)!;
         if (!canEditUnit(plan.unit)) fail('forbidden', 'You cannot edit this unit’s plan.', 403);
         if (base.status !== 'approved') fail('conflict', 'Only an approved version can be the base of a new draft.', 409);
+        // §15.4 / D-014: at most one draft per plan (HC-07). The existing draft is named so the UI can open it.
+        const open = db.planVersions.find((v) => v.planId === plan.id && v.status === 'draft');
+        if (open) fail('conflict', `This unit already has an open draft (v${open.number}); edit that one instead of starting another.`, 409, { reason: 'draft_exists', versionId: open.id, currentStatus: open.status });
         const ts = nowIso();
         const draft: GamePlanVersion = {
           ...clone(base), id: newId('pv'), number: Math.max(...db.planVersions.filter((v) => v.planId === plan.id).map((v) => v.number)) + 1,
-          status: 'draft', basedOn: base.id, createdBy: session!.userId, createdAt: ts, approvedBy: null, approvedAt: null, override: false, version: 1,
+          status: 'draft', basedOn: base.id, createdBy: session!.userId, createdAt: ts, approvedBy: null, approvedAt: null, override: false, overrideReason: null, supersededAt: null, supersededByVersionId: null, version: 1,
         };
         db.planVersions.push(draft);
         plan.currentVersionId = draft.id;
@@ -836,7 +900,7 @@ export function createMockApi(options: MockApiOptions = {}): Api {
         version.version += 1;
         return delay(version);
       },
-      async approve(versionId) {
+      async approve(versionId, input = {}) {
         const version = versionOrFail(versionId);
         const plan = db.plans.find((p) => p.id === version.planId)!;
         const { memberships } = requireUser();
@@ -844,11 +908,24 @@ export function createMockApi(options: MockApiOptions = {}): Api {
         const coordinator = memberships.find((m) => m.role === 'coordinator' && m.units.includes(plan.unit));
         if (!head && !coordinator) fail('forbidden', 'Only the unit coordinator or the head coach can approve.', 403);
         if (version.status !== 'in_review' && version.status !== 'draft') fail('conflict', 'This version cannot be approved from its current state.', 409);
-        for (const other of db.planVersions) if (other.planId === plan.id && other.status === 'approved') other.status = 'superseded';
+        // D-014: a head-coach approval is an override and records why; the reason stays with the version.
+        const override = !coordinator && !!head;
+        const overrideReason = input.overrideReason?.trim() || null;
+        if (override && !overrideReason) fail('validation_error', 'A head-coach override needs a reason; it is kept with the version and in the audit log.', 400, { reason: 'override_reason_required' });
+        const ts = nowIso();
+        // The previous approved version keeps its approver, time, flag and reason; it only learns what superseded it (HC-03).
+        for (const other of db.planVersions) {
+          if (other.planId === plan.id && other.status === 'approved') {
+            other.status = 'superseded';
+            other.supersededAt = ts;
+            other.supersededByVersionId = version.id;
+          }
+        }
         version.status = 'approved';
         version.approvedBy = session!.userId;
-        version.approvedAt = nowIso();
-        version.override = !coordinator && !!head;
+        version.approvedAt = ts;
+        version.override = override;
+        version.overrideReason = override ? overrideReason : null;
         version.version += 1;
         plan.currentVersionId = version.id;
         return delay(version);
@@ -906,6 +983,23 @@ export function createMockApi(options: MockApiOptions = {}): Api {
       },
     },
   };
+
+  // Write-through after every mutating call, so a reload finds the same records (OC-01, PC-04).
+  if (persist) {
+    for (const [group, methods] of Object.entries(MUTATING)) {
+      const target = (api as unknown as Record<string, Record<string, (...args: unknown[]) => Promise<unknown>>>)[group];
+      for (const method of methods) {
+        const original = target[method];
+        target[method] = async (...args: unknown[]) => {
+          try {
+            return await original(...args);
+          } finally {
+            save();
+          }
+        };
+      }
+    }
+  }
 
   return api;
 }

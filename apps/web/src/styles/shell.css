@@ -217,6 +217,9 @@ input[type='email'], input[type='password'], input[type='datetime-local'], input
 .plan-toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
 .plan-toolbar label { display: flex; gap: 8px; align-items: center; margin: 0; }
 .plan-actions { margin-bottom: 12px; }
+.approval-history { margin: -4px 0 10px; color: var(--ink-soft); }
+.override-form { display: grid; gap: 8px; margin-bottom: 12px; }
+.override-form input[type='text'] { width: 100%; }
 .plan-sections { display: grid; gap: 12px; }
 .plan-section { background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
 .plan-section h3 { color: var(--ink-strong); }
@@ -315,6 +318,9 @@ input[type='email'], input[type='password'], input[type='datetime-local'], input
 .play-row.active { background: var(--navy-soft); box-shadow: inset 3px 0 0 var(--gold); }
 .chip-state { display: inline-block; margin-left: 6px; font-size: var(--text-2xs); font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-faint); }
 .chip-state.in-queue { color: var(--gold-text); }
+.chip-state.pending { display: block; margin-left: 0; color: var(--gold-text); }
+.review-table td.pending .cell-btn { border-color: var(--gold-line); border-style: dashed; }
+.add-item .small.muted { align-self: center; }
 .keys-hint { margin-top: 8px; }
 
 .review-filters { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: flex-end; margin-bottom: 10px; }
