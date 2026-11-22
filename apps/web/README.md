@@ -152,7 +152,11 @@ The play list is one tab stop (`role="listbox"` with `aria-activedescendant`).
   every seek as stand-in footage for the cited play. Its thumbnail tiles are generated SVGs
   that name their own index.
 - The 12 plays with model output and their provenance are authored demo records; the
-  findings on the scouting page are authored, not computed.
+  findings on the scouting page are authored, not computed. Each offense finding cites only
+  plays whose seeded labels support it on its review basis (reviewed labels for a
+  reviewed-only finding) and lists them in `includedSegmentIds`; the defensive and
+  special-teams findings have no labeled plays in the seed and say "No supporting play on
+  file" (round-2 follow-up OC-11).
 - Hashing in a Web Worker needs a browser; under vitest the hasher is injected.
 
 #### Proposed contract additions (for Backend)

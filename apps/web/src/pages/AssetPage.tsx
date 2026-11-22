@@ -138,6 +138,8 @@ export function AssetPage() {
       if (plan.mediaSec !== null) {
         player.current?.seekTo(plan.mediaSec, play);
         setCurrentTime(sec);
+        // The cut controls act on the play being looked at: following evidence selects its play (HC-16, OC-15, PC-01).
+        if (plan.segment) setActiveId(plan.segment.id);
       }
       setSeekPlan(plan);
       return plan;

@@ -139,11 +139,11 @@ try {
   await click('button', /^Save draft$/);
   await waitFor(`__w.byText('button', /^Draft saved$/)`, 'draft saved');
 
-  // Mechanism 2 · OC-02 / HC-05: follow the 10:40 even-front evidence link.
-  await goto('/app/scouting?unit=defense&game=game-w10&team=team-winchester-demo&season=season-2026');
-  await waitFor(`__w.byText('a', /^10:40$/)`, '10:40 link');
-  await evalJs(`__w.byText('a', /^10:40$/).click()`);
-  await waitFor(`location.pathname.includes('/app/film/asset-westmoor-1') && /stand-in footage for 10:40 \\(play 5/.test(document.querySelector('[data-testid="seek-notice"]')?.textContent || '')`, 'stand-in caption for 10:40');
+  // Mechanism 2 · OC-02 / HC-05: follow the trips finding's 2:01 evidence link (play 1, reviewed trips_right).
+  await goto('/app/scouting?unit=offense&game=game-w10&team=team-winchester-demo&season=season-2026');
+  await waitFor(`__w.byText('a', /^2:01$/)`, '2:01 link');
+  await evalJs(`__w.byText('a', /^2:01$/).click()`);
+  await waitFor(`location.pathname.includes('/app/film/asset-westmoor-1') && /stand-in footage for 2:01 \\(play 1/.test(document.querySelector('[data-testid="seek-notice"]')?.textContent || '')`, 'stand-in caption for 2:01');
   await evalJs(`document.querySelector('.player')?.scrollIntoView({ block: 'start' })`);
   await shot('m2-evidence-links-OC-02.png');
 

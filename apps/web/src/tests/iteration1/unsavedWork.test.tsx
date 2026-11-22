@@ -75,6 +75,13 @@ describe('mechanism 1 · unsaved-work guard', () => {
     expect(add()).toHaveValue('Gold');
     expect(screen.getByTestId('unsaved-indicator')).toHaveTextContent(/Unsaved changes · 1 Add field not added/);
     expect(screen.queryByRole('button', { name: /^Draft saved$/ })).not.toBeInTheDocument();
+    // Submit cannot quietly drop the text still in the Add field (HC-15): saving the draft alone does not unlock it.
+    expect(screen.getByRole('button', { name: /Submit for review/ })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: /^Save draft$/ }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /^Draft saved$/ })).toBeInTheDocument());
+    expect(add()).toHaveValue('Gold');
+    expect(screen.getByRole('button', { name: /Submit for review/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Submit for review/ })).toHaveAttribute('title', 'Add or clear the text still in an Add field first');
   });
 
   it('PC-05: an unposted Formations comment and its section are back after following film and returning', async () => {

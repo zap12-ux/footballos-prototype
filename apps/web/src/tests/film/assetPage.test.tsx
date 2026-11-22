@@ -168,15 +168,15 @@ describe('asset view: timeline, split/merge, labels, provenance, inference', () 
     const user = userEvent.setup();
     const { router } = renderApp('/app/scouting?unit=offense&game=game-w10', { signedInAs: HEAD });
     await screen.findAllByTestId('finding-count');
-    await user.click(screen.getByRole('link', { name: '4:10' }));
+    await user.click(screen.getByRole('link', { name: '2:01' }));
     await waitFor(() => expect(router.state.location.pathname).toBe('/app/film/asset-westmoor-1'));
-    expect(router.state.location.search).toMatch(/t=250/);
+    expect(router.state.location.search).toMatch(/t=121\.5/);
     await screen.findByTestId('segment-counts');
     const list = screen.getByRole('listbox', { name: /Plays on this film/ });
-    // 250 s is inside play 2 (4:08–4:15): that play is selected and the stand-in clip is mapped onto it.
-    expect(within(list).getByRole('option', { selected: true })).toHaveTextContent(/#2/);
+    // 121.5 s is inside play 1 (2:00–2:07): that play is selected and the stand-in clip is mapped onto it.
+    expect(within(list).getByRole('option', { selected: true })).toHaveTextContent(/#1/);
     await waitFor(() => expect(media.play).toHaveBeenCalled());
-    expect(screen.getByTestId('seek-notice')).toHaveTextContent(/stand-in footage for 4:10 \(play 2, 4:08–4:15\)/);
+    expect(screen.getByTestId('seek-notice')).toHaveTextContent(/stand-in footage for 2:01 \(play 1, 2:00–2:07\)/);
   });
 
   it('film page: a chunked upload runs against the mock, polling shows the chain complete, and the asset appears', async () => {

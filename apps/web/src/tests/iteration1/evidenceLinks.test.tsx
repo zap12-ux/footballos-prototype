@@ -40,6 +40,26 @@ describe('mechanism 2 · evidence links land on the cited snap', () => {
     }
     // The scouting cards' supporting and contrary examples all cite a seeded play: none is between plays.
     for (const f of demo.findings) for (const e of [...f.supportingEvidence, ...f.contraryEvidence]) expect(segmentAt(demo.segments, e.atSec), `${f.id} ${e.atSec}`).not.toBeNull();
+    // OC-11: a cited play carries seeded labels that support the claim on the finding's basis, and is listed as included.
+    const labelOf = (segmentId: string, key: string) => demo.labels.find((l) => l.segmentId === segmentId && l.key === key)!;
+    const reviewed = (l: { accepted: { status: string } }) => l.accepted.status === 'accepted' || l.accepted.status === 'corrected';
+    const support: Record<string, (segmentId: string, contrary: boolean) => boolean> = {
+      'f-1': (id) => reviewed(labelOf(id, 'formation_family')) && /^trips_/.test(labelOf(id, 'formation_family').accepted.value ?? ''),
+      'f-2': (id, contrary) => (labelOf(id, 'play_type').accepted.value ?? labelOf(id, 'play_type').inferred?.value) === (contrary ? 'pass' : 'run'),
+      'f-3': (id) => reviewed(labelOf(id, 'play_type')) && labelOf(id, 'play_type').accepted.value === 'pass' && reviewed(labelOf(id, 'personnel_estimate')) && labelOf(id, 'personnel_estimate').accepted.value === '11',
+    };
+    for (const f of demo.findings) {
+      for (const [list, contrary] of [[f.supportingEvidence, false], [f.contraryEvidence, true]] as const) {
+        for (const e of list) {
+          const play = segmentAt(demo.segments, e.atSec)!;
+          expect(f.includedSegmentIds, `${f.id} lists ${play.id}`).toContain(play.id);
+          expect(support[f.id], `${f.id} has a label rule`).toBeDefined();
+          expect(support[f.id](play.id, contrary), `${f.id} ${contrary ? 'contrary' : 'supporting'} ${play.id} is backed by its labels`).toBe(true);
+        }
+      }
+      // Reviewed-only findings cite only plays with reviewed labels; findings with no labeled plays cite nothing.
+      if (f.unit !== 'offense') expect(f.supportingEvidence.length + f.contraryEvidence.length, `${f.id} has no labeled plays`).toBe(0);
+    }
     // A moment no play covers is refused, never seeked silently.
     expect(planSeek(100, demo.segments, proxy)).toMatchObject({ kind: 'unavailable', mediaSec: null });
     // A real proxy shorter than the request is refused too; one that covers it seeks straight there.
@@ -59,11 +79,13 @@ describe('mechanism 2 · evidence links land on the cited snap', () => {
     expect(within(card(/rotate the safety late/)).getByTestId('no-supporting-play')).toHaveTextContent('No supporting play on file');
     const off = card(/boundary corner plays off coverage/);
     expect(within(off).getByTestId('no-supporting-play')).toHaveTextContent('No supporting play on file');
-    expect(within(off).getByTestId('contrary-evidence')).toHaveTextContent(/Against: 85:33 Press at the goal line/);
-    // The even-front card does have support, as a link to the play.
-    const even = card(/even front/);
-    expect(within(even).queryByTestId('no-supporting-play')).not.toBeInTheDocument();
-    expect(within(even).getByRole('link', { name: '10:40' })).toBeInTheDocument();
+    // No defensive play carries labels in the seed, so no defensive card may look backed (OC-11): the even-front card says so too.
+    expect(within(off).queryByTestId('contrary-evidence')).not.toBeInTheDocument();
+    expect(within(card(/even front/)).getByTestId('no-supporting-play')).toHaveTextContent('No supporting play on file');
+    // Offense findings do have support, as links to plays whose reviewed labels back them.
+    await user.click(screen.getByRole('button', { name: /^Their offense$/ }));
+    await waitFor(() => expect(card(/trips formation on first down/)).toBeInTheDocument());
+    expect(within(card(/trips formation on first down/)).getByTestId('supporting-evidence')).toHaveTextContent(/2:01 Formation trips_right \(accepted\), down 1 \(corrected\)/);
   });
 
   describe('player', () => {
@@ -78,20 +100,21 @@ describe('mechanism 2 · evidence links land on the cited snap', () => {
 
     const video = () => document.querySelector('video') as HTMLVideoElement;
 
-    it('OC-02: the 10:40 even-front link selects play 5 and the player names the moment the clip stands for', async () => {
+    it('OC-02: a scouting evidence link selects the cited play and the player names the moment the clip stands for', async () => {
       const user = userEvent.setup();
-      const { router } = renderApp('/app/scouting?unit=defense&game=game-w10', { signedInAs: OC });
+      const { router } = renderApp('/app/scouting?unit=offense&game=game-w10', { signedInAs: OC });
       await screen.findAllByTestId('finding-count');
-      await user.click(screen.getByRole('link', { name: '10:40' }));
+      // The trips finding's first example: 2:01, inside play 1 (2:00–2:07), whose reviewed formation is trips_right.
+      await user.click(screen.getByRole('link', { name: '2:01' }));
       await waitFor(() => expect(router.state.location.pathname).toBe('/app/film/asset-westmoor-1'));
       await screen.findByTestId('segment-counts');
       const list = screen.getByRole('listbox', { name: /Plays on this film/ });
-      expect(within(list).getByRole('option', { selected: true })).toHaveTextContent(/#5/);
+      expect(within(list).getByRole('option', { selected: true })).toHaveTextContent(/#1/);
       const notice = await screen.findByTestId('seek-notice');
-      await waitFor(() => expect(notice).toHaveTextContent(/stand-in footage for 10:40 \(play 5, 10:34–10:41\)/));
+      await waitFor(() => expect(notice).toHaveTextContent(/stand-in footage for 2:01 \(play 1, 2:00–2:07\)/));
       expect(notice).toHaveTextContent(/credited clip is not this snap/);
-      expect(screen.getByTestId('playhead')).toHaveTextContent(/Playhead at 10:40 · play 5 selected/);
-      // The clip was seeked to the proportional position of 10:40 inside the play, not left at 0:00 or its end.
+      expect(screen.getByTestId('playhead')).toHaveTextContent(/Playhead at 2:01 · play 1 selected/);
+      // The clip was seeked to 1.5 s into the play, not left at 0:00 or its end.
       await waitFor(() => expect(media.play).toHaveBeenCalled());
       expect(video().currentTime).toBeGreaterThan(0);
       expect(video().currentTime).toBeLessThan(LONGEST_CLIP);
@@ -111,7 +134,9 @@ describe('mechanism 2 · evidence links land on the cited snap', () => {
       await user.click(within(panel).getByRole('button', { name: /^10:35–10:38$/ }));
       expect(within(panel).getByTestId('evidence-seek-note')).toHaveTextContent(/Stand-in footage: 10:35 \(play 5, 10:34–10:41\)/);
       expect(screen.getByTestId('seek-notice')).toHaveTextContent(/stand-in footage for 10:35 \(play 5/);
-      expect(screen.getByTestId('playhead')).toHaveTextContent(/Playhead at 10:35/);
+      // Following the evidence also selects play 5, so the cut controls act on the play being looked at (HC-16, OC-15, PC-01).
+      expect(screen.getByTestId('playhead')).toHaveTextContent(/Playhead at 10:35 · play 5 selected \(10:34–10:41\)/);
+      expect(within(screen.getByRole('listbox', { name: /Plays on this film/ })).getByRole('option', { selected: true })).toHaveTextContent(/#5/);
 
       // Play this cut on cut 32: 68:23, not 0:00 of an unrelated clip.
       const list = screen.getByRole('listbox', { name: /Plays on this film/ });

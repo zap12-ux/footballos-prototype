@@ -31,9 +31,10 @@ describe('§14.5 bulk-accept rule', () => {
     expect(plan.keys).toEqual(['play_type']);
   });
 
-  it('matches the demo data: 50 acceptable labels, every abstention skipped', () => {
+  it('matches the demo data: 49 acceptable labels, every abstention skipped', () => {
+    // 12 plays × 8 keys minus abstentions, the 4 fully reviewed plays, play 5's rejected hash and play 7's accepted formation.
     const plan = planBulkAccept(demo.labels);
-    expect(plan.eligible.length).toBe(50);
+    expect(plan.eligible.length).toBe(49);
     expect(plan.eligible.every((l) => l.inferred && !l.inferred.abstained && l.accepted.status === 'inferred')).toBe(true);
     expect(demo.labels.filter((l) => l.inferred?.abstained).every((l) => !isBulkAcceptable(l))).toBe(true);
   });

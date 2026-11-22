@@ -294,7 +294,12 @@ function PlanBody({
             </>
           ) : null}
           {editable ? (
-            <button type="button" disabled={dirty || submit.status === 'saving'} onClick={() => void submit.run(version)} title={dirty ? 'Save the draft first' : undefined}>
+            <button
+              type="button"
+              disabled={dirty || pendingAddFields > 0 || submit.status === 'saving'}
+              onClick={() => void submit.run(version)}
+              title={dirty ? 'Save the draft first' : pendingAddFields > 0 ? 'Add or clear the text still in an Add field first' : undefined}
+            >
               Submit for review
             </button>
           ) : null}
@@ -312,7 +317,7 @@ function PlanBody({
           <SaveStatus status={save.status} error={save.error} />
           <SaveStatus status={submit.status} error={submit.error} savedText="Submitted for review" />
           <SaveStatus status={approve.status} error={approve.error} savedText="Approved" />
-          <SaveStatus status={newDraft.status} error={newDraft.error} savedText="Draft created" />
+          <SaveStatus status={newDraft.status} error={newDraft.error} savedText={routed ? 'Opened the existing draft' : 'Draft created'} />
         </div>
         {approving && isOverride && (version.status === 'in_review' || version.status === 'draft') ? (
           <form
