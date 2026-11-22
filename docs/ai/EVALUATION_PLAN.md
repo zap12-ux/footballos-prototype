@@ -23,6 +23,14 @@ the measurements is `packages/ai` (`npm run build -w packages/ai && node package
 - Coach-marked play boundaries (start/end seconds) for segmentation scoring.
 - Labels must be made **before** seeing model output, by a coach, on the same clips.
 
+**Partly met (2026-11-21).** The owner's own program exported five games of coach-tagged plays
+from Hudl (497 clips, three opponents, one opponent three times) and its defensive playbook.
+The anonymized derivation lives in `packages/ai/test/fixtures/hudl` (README there) and is
+exercised by `test/hudl-fixtures.test.ts`: it gives the harness real truth rows at game scale,
+the statistics a real opponent, and the recommendations a real playbook. What it does not give:
+the film itself (no model run, no segmentation truth), and formation tags for most plays. The
+footage requirement above stays open.
+
 ## 3. Protocol
 
 1. Split **by game**: hold out whole games (`--held-out-games` or the seeded

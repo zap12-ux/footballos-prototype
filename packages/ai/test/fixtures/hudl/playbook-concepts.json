@@ -1,0 +1,29 @@
+{
+  "note": "Play titles transcribed by hand from the rendered pages of a Hudl defensive playbook export (the PDF text layer does not carry them; see playbook-pages.json). Scheme names that identified the team were replaced: the 3-4 package is 'Odd', the 4-3 package is 'Even'. 'kind' is the fixture author's reading of each diagram (zigzag rush lines = pressure, zone drops only = coverage) standing in for the coach's decision; it is a fixture convention, not a verified football fact.",
+  "fronts": [
+    { "name": "3-4 (Odd)", "kind": "front", "page": 2 },
+    { "name": "4-3 (Even)", "kind": "front", "page": 2 },
+    { "name": "60 (Heavy)", "kind": "front", "page": 4 }
+  ],
+  "calls": [
+    { "name": "Bomb Tango", "front": "3-4 (Odd)", "versus": "Pro I", "kind": "pressure", "page": 2 },
+    { "name": "Fiat Macho", "front": "3-4 (Odd)", "versus": "Zebra: Spread Rt", "kind": "pressure", "page": 2 },
+    { "name": "Grenade Macho", "front": "3-4 (Odd)", "versus": "Eagle: Spread Rt Minus", "kind": "pressure", "page": 2 },
+    { "name": "Odd Curry", "front": "3-4 (Odd)", "versus": null, "kind": "coverage", "page": 2 },
+    { "name": "Mustang Macho", "front": "3-4 (Odd)", "versus": "Zebra: Spread Rt", "kind": "pressure", "page": 2 },
+    { "name": "Salute (Cover 6)", "front": "3-4 (Odd)", "versus": "Eagle: Trips Rt Minus", "kind": "coverage", "page": 2 },
+    { "name": "TNT Curry", "front": "3-4 (Odd)", "versus": "Eagle: Spread Rt Minus", "kind": "pressure", "page": 2 },
+    { "name": "Base Curry (Bait)", "front": "4-3 (Even)", "versus": "Spread", "kind": "coverage", "page": 2 },
+    { "name": "Blade Macho", "front": "4-3 (Even)", "versus": "Eagle: Spread Rt Minus", "kind": "pressure", "page": 3 },
+    { "name": "Bugatti Curry", "front": "4-3 (Even)", "versus": "Trips", "kind": "pressure", "page": 3 },
+    { "name": "Curry (Sky)", "front": "4-3 (Even)", "versus": "Eagle: Trips Rt Minus", "kind": "coverage", "page": 3 },
+    { "name": "Curry", "front": "4-3 (Even)", "versus": "Eagle: Sprd Rt Stack Rt Plus", "kind": "coverage", "page": 3 },
+    { "name": "Dagger Tampa", "front": "4-3 (Even)", "versus": "Eagle: Spread Rt Minus", "kind": "pressure", "page": 3 },
+    { "name": "Ferrari Curry", "front": "4-3 (Even)", "versus": "Eagle: Spread Rt Minus", "kind": "pressure", "page": 3 },
+    { "name": "Stab Macho", "front": "4-3 (Even)", "versus": "Texas Right", "kind": "pressure", "page": 3 },
+    { "name": "Sword Curry", "front": "4-3 (Even)", "versus": "Eagle: Spread Rt Minus", "kind": "pressure", "page": 3 },
+    { "name": "Tango Swing", "front": "4-3 (Even)", "versus": "Trips", "kind": "coverage", "page": 4 },
+    { "name": "Tango", "front": "4-3 (Even)", "versus": "Spread", "kind": "coverage", "page": 4 },
+    { "name": "Tank Macho", "front": "60 (Heavy)", "versus": "Goalline", "kind": "pressure", "page": 4 }
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "games": [
+    {
+      "gameId": "f73cdb4a-0709-8871-b136-1b14f53d96ce",
+      "week": 1,
+      "opponent": "Opponent A",
+      "our_offense": 32,
+      "opponent_offense": 34,
+      "special_teams": 23
+    },
+    {
+      "gameId": "8ebd53e4-cf61-8458-83d6-1308bc9ad1e1",
+      "week": 2,
+      "opponent": "Opponent B",
+      "our_offense": 38,
+      "opponent_offense": 42,
+      "special_teams": 22
+    },
+    {
+      "gameId": "b618ec48-f390-8f3b-abaa-e1b75e9bfacf",
+      "week": 3,
+      "opponent": "Opponent C",
+      "our_offense": 23,
+      "opponent_offense": 25,
+      "special_teams": 27
+    },
+    {
+      "gameId": "6d974e1f-d1b5-89bf-988e-91bd6fba5e9c",
+      "week": 4,
+      "opponent": "Opponent B",
+      "our_offense": 41,
+      "opponent_offense": 46,
+      "special_teams": 15
+    },
+    {
+      "gameId": "ed1f6876-e069-8904-b7ba-7727be7a75b6",
+      "week": 5,
+      "opponent": "Opponent B",
+      "our_offense": 46,
+      "opponent_offense": 43,
+      "special_teams": 20
+    }
+  ],
+  "skippedRows": 20,
+  "truthRows": 3923,
+  "predictionRows": 3844,
+  "segments": 477
+}

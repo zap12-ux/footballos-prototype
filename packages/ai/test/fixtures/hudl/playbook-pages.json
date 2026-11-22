@@ -1,0 +1,38 @@
+[
+  {
+    "pageNumber": 1,
+    "text": "Printed: 11/22/26",
+    "textSource": "pdf_text",
+    "imagePath": null,
+    "width": 1224,
+    "height": 1584,
+    "ocrConfidence": null
+  },
+  {
+    "pageNumber": 2,
+    "text": "10\n10\n20\nBC T\nJ\nN\nW M\nE\nS\n20\nFC\n30\nSS\n30\nFS\n10\n10\nQ 2\nE\nEA\n20\nT\nZ X\nG\nC\nG\nT\nT\nN\nE\nS\n20\nJ\nBC FC\nW M\nSS\n30\n30\nFS\n10\n10\n3\nZ\n20\nQ\nZB\nY\nT\nG\nC\nG\nT\nX\nJ\n30\nT\nN\nE\n20\nS\nBC FC\nW M\n30\nSS\nFS\n10\n10\nQ 2\nE\nEA\n20\nT\nZ X\nG\nC\nG\nT\nT\nN\nE\n20\nJ\nS\nBC FC\nW M\n30\nSS\n30\nFS\n10\n3\n10\nZ\n20\nQ\nZB\nY\nT\nG\nC\nG\nT\nJ\nT\nN\nE\n20\nX\nS\nBC FC\nW M\n30\n30\nFS\nSS\n10\n10\nTE\n20\n20\nJ\nT\nN\nE\nS\nBC FC\nW M\n30\nSS\n30\nFS\n10\n10\nQ 2\nE\nEA\n20\nT\nZ X\nG\nC\nG\nT\n20\nFC\n30\nT\nN\nE\nJ\nW M\nS\nBC\n30\nFS\nSS\n10\n10\n20\nC\n20\nE T N E\nS M\nW\nC\n30\nSS\n30\nFS",
+    "textSource": "pdf_text",
+    "imagePath": null,
+    "width": 1224,
+    "height": 1584,
+    "ocrConfidence": null
+  },
+  {
+    "pageNumber": 3,
+    "text": "10\n10\nQ 2\nE\nEA\n20\nT\nZ X\nG\nC\nG\nT\nJ T N E\n20\nFC\nBC\nM\nW S\nFS\n30\nSS\n30\n10\n10\nSS\nE T N J\nS M\nQ 2\nE\nEA\n20\nT\nZ X\nG\nC\nG\nT\n20\nFC\n30\nBC\nW\nFS\n30\n10\n10\nQ 2\nE\nEA\n20\nT\nZ X\nG\nC\nG\nT\n20\nFC\nBC\nJ T N E\nW\nM\nS\nFS\n30\nSS\n30\n10\n10\n4\n3\n2\nQ\nT\nG\nC\nG\nT\nY U\n20\n20\nBC\nJ T N E\nW M\nS\nFC\nFS\nSS\n30\n30\n10\n10\n20\nBC J T N E\nFS\nW M\nS\n30\nSS\n30\nFC\n20\n10\n10\n20\nFC\nTO STA CK CA LI CA LL SS FIRST THING IN C FIRST THING OUT\n4\nQ\nZ X\nT\nG\nC\nG\nT\nEA\n20\nBC\nE\nSS\nE T N E\nS M\nW\n30\nFS\n30\n10\n10\nS\nQ 2\nE\nEA\n20\nT\nZ X\nG\nC\nG\nT\nFC E N T J\n20\nSS\nW M\nBC\n30\n30\nFS\n10\n10\nQ 2\nE\nEA\n20\nT\nZ X\nG\nC\nG\nT\nJ T N E\n20\nS\nW\nM\nBC FC\n30\nFS SS\n30",
+    "textSource": "pdf_text",
+    "imagePath": null,
+    "width": 1224,
+    "height": 1584,
+    "ocrConfidence": null
+  },
+  {
+    "pageNumber": 4,
+    "text": "10\n20\n30\n10\n20\n30\nBC\nJ T N E\nW M\nS\nFS W S\nJ\nT N E\nBC FC\nFS\nM\nSS\nSS\n10\n20\nFC\n30\n10\n20\n30\n10\n10\n20\n20\nJ T N E\nW S\nM\nBC FC\nFS SS\n30\n30",
+    "textSource": "pdf_text",
+    "imagePath": null,
+    "width": 1224,
+    "height": 1584,
+    "ocrConfidence": null
+  }
+]
