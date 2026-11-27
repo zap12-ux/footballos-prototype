@@ -1,4 +1,3 @@
-import type { JobBudget } from "../cost/budget.js";
 import type { AssetContext, InferredLabel, LabelKey, ModelProvenance, PlaySegment } from "../types.js";
 
 /** One JPEG frame extracted by `@footballos/media` at a planned timestamp. */
@@ -25,12 +24,6 @@ export interface LabelSegmentInput {
   samplingFps?: number | null;
   /** e.g. "1280x720"; "unknown" when not supplied. */
   resolution?: string;
-  /**
-   * Shared per-job spending ledger (one `JobBudget` per job, CONTRACTS §14.8). Adapters that
-   * can estimate a call reserve against it before sending; when absent the adapter uses its
-   * own budget.
-   */
-  budget?: JobBudget;
 }
 
 export interface LabelSegmentOutput {
@@ -39,9 +32,9 @@ export interface LabelSegmentOutput {
 }
 
 /**
- * The replaceable adapter (DECISIONS D-004). Implementations either return labels with
- * complete provenance or throw `ProviderUnavailableError`; they never return a canned
- * result and never set a value without evidence.
+ * The vision adapter (DECISIONS D-004, provider changed to Ollama 2026-11-27). Implementations
+ * either return labels with complete provenance or throw `ProviderUnavailableError`; they
+ * never return a canned result and never set a value without evidence.
  */
 export interface VisionLabeler {
   readonly provider: ModelProvenance["provider"];

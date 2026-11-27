@@ -1,77 +1,10 @@
 import { useEffect, useId, useState } from 'react';
-import type { Api } from '../api/api';
 import { useApi, useAction, useResource } from '../api/hooks';
 import { useMe } from '../auth/AuthContext';
-import { DataState, EmptyState, PageHeader, SaveStatus, formatBytes, formatDateTime, humanize } from '../components/shell/ui';
+import { DataState, EmptyState, PageHeader, SaveStatus, formatBytes, humanize } from '../components/shell/ui';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 
 const MIB = 1024 ** 2;
-
-/** What a demo reset clears, named in the confirmation so nobody loses work by surprise. */
-const RESET_CLEARS = [
-  'plan versions, approvals and comments added or changed here',
-  'label corrections, revisions and accepted, rejected, split or merged plays',
-  'uploads and their processing jobs',
-  'invitations, schedule edits and imports',
-  'saved scouting snapshots and settings changes',
-];
-
-/**
- * Demo-only (mock mode, demo team): changes made in this browser persist across reloads
- * (iteration 1, OC-01 / PC-04); this card says so and offers the one way to clear them.
- */
-function DemoDataCard({ api, timeZone, onReset }: { api: Api; timeZone?: string; onReset: () => void }) {
-  const id = useId();
-  const [confirming, setConfirming] = useState(false);
-  const demo = api.demo!;
-  const savedAt = demo.savedAt();
-  const reset = useAction(async () => {
-    await demo.reset();
-    setConfirming(false);
-    onReset();
-  });
-  return (
-    <section className="card" aria-labelledby={`${id}-h`} data-testid="demo-data">
-      <h2 id={`${id}-h`}>Demo data</h2>
-      <p className="small">
-        {demo.persisted
-          ? savedAt
-            ? `Changes made in this browser are kept across reloads; last saved ${formatDateTime(savedAt, timeZone)}.`
-            : 'Changes made in this browser are kept across reloads; nothing has been changed since the seed.'
-          : 'Changes are kept in memory only for this page.'}{' '}
-        Every record is fictional. Resetting returns the seed data; your sign-in and anything you have typed but not saved are kept.
-      </p>
-      <div className="btn-row">
-        <button type="button" onClick={() => setConfirming(true)} disabled={reset.status === 'saving'}>
-          Reset demo data
-        </button>
-        <SaveStatus status={reset.status} error={reset.error} savedText="Demo data reset to the seed" />
-      </div>
-      {confirming ? (
-        <div className="dialog-backdrop">
-          <div role="dialog" aria-modal="true" aria-labelledby={`${id}-dh`} className="dialog card">
-            <h3 id={`${id}-dh`}>Reset the demo workspace?</h3>
-            <p>This clears, for this browser only:</p>
-            <ul className="small" data-testid="reset-clears">
-              {RESET_CLEARS.map((line) => (
-                <li key={line}>{line}</li>
-              ))}
-            </ul>
-            <p className="small muted">The seed data returns. Your sign-in and unsaved drafts you have typed are kept.</p>
-            <div className="btn-row">
-              <button type="button" className="primary" onClick={() => void reset.run()} disabled={reset.status === 'saving'}>
-                Reset to seed
-              </button>
-              <button type="button" onClick={() => setConfirming(false)}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-    </section>
-  );
-}
 
 /**
  * Settings (CONTRACTS §14.7): `GET/PATCH /teams/:teamId/settings` with `expectedVersion`.
@@ -122,16 +55,6 @@ export function SettingsPage() {
           <EmptyState title="No team selected." />
         )}
       </section>
-      {ws.team?.environmentKind === 'demo' && api.demo ? (
-        <DemoDataCard
-          api={api}
-          timeZone={ws.team.timezone}
-          onReset={() => {
-            ws.reload();
-            settings.reload();
-          }}
-        />
-      ) : null}
       <section className="card" aria-labelledby="retention-heading">
         <h2 id="retention-heading">Media retention</h2>
         <DataState state={settings} label="settings">

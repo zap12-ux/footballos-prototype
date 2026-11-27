@@ -1,17 +1,17 @@
 export * from "./types.js";
 export * from "./errors.js";
 export * from "./config.js";
-export { JobBudget, type BudgetReservation } from "./cost/budget.js";
-export { ANTHROPIC_PRICES, computeCostUsd, estimateCallCostUsd, estimateImageTokens, estimateTextTokens, type ModelPrice, type UsageBreakdown } from "./cost/pricing.js";
 export { loadPrompt, LABEL_SEGMENT_PROMPT_ID, LABEL_SEGMENT_PROMPT_VERSION, type PromptTemplate } from "./prompts/index.js";
 export * from "./labeler/types.js";
 export { LABEL_RESPONSE_JSON_SCHEMA, LABEL_VOCABULARY, labelResponseSchema, type LabelResponse } from "./labeler/schema.js";
 export { validateLabelResponse, type ValidationContext } from "./labeler/validate.js";
 export { assertLabelInput } from "./labeler/input.js";
-export { AnthropicVisionLabeler, buildContextText, createAnthropicTransport, mapAnthropicError, type AnthropicTransport, type AnthropicVisionLabelerOptions } from "./labeler/anthropic.js";
-export { OpenAIVisionLabeler } from "./labeler/openai.js";
-export { NullLabeler } from "./labeler/null.js";
-export { createVisionLabeler, type ProviderChoice } from "./labeler/factory.js";
+export {
+  OllamaClient, checkOllama, mapTransportError,
+  type FetchLike, type OllamaChatParams, type OllamaChatResult, type OllamaClientOptions, type OllamaShowResult, type OllamaStatus,
+} from "./ollama/client.js";
+export { OllamaVisionLabeler, buildContextText, type OllamaVisionLabelerOptions } from "./labeler/ollama.js";
+export { createVisionLabeler, createPageLabeler, type CreateLabelerOptions } from "./labeler/factory.js";
 export { planFrameSampling, type FramePlan, type FramePlanInput, type CoverageGap } from "./frames/plan.js";
 export * from "./jobs/infer-labels.js";
 export * from "./labels/apply.js";
@@ -27,7 +27,7 @@ export * from "./playbook/types.js";
 export { DEFAULT_CONCEPT_VOCABULARY, guessKind, mergeVocabulary } from "./playbook/vocabulary.js";
 export { proposeFromText, dedupeConcepts, dedupeTerms } from "./playbook/heuristics.js";
 export { PAGE_RESPONSE_JSON_SCHEMA, pageResponseSchema, validatePageResponse, type PageResponse } from "./playbook/schema.js";
-export { AnthropicPageLabeler, buildPageContextText, PLAYBOOK_PAGE_PROMPT_ID, PLAYBOOK_PAGE_PROMPT_VERSION, type AnthropicPageLabelerOptions } from "./playbook/anthropic-page-labeler.js";
+export { OllamaPageLabeler, buildPageContextText, PLAYBOOK_PAGE_PROMPT_ID, PLAYBOOK_PAGE_PROMPT_VERSION, type OllamaPageLabelerOptions } from "./playbook/ollama-page-labeler.js";
 export { proposeFromPages, loadPageImageFromDisk } from "./playbook/propose.js";
 export * from "./recommendations/types.js";
 export { CONCEPT_KINDS_BY_RECOMMENDATION, REPORT_UNIT_FOR_PLAN_UNIT, classifyFinding, findingFacets, situationLabel, type Classification, type FindingFacets } from "./recommendations/matching.js";

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Independent QA smoke for apps/api authorization and failure paths (task A6, check 2).
-// Plain Node >= 22, no dependencies. Runs against a live API seeded with `npm run seed:demo -w apps/api`.
+// Plain Node >= 22, no dependencies. Runs against a live API with a team set up by `npm run bootstrap -w apps/api` and invited staff.
 //
 // Credentials come from the environment (parse them from the seed output; never paste them here):
 //   FOS_URL            e.g. http://127.0.0.1:8792

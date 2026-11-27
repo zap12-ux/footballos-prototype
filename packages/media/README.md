@@ -295,7 +295,7 @@ is sha256 over canonical JSON).
 
 `npm run typecheck -w packages/media` and `npm test -w packages/media` (93 tests in 8 files,
 about a minute on a laptop once the derived assets exist). The suite uses the
-six clips at `apps/web/public/demo-film/play-1.mp4 … play-6.mp4` by path (nothing is copied)
+six clips at `fixtures/media/clips/play-1.mp4 … play-6.mp4` by path (nothing is copied)
 and builds derived assets into `.data/wt-c3/` (override with `FOOTBALLOS_MEDIA_TEST_DIR`) on
 first run: the synthetic game, a "held frame then play" clip (fixed-camera case), a "shaken"
 clip (unstable-camera case) and an `-itsoffset 2.5 -c copy` copy of play-1 whose container

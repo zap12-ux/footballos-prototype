@@ -1,5 +1,5 @@
 // Shared helpers for the Milestone B QA scripts (task B6). Plain Node >= 22, no dependencies.
-// Credentials come from the environment only (parse them from the `seed:demo` output):
+// Credentials come from the environment only (the staff you created with `npm run bootstrap` and invites):
 //   FOS_URL                      e.g. http://127.0.0.1:8792
 //   FOS_HC_EMAIL / FOS_HC_PASSWORD / FOS_HC_TOTP     head coach (MFA enrolled at seed time)
 //   FOS_OC_EMAIL / FOS_OC_PASSWORD / FOS_OC_TOTP     coordinator
@@ -17,7 +17,7 @@ export const URL_ = (process.env.FOS_URL || 'http://127.0.0.1:8792').replace(/\/
 export const API = URL_ + '/api/v1';
 export const DATA_DIR = process.env.FOS_DATA_DIR || '';
 export const LOG = process.env.FOS_LOG || '';
-export const DEMO_FILM = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', '..', 'apps', 'web', 'public', 'demo-film');
+export const DEMO_FILM = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', '..', 'fixtures', 'media', 'clips');
 
 export function env(k, required = true) {
   const v = process.env[k];

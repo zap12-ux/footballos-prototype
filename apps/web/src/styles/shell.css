@@ -139,10 +139,6 @@ input[type='email'], input[type='password'], input[type='datetime-local'], input
 .scope-list strong { color: var(--ink-strong); }
 
 .sign-in h1 { font-size: var(--text-lg); color: var(--ink-strong); }
-.demo-credentials { margin-top: 18px; }
-.demo-credentials h2 { font-size: var(--text-sm); text-transform: uppercase; letter-spacing: 0.08em; font-family: var(--font-mono); color: var(--gold-text); }
-.demo-accounts { list-style: none; padding: 0; margin: 6px 0 0; }
-.demo-accounts li { margin-bottom: 4px; }
 
 /* ---------- workspace shell ---------- */
 

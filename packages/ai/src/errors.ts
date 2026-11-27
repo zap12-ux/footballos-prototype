@@ -1,24 +1,26 @@
 import type { Provider } from "./types.js";
 
 export type ProviderUnavailableReason =
-  | "no_api_key"
-  | "not_implemented"
-  | "auth"
-  | "rate_limited"
+  /** The Ollama server did not answer at the configured host (connection refused, DNS). */
+  | "unreachable"
+  /** The configured model tag is not installed in Ollama (`ollama pull <model>`). */
+  | "model_missing"
+  /** The configured model cannot take image input. */
+  | "model_not_vision"
+  /** A transient transport problem (timeout, reset) after the server was reached. */
   | "network"
   | "server_error"
   | "bad_request"
-  | "refusal"
   | "truncated_output"
   | "invalid_model_output"
-  | "budget_exceeded"
   | "input_rejected"
+  | "canceled"
   | "unknown";
 
 /**
  * The only error a VisionLabeler raises. `retryable` tells the job runner whether a later
- * attempt could succeed (rate limit, network, 5xx) or not (no key, refusal, bad input).
- * There is never a canned or default label: when this is thrown, no label was produced.
+ * attempt could succeed (timeout, 5xx, a fresh sample) or not (server down, model missing,
+ * bad input). There is never a canned or default label: when this is thrown, no label was produced.
  */
 export class ProviderUnavailableError extends Error {
   readonly code = "provider_unavailable" as const;

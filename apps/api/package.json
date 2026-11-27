@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "FootballOS API: Hono on @hono/node-server, SQLite via better-sqlite3 + Drizzle ORM. Invite-only auth with TOTP MFA, team scoping, schedule services, audit log, resumable film uploads, SQLite-backed job worker hosting @footballos/media and @footballos/ai handlers.",
+  "description": "FootballOS API: Hono on @hono/node-server, SQLite via better-sqlite3 + Drizzle ORM. Invite-only auth with TOTP MFA, team scoping, schedule services, audit log, resumable film uploads, SQLite-backed job worker hosting @footballos/media and @footballos/ai handlers (vision labeling through a local Ollama server).",
   "license": "MIT",
   "engines": {
     "node": ">=22"
@@ -24,7 +24,6 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "migrate": "tsx --tsconfig tsconfig.tsx.json src/scripts/migrate.ts",
-    "seed:demo": "tsx --tsconfig tsconfig.tsx.json src/scripts/seed-demo.ts",
     "bootstrap": "tsx --tsconfig tsconfig.tsx.json src/scripts/bootstrap.ts",
     "db:generate": "drizzle-kit generate",
     "contracts:build": "npm run build --prefix ../../packages/contracts",
@@ -33,7 +32,6 @@
     "pretypecheck": "npm run deps:build",
     "pretest": "npm run deps:build",
     "premigrate": "npm run deps:build",
-    "preseed:demo": "npm run deps:build",
     "prebootstrap": "npm run deps:build",
     "worker": "tsx --tsconfig tsconfig.tsx.json src/worker.ts",
     "deps:build": "npm run build --prefix ../../packages/contracts && npm run build --prefix ../../packages/media && npm run build --prefix ../../packages/ai",

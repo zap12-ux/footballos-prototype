@@ -103,9 +103,9 @@ describe('asset view: timeline, split/merge, labels, provenance, inference', () 
     expect(within(panel).getByText(/Receiver count and backfield set/)).toBeInTheDocument();
     expect(within(panel).getByText(/not reviewed/)).toBeInTheDocument();
     const prov = within(panel).getByTestId('provenance');
-    expect(prov).toHaveTextContent(/anthropic · claude-demo-vision/);
+    expect(prov).toHaveTextContent(/ollama · qwen3-vl:4b/);
     expect(prov).toHaveTextContent(/6 frames at 1 fps, 1280x720/);
-    expect(prov).toHaveTextContent(/\$0\.0166/);
+    expect(prov).toHaveTextContent(/\$0\.0000/);
     expect(within(prov).getAllByRole('button', { name: /\d+\.\ds/ })).toHaveLength(6);
     await user.click(within(panel).getByRole('radio', { name: /Correct to/ }));
     const value = within(panel).getByLabelText(/^Value$/);
@@ -179,7 +179,7 @@ describe('asset view: timeline, split/merge, labels, provenance, inference', () 
     expect(screen.getByTestId('seek-notice')).toHaveTextContent(/stand-in footage for 4:10 \(play 2, 4:08–4:15\)/);
   });
 
-  it('film page: a chunked upload runs against the mock, polling shows the chain complete, and the asset appears', async () => {
+  it('film page: a chunked upload runs against the fake API, polling shows the chain complete, and the asset appears', async () => {
     const user = userEvent.setup();
     renderApp('/app/film?game=game-w10', { signedInAs: HEAD });
     await screen.findByRole('heading', { level: 1, name: /^Our Team Film$/ });

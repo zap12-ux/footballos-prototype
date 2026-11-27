@@ -26,8 +26,8 @@ function spaFallback(): Plugin {
 }
 
 export default defineConfig({
-  // GitHub Pages serves the site under /footballos-prototype/ (the repository name); dev and local preview use /.
-  base: process.env.GITHUB_PAGES === 'true' ? '/footballos-prototype/' : '/',
+  // The app can be mounted under a path prefix of a larger site (e.g. `/footballos/`); dev and local preview use /.
+  base: process.env.VITE_BASE_PATH ?? '/',
   plugins: [react(), spaFallback()],
   resolve: {
     alias: {
@@ -39,9 +39,9 @@ export default defineConfig({
   server: {
     port: 5174,
     proxy: {
-      // Backend's API (may not be running; the app works in VITE_API_MODE=mock without it).
-      '/api': { target: process.env.VITE_API_PROXY_TARGET ?? 'http://localhost:8789', changeOrigin: true },
-      '/media': { target: process.env.VITE_API_PROXY_TARGET ?? 'http://localhost:8789', changeOrigin: true },
+      // apps/api (`npm run dev -w apps/api`, port 8787 by default); the app needs it running.
+      '/api': { target: process.env.VITE_API_PROXY_TARGET ?? 'http://localhost:8787', changeOrigin: true },
+      '/media': { target: process.env.VITE_API_PROXY_TARGET ?? 'http://localhost:8787', changeOrigin: true },
     },
   },
   test: {
@@ -49,8 +49,8 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/tests/setup.ts', './src/tests/setup.shell.ts'],
     css: false,
-    // Full-workflow integration tests drive six plays through the UI; with four test files
-    // running in parallel on a busy machine they can take well over Vitest's 5 s default.
+    // Screen tests drive whole workflows through the UI; with several test files running in
+    // parallel on a busy machine they can take well over Vitest's 5 s default.
     testTimeout: 60000,
   },
 });

@@ -27,7 +27,7 @@ Per-worker ports and data directories are in `docs/team/WORKFLOW.md` (B: `PORT=8
 `SESSION_SECRET` (>= 32 characters) is fatal. `FOOTBALLOS_ENV` accepts
 `development | demo | research | production`.
 
-Every `npm run <dev|build|typecheck|test|migrate|seed:demo|bootstrap|worker>` in this workspace
+Every `npm run <dev|build|typecheck|test|migrate|bootstrap|worker>` in this workspace
 first builds `packages/contracts`, `packages/media` and `packages/ai` (`deps:build` through `pre*`
 scripts): the API resolves contracts and ai through their `dist/` output and the media package
 through its `exports` entry (`types` → `dist/index.d.ts`, `import` → `src/index.ts`, added in
@@ -71,28 +71,31 @@ remaining), so a crash followed by an immediate supervisor restart no longer lea
 until a further restart (CONTRACTS §14.10, QA B6 D-2). The retention default is **null: keep
 originals and proxies until the head coach deletes them** (owner decision 2026-10-25).
 
-`infer_labels` fails truthfully without doing work, checking in this order (§14.10, QA B6 D-4):
-`MODEL_PROVIDER=none` → `error.code 'provider_unavailable'`, message "No model provider is
-configured"; a provider whose key is missing → `provider_unavailable`, message
-`no_api_key: MODEL_PROVIDER=anthropic but ANTHROPIC_API_KEY is not set; manual labeling remains
-available`; then a reached `MONTHLY_COST_CAP_USD` (month-to-date sum of `model_provenance.costUsd`,
-also served by `GET /teams/:teamId/usage`) → `budget_exceeded`. All three are `retryable: false` and
-happen before any frame is extracted or any request is made; adapter failures keep the adapter's
-`reason` in the message. Manual labeling stays available: every segment has one `labels` row per
-`LabelKey` (`accepted.status: 'unknown'`) from the moment it exists.
+Vision labeling runs through a local **Ollama** server (`OLLAMA_HOST`, default
+`http://127.0.0.1:11434`) with an open-source vision model (`FOOTBALLOS_AI_MODEL`, default
+`qwen3-vl:4b`; `ollama pull qwen3-vl:4b` once). There is no API key and no per-call cost
+(`model_provenance.costUsd` is 0; `GET /teams/:teamId/usage` reports `monthlyCostCapUsd: null`).
+`infer_labels` fails truthfully without doing work when the preflight fails (§14.10, QA B6 D-4):
+Ollama not running → `error.code 'provider_unavailable'`, message
+`unreachable: Ollama is not reachable at http://127.0.0.1:11434 (OLLAMA_HOST). Start it with
+\`ollama serve\` and try again; manual labeling remains available`; model not pulled →
+`model_missing: … run \`ollama pull qwen3-vl:4b\``; a text-only model → `model_not_vision: …`.
+All are `retryable: false` and happen before any frame is extracted; adapter failures during the
+job keep the adapter's `reason` in the message. Manual labeling stays available: every segment
+has one `labels` row per `LabelKey` (`accepted.status: 'unknown'`) from the moment it exists.
 
 Run the chain locally end to end:
 
 ```sh
 export FOOTBALLOS_DATA_DIR=$PWD/.data/wt-b PORT=8789 WORKER_INLINE=true
-FOOTBALLOS_ENV=demo npm run seed:demo -w apps/api      # prints credentials once
+npm run bootstrap -w apps/api      # first run only: creates the team and its head coach interactively
 npm run dev -w apps/api
 # sign in, then:
 #   POST /api/v1/games/:gameId/uploads  { filename, byteSize, mimeType, sha256?, context }
 #   PUT  /api/v1/uploads/:id            Content-Range: bytes 0-16777215/<total>  (raw chunk, contiguous)
 #   POST /api/v1/uploads/:id/complete   → { asset, jobs }   (chain is queued; watch GET /teams/:teamId/jobs)
 #   GET  /api/v1/assets/:id/grant       → { streamUrl, thumbUrlTemplate, expiresAt }
-# or run the same flow in-process: npm test -w apps/api -- media.test.ts (uses apps/web/public/demo-film/play-1.mp4)
+# or run the same flow in-process: npm test -w apps/api -- media.test.ts (uses fixtures/media/clips/play-1.mp4)
 ```
 
 ## Coaching workflow (Milestone C, CONTRACTS §15)
@@ -116,8 +119,8 @@ unchanged, no violations.
   cap `MAX_DOCUMENT_BYTES` (default 100 MB). Uploaders: any staff who can upload film.
 - The worker runs `createDocumentHandlers` (`@footballos/media`: pdfjs render + text layer, offline
   tesseract OCR when its data package is installed) and then `proposeFromPages` (`@footballos/ai`:
-  text heuristics; a page image goes to a model **only** when `MODEL_PROVIDER=anthropic` with a key
-  and under the monthly cap). Results are persisted in the job's transaction: `playbook_pages`
+  text heuristics; a page image goes to the Ollama model **only** when the preflight passes, and each
+  image-only page's note otherwise names the reason the model was unavailable). Results are persisted in the job's transaction: `playbook_pages`
   (`imageKey`, `ocrText`, `textSource: pdf_text|ocr|none`, `ocrConfidence`, size), `ModelProvenance`
   rows for any model call, and every proposal as a **`proposed`** concept or term (`basis`, `note`,
   `sources: [{ documentId, pageNumber, bbox: null, excerpt }]`) in the unit's newest draft playbook
@@ -234,19 +237,6 @@ To change the schema: edit `src/db/schema.ts`, run `npm run db:generate -w apps/
 new `drizzle/NNNN_*.sql` and `drizzle/meta/*`, commit both. Never edit an applied migration.
 Migration order is owned by B (DECISIONS.md D-006).
 
-## Seed the demo team
-
-```sh
-FOOTBALLOS_ENV=demo FOOTBALLOS_DATA_DIR=.data/wt-b npm run seed:demo -w apps/api
-```
-
-Creates one `environmentKind: demo` team, the fictional "Winchester Hawks (demo)", with a
-current season, eight fictional opponents, an eight-game schedule plus a bye, and six fictional
-staff (head coach, offensive and defensive coordinators, two position coaches, one analyst).
-Passwords are generated at seed time and printed once; the head coach and coordinators are
-enrolled in MFA and their TOTP secret is printed once. Nothing is stored in plain text. The
-script refuses to run when `FOOTBALLOS_ENV=production` and refuses to reseed an existing demo team.
-
 ## First-run setup for a real installation
 
 Invite-only auth means the first head coach cannot be invited by anyone. Owner decision
@@ -270,7 +260,7 @@ npm test -w apps/api
 Vitest suites in `src/test/` each create a temporary data directory and a fresh database
 (migrations applied from empty), call the Hono app in-process and remove the directory
 afterwards. `media.test.ts`, `jobs.test.ts` and `labels.test.ts` upload the fixture clips from
-`apps/web/public/demo-film` in chunks and run the real ffmpeg chain on `play-1.mp4` through the
+`fixtures/media/clips` in chunks and run the real ffmpeg chain on `play-1.mp4` through the
 runner (`runWorkerUntilIdle`), so they need the bundled ffmpeg/ffprobe and take about a minute. Covered: sign-in success/failure, rate limiting, cookie tampering, idle (12 h) and
 absolute (30 d) session expiry, the MFA gate (`401` with `details.mfaRequired`), MFA enrollment
 with recovery codes, invite create/accept/expiry, account recovery, role denials (`403`),
@@ -285,7 +275,7 @@ audit rows for invites, staff changes, MFA enrollment, recovery and imports.
 | auth | `POST /auth/sign-in`, `POST /auth/sign-out`, `GET /auth/me`, `POST /auth/mfa/setup`, `POST /auth/mfa/verify`, `POST /auth/invites/:token/accept`, `POST /auth/recovery/request`, `POST /auth/recovery/complete` |
 | team | `GET /teams`, `GET /teams/:teamId`, `GET /teams/:teamId/staff`, `PATCH /teams/:teamId/staff/:membershipId`, `GET/POST /teams/:teamId/invites`, `DELETE /teams/:teamId/invites/:inviteId`, `GET /teams/:teamId/audit` |
 | schedule | `GET/POST /teams/:teamId/seasons`, `GET/POST /teams/:teamId/opponents`, `GET/POST /teams/:teamId/seasons/:seasonId/games` (list carries `record`), `GET/PATCH /games/:gameId`, `POST /teams/:teamId/schedule-imports` (CSV preview), `GET /schedule-imports/:id`, `POST /schedule-imports/:id/apply`, `POST /schedule-imports/:id/discard` |
-| ops | `GET /healthz` (public), `GET /teams/:teamId/usage` (month-to-date `model_provenance` cost and tokens, job counts, `monthlyCostCapUsd` from env) |
+| ops | `GET /healthz` (public), `GET /teams/:teamId/usage` (month-to-date `model_provenance` tokens and cost (0 with local Ollama), job counts, `monthlyCostCapUsd: null`) |
 | media (§14.1) | `POST /games/:gameId/uploads`, `PUT /uploads/:uploadId` (`Content-Range`, contiguous or `409 receivedBytes`), `GET /uploads/:uploadId`, `POST /uploads/:uploadId/complete` (sha256 verify `400`, duplicate `409 existingAssetId`, enqueues the chain), `GET /games/:gameId/assets`, `GET /assets/:assetId`, `DELETE /assets/:assetId` (head coach, audit) |
 | delivery (§14.3) | `GET /assets/:assetId/grant` → HMAC grant (`MEDIA_GRANT_TTL_MIN`); `GET /media/:assetId/stream?token=` (proxy else original, HTTP `Range`, `416` on bad ranges), `GET /media/:assetId/thumb/:n?token=` (tile `n` via `thumbTileJpeg`); expired/foreign token `401` |
 | jobs (§14.2) | `GET /teams/:teamId/jobs?assetId=&status=&limit=&cursor=`, `GET /jobs/:jobId`, `POST /jobs/:jobId/cancel`, `POST /jobs/:jobId/retry` |
@@ -333,10 +323,10 @@ into `404` so other teams are never revealed; `policy.*` encodes the §3 table f
   `Cache-Control: private, no-store`.
 - **Lease recovery (D-2).** See "Worker and the film processing chain" above
   (`WORKER_MAINTENANCE_SEC`, `claim()` of expired `running` rows).
-- **tsx entry points (D-3).** `dev`, `worker`, `migrate`, `seed:demo`, `bootstrap` run with
+- **tsx entry points (D-3).** `dev`, `worker`, `migrate`, `bootstrap` run with
   `--tsconfig tsconfig.tsx.json` (see "Run").
-- **Provider failures (D-4).** Provider check before the cost cap; the no-key message names
-  `no_api_key` and the environment variable (see above).
+- **Provider failures (D-4).** The Ollama preflight runs before any frame is extracted; the
+  message names the reason (`unreachable`, `model_missing`, `model_not_vision`) and the fix (see above).
 - **No-op corrections (D-5).** `PATCH /labels/:id` whose `accepted` value and status equal the
   current ones changes nothing: no version bump, no `LabelRevision`, response
   `200 { label, changed: false }` (`PatchLabelResponse`); a real change answers `changed: true`.
@@ -389,7 +379,7 @@ src/auth/                scrypt, tokens, TOTP, sessions, rate limiter
 src/http/                zod validator wrapper, auth guards and §3 policy
 src/services/            audit, users, teams/invites, schedule, CSV import
 src/routes/              auth, teams, schedule, ops
-src/scripts/             migrate, seed-demo, bootstrap
+src/scripts/             migrate, bootstrap
 src/jobs/                SqliteJobStore, enqueue helper, worker (handler registration, result persistence, maintenance)
 src/worker.ts            standalone worker entry (`npm run worker`)
 src/services/media.ts    uploads, completion, chain enqueue, delete, GC, retention
@@ -404,8 +394,10 @@ src/services/plans.ts    plans, versions, transitions, comments, review flags; s
 
 Environment variables added in Milestone B (see `.env.example`): `UPLOAD_TTL_HOURS`,
 `MEDIA_GRANT_TTL_MIN`, `WORKER_INLINE`, `WORKER_POLL_MS`, `WORKER_MAINTENANCE_SEC`, `PROXY_HEIGHT`, `THUMBNAIL_EVERY_SEC`,
-`FOOTBALLOS_AI_MODEL` / `FOOTBALLOS_AI_EFFORT` / `FOOTBALLOS_AI_MAX_OUTPUT_TOKENS` /
-`FOOTBALLOS_AI_JOB_BUDGET_USD` / `FOOTBALLOS_AI_MAX_FRAMES_PER_SEGMENT` /
-`FOOTBALLOS_AI_MAX_SEGMENTS_PER_JOB` / `FOOTBALLOS_AI_REQUEST_TIMEOUT_MS` (read through
-`@footballos/ai` `loadAiConfig`, replacing the former `MODEL_ID` and `MAX_FRAMES_PER_SEGMENT`),
+`OLLAMA_HOST` / `FOOTBALLOS_AI_MODEL` / `FOOTBALLOS_AI_MAX_OUTPUT_TOKENS` /
+`FOOTBALLOS_AI_MAX_FRAMES_PER_SEGMENT` / `FOOTBALLOS_AI_MAX_SEGMENTS_PER_JOB` /
+`FOOTBALLOS_AI_REQUEST_TIMEOUT_MS` / `FOOTBALLOS_AI_KEEP_ALIVE` (read through
+`@footballos/ai` `loadAiConfig`; the former `MODEL_PROVIDER`, API keys, `MODEL_ID`,
+`MAX_FRAMES_PER_SEGMENT`, `FOOTBALLOS_AI_EFFORT`, `FOOTBALLOS_AI_JOB_BUDGET_USD` and
+`MONTHLY_COST_CAP_USD` are gone: inference is local Ollama, 2026-11-27),
 `FOOTBALLOS_FFMPEG` / `FOOTBALLOS_FFPROBE` (host binaries instead of the bundled static builds).

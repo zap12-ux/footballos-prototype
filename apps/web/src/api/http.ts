@@ -16,7 +16,7 @@ import { hc } from 'hono/client';
 import type { AppType } from '@footballos/api';
 import type { Api, Me, SignInResult } from './api';
 import { ApiError } from './api';
-import type { ErrorEnvelope, ScheduledGame } from './contracts';
+import type { ErrorEnvelope, GamePlanResponse, PlanComment, PlanVersionResponse, ScheduledGame } from './contracts';
 
 type Method = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
 type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
@@ -116,7 +116,6 @@ export function createHttpApi(options: HttpApiOptions = {}): Api {
   };
 
   return {
-    mode: 'http',
     auth: {
       async me() {
         try {
@@ -240,12 +239,26 @@ export function createHttpApi(options: HttpApiOptions = {}): Api {
         (await json(v1.teams[':teamId'].opponents[':opponentId'].scouting.snapshots.$post({ param: { teamId, opponentId }, json: input }))).snapshot,
     },
     plans: {
-      get: (gameId, unit) => raw('GET', `/games/${gameId}/plans/${unit}`),
-      createDraft: (versionId) => raw('POST', `/plan-versions/${versionId}/draft`),
-      update: (versionId, patch) => raw('PATCH', `/plan-versions/${versionId}`, patch),
-      submit: (versionId) => raw('POST', `/plan-versions/${versionId}/submit`),
-      approve: (versionId, input = {}) => raw('POST', `/plan-versions/${versionId}/approve`, input),
-      comment: (versionId, input) => raw('POST', `/plan-versions/${versionId}/comments`, input),
+      /**
+       * §15.4: the API answers `{ plan, versions (summaries without sections), current, reviewFlags }`
+       * and keeps comments per version; the screens want every version with its sections and the
+       * comments of all versions in one bundle, so the summaries are expanded here.
+       */
+      async get(gameId, unit) {
+        const bundle = await raw<GamePlanResponse>('GET', `/games/${gameId}/plans/${unit}`);
+        const versions = await Promise.all(
+          bundle.versions.map((summary) =>
+            summary.id === bundle.current.id ? Promise.resolve(bundle.current) : raw<PlanVersionResponse>('GET', `/plan-versions/${summary.id}`).then((r) => r.version),
+          ),
+        );
+        const comments = (await Promise.all(versions.map((v) => raw<{ items: PlanComment[] }>('GET', `/plan-versions/${v.id}/comments`)))).flatMap((r) => r.items);
+        return { plan: bundle.plan, versions, comments };
+      },
+      createDraft: async (versionId) => (await raw<PlanVersionResponse>('POST', `/plan-versions/${versionId}/draft`)).version,
+      update: async (versionId, patch) => (await raw<PlanVersionResponse>('PATCH', `/plan-versions/${versionId}`, patch)).version,
+      submit: async (versionId) => (await raw<PlanVersionResponse>('POST', `/plan-versions/${versionId}/submit`)).version,
+      approve: async (versionId, input = {}) => (await raw<PlanVersionResponse>('POST', `/plan-versions/${versionId}/approve`, input)).version,
+      comment: async (versionId, input) => (await raw<{ comment: PlanComment }>('POST', `/plan-versions/${versionId}/comments`, input)).comment,
     },
     playbook: {
       documents: (teamId, unit) => rawList(`/teams/${teamId}/playbook/documents${q({ unit })}`),

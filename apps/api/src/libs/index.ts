@@ -8,10 +8,10 @@ export {
   type DocumentJobInput as MediaDocumentJobInput, type ExtractDocumentJobResult, type ExtractedPage, type TextSource,
 } from '@footballos/media';
 export {
-  proposeFromPages, AnthropicPageLabeler, buildRecommendations, recommendationInputHashes, recommendationInputsHash, planReviewFlags,
+  proposeFromPages, checkOllama, createPageLabeler, createVisionLabeler, buildRecommendations, recommendationInputHashes, recommendationInputsHash, planReviewFlags,
   RECOMMENDATION_HASH_VERSION, PLAYBOOK_PAGE_PROMPT_VERSION, REPORT_UNIT_FOR_PLAN_UNIT, evaluatePackages,
   type ProposalPage, type ProposeResult, type ProposedConcept, type ProposedTerm, type PageLabeler,
-  type RecommendationInputs, type RecommendationInputHashes, type BuildRecommendationsResult, type PlanReviewFlagsInput,
+  type RecommendationInputs, type RecommendationInputHashes, type BuildRecommendationsResult, type PlanReviewFlagsInput, type OllamaStatus,
 } from '@footballos/ai';
 
 /** Part of the extract_document idempotency key: changes when the extractor or the proposer changes. */

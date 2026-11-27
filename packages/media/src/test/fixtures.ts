@@ -7,7 +7,7 @@ import { probe } from '../probe.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = resolve(here, '../../../..');
-export const DEMO_FILM_DIR = join(REPO_ROOT, 'apps/web/public/demo-film');
+export const DEMO_FILM_DIR = join(REPO_ROOT, 'fixtures/media/clips');
 export const DATA_DIR = join(REPO_ROOT, process.env['FOOTBALLOS_MEDIA_TEST_DIR'] ?? '.data/wt-c3');
 export const CLIPS = [1, 2, 3, 4, 5, 6].map((n) => join(DEMO_FILM_DIR, `play-${n}.mp4`));
 

@@ -11,7 +11,7 @@ export function evidenceHref(href: (path: string) => string, evidence: Pick<Evid
   return `${base}${base.includes('?') ? '&' : '?'}t=${evidence.atSec}`;
 }
 
-/** "play 33" for a demo id, otherwise a short id, so an excluded segment is nameable. */
+/** "play 33" for an id that ends in a number, otherwise a short id, so an excluded segment is nameable. */
 function segmentName(id: string): string {
   const m = /-(\d+)$/.exec(id);
   return m ? `play ${m[1]}` : id.slice(0, 8);

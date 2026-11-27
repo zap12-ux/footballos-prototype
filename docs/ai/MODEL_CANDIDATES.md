@@ -1,5 +1,9 @@
 # Model candidates for vision labeling (A4)
 
+> **Historical (2026-11-27).** The project moved to a local open-source vision model served by
+> Ollama (`qwen3-vl:4b` by default; see `packages/ai/README.md`). The hosted-API comparison
+> below is kept as the record of the decision it informed and is no longer maintained.
+
 Status: documentation-only comparison. **No model call has been made** in this environment
 (no API key exists; see DECISIONS D-004). Every fact below carries the official page it
 was read from and the access date. Figures that are *estimates* are labeled as such and are

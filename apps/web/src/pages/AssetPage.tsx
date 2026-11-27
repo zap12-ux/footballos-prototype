@@ -310,7 +310,7 @@ export function AssetPage() {
             {playable ? (
               <div className="asset-layout">
                 <div className="asset-main">
-                  <VideoPlayer ref={player} grant={grant.grant} grantStatus={grant.status} grantError={grant.error} onRefreshGrant={grant.refresh} onTimeUpdate={onMediaTime} onDuration={setMediaDuration} notice={seekPlan} demo={api.mode === 'mock'} label={assetLabel} />
+                  <VideoPlayer ref={player} grant={grant.grant} grantStatus={grant.status} grantError={grant.error} onRefreshGrant={grant.refresh} onTimeUpdate={onMediaTime} onDuration={setMediaDuration} notice={seekPlan} label={assetLabel} />
                   {grant.grant && a.durationSec ? <ThumbnailStrip grant={grant.grant} durationSec={a.durationSec} currentTime={currentTime} onSeek={seekTo} /> : null}
                   <p className="small muted" data-testid="playhead">
                     Playhead at <span className="mono">{formatSeconds(currentTime)}</span>

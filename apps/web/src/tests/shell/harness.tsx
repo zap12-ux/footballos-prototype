@@ -2,17 +2,17 @@ import { render } from '@testing-library/react';
 import { RouterProvider } from 'react-router';
 import { vi } from 'vitest';
 import { ApiProvider } from '../../api/hooks';
-import { createMockApi } from '../../api/mock';
+import { createFakeApi } from '../fakeApi';
 import { AuthProvider } from '../../auth/AuthContext';
 import { createTestRouter } from '../../app/router';
 import { workspaceStore } from '../../workspace/store';
 import { draftStore } from '../../workspace/drafts';
 
-/** Render the whole product shell at `path` against a fresh, zero-latency mock API. */
-export function renderApp(path: string, options: { signedInAs?: string; persist?: boolean } = {}) {
+/** Render the whole product shell at `path` against a fresh, zero-latency in-memory fake API. */
+export function renderApp(path: string, options: { signedInAs?: string } = {}) {
   workspaceStore.reset();
   draftStore.reset();
-  const api = createMockApi({ latencyMs: 0, persist: options.persist ?? false, signedInAs: options.signedInAs });
+  const api = createFakeApi({ latencyMs: 0, signedInAs: options.signedInAs });
   const router = createTestRouter(path);
   const utils = render(
     <ApiProvider api={api}>

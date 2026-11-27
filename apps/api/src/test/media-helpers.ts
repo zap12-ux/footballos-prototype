@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { call, type TestApp } from './helpers.js';
 
-export const DEMO_FILM_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../web/public/demo-film');
+export const DEMO_FILM_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../fixtures/media/clips');
 export const FIXTURE_CLIPS = ['play-1.mp4', 'play-2.mp4', 'play-3.mp4', 'play-4.mp4', 'play-5.mp4', 'play-6.mp4'].map((f) => path.join(DEMO_FILM_DIR, f));
 
 export const CONTEXT = { analyzedTeam: 'opponent', analyzedUnit: 'offense', perspective: 'endzone', teamCues: 'white jerseys (demo)' } as const;

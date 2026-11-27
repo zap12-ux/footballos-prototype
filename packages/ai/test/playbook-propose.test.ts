@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { ConceptKindSchema, ModelProvenanceSchema } from "@footballos/contracts";
 import {
-  AnthropicPageLabeler,
-  JobBudget,
-  NullLabeler,
+  OllamaPageLabeler,
+  PAGE_RESPONSE_JSON_SCHEMA,
   ProviderUnavailableError,
   guessKind,
   loadPrompt,
@@ -14,7 +13,7 @@ import {
   type PageLabeler,
   type ProposalPage,
 } from "../src/index.js";
-import { FakeTransport, makeMessage } from "./helpers.js";
+import { chatResponse, fakeOllama, refusedFetch } from "./helpers.js";
 
 /** Text in the shape of the Media team's generated fixture PDF (headings, numbered plays, a Terms page). */
 const PAGE_1 = `Demo Playbook — Offense
@@ -53,7 +52,7 @@ const textPages: ProposalPage[] = [
 ];
 
 class FakePageLabeler implements PageLabeler {
-  readonly provider = "anthropic" as const;
+  readonly provider = "ollama" as const;
   calls: LabelPageInput[] = [];
   constructor(private readonly respond: (input: LabelPageInput) => Omit<LabelPageOutput, "provenance"> | Error, private readonly available = true) {}
   isAvailable(): boolean {
@@ -67,8 +66,8 @@ class FakePageLabeler implements PageLabeler {
       ...r,
       provenance: {
         id: "11111111-1111-4111-8111-111111111111",
-        provider: "anthropic",
-        model: "claude-opus-5-5",
+        provider: "ollama",
+        model: "qwen3-vl:4b",
         modelRevision: null,
         promptId: "playbook-page.v1",
         promptHash: "a".repeat(64),
@@ -77,7 +76,7 @@ class FakePageLabeler implements PageLabeler {
         analysisVersion: "0.1.0",
         inputTokens: 1500,
         outputTokens: 120,
-        costUsd: 0.0084,
+        costUsd: 0,
         latencyMs: 900,
         requestedAt: "2026-10-25T15:00:00.000Z",
         completedAt: "2026-10-25T15:00:00.900Z",
@@ -183,14 +182,19 @@ describe("proposeFromPages — image pages and the model path", () => {
     expect(r.pages[0]!.note).toContain("no model configured");
   });
 
+  it("without a labeler because the Ollama preflight failed, the note names the real cause", async () => {
+    const r = await proposeFromPages([imagePage], { modelUnavailable: "unreachable: Ollama is not reachable at http://127.0.0.1:11434 (OLLAMA_HOST)" });
+    expect(r.pages[0]!.basis).toBe("none");
+    expect(r.pages[0]!.note).toContain("Ollama is not reachable at http://127.0.0.1:11434");
+    expect(r.pages[0]!.note).not.toContain("no model configured");
+  });
+
   it("with an unavailable labeler the page is skipped with a note and no call is made", async () => {
     const labeler = new FakePageLabeler(() => new Error("must not be called"), false);
     const r = await proposeFromPages([imagePage], { labeler, loadImage: fakeImage });
     expect(labeler.calls).toHaveLength(0);
     expect(r.basis).toBe("none");
     expect(r.pages[0]!.note).toContain("unavailable");
-    const r2 = await proposeFromPages([imagePage], { labeler: new NullLabeler() as unknown as PageLabeler, loadImage: fakeImage });
-    expect(r2.pages[0]!.basis).toBe("none");
   });
 
   it("with an available labeler the image is sent, proposals carry basis 'model' and page-only sources, provenance is recorded", async () => {
@@ -200,10 +204,9 @@ describe("proposeFromPages — image pages and the model path", () => {
       concepts: [{ name: "Counter Trey", kind: "run", description: "", confidence: "high" }, { name: "Y Cross", kind: "pass", description: "Y crosses at 12.", confidence: "medium" }],
       terms: [{ term: "Mike", definition: "The linebacker the protection counts from." }],
     }));
-    const budget = new JobBudget(5);
-    const r = await proposeFromPages([textPages[0]!, imagePage], { labeler, loadImage: fakeImage, vocabulary: { run: ["Counter Trey"] }, budget });
+    const r = await proposeFromPages([textPages[0]!, imagePage], { labeler, loadImage: fakeImage, vocabulary: { run: ["Counter Trey"] } });
     expect(labeler.calls).toHaveLength(1);
-    expect(labeler.calls[0]).toMatchObject({ pageNumber: 2, vocabulary: { run: ["Counter Trey"] }, budget });
+    expect(labeler.calls[0]).toMatchObject({ pageNumber: 2, vocabulary: { run: ["Counter Trey"] } });
     expect(labeler.calls[0]!.image.mediaType).toBe("image/png");
 
     const model = r.concepts.filter((c) => c.basis === "model");
@@ -228,19 +231,19 @@ describe("proposeFromPages — image pages and the model path", () => {
     expect(r.pages[0]!.note).toContain("A diagram with no caption.");
   });
 
-  it("a page-local provider error skips that page; a budget error stops further calls", async () => {
+  it("a page-local provider error skips that page; a missing model stops further calls", async () => {
     let n = 0;
     const labeler = new FakePageLabeler(() => {
       n++;
-      if (n === 1) return new ProviderUnavailableError({ provider: "anthropic", reason: "invalid_model_output", retryable: true, message: "bad json" });
-      if (n === 2) return new ProviderUnavailableError({ provider: "anthropic", reason: "budget_exceeded", retryable: false, message: "over budget" });
+      if (n === 1) return new ProviderUnavailableError({ provider: "ollama", reason: "invalid_model_output", retryable: true, message: "bad json" });
+      if (n === 2) return new ProviderUnavailableError({ provider: "ollama", reason: "model_missing", retryable: false, message: "model qwen3-vl:4b is not installed" });
       return { abstained: false, rationale: "x", concepts: [{ name: "Never", kind: "other", description: "", confidence: "high" }], terms: [] };
     });
     const pages: ProposalPage[] = [2, 3, 4].map((p) => ({ pageNumber: p, text: null, textSource: "none" }));
     const r = await proposeFromPages(pages, { labeler, loadImage: fakeImage });
     expect(labeler.calls.map((c) => c.pageNumber)).toEqual([2, 3]);
     expect(r.concepts).toEqual([]);
-    expect(r.pages.map((p) => p.note)).toEqual([expect.stringContaining("invalid_model_output"), expect.stringContaining("budget_exceeded"), expect.stringContaining("not sent to the model")]);
+    expect(r.pages.map((p) => p.note)).toEqual([expect.stringContaining("invalid_model_output"), expect.stringContaining("model_missing"), expect.stringContaining("not sent to the model")]);
   });
 
   it("an unreadable page image is reported, not guessed", async () => {
@@ -253,56 +256,52 @@ describe("proposeFromPages — image pages and the model path", () => {
 
 describe("validatePageResponse", () => {
   it("rejects an abstention with proposals, an empty name, a term without definition, and silence without abstention", () => {
-    expect(() => validatePageResponse({ abstained: true, rationale: "", concepts: [{ name: "X", kind: "run", description: "", confidence: "high" }], terms: [] }, "anthropic")).toThrow(/abstained/);
-    expect(() => validatePageResponse({ abstained: false, rationale: "", concepts: [{ name: "  ", kind: "run", description: "", confidence: "high" }], terms: [] }, "anthropic")).toThrow(/length 0/);
-    expect(() => validatePageResponse({ abstained: false, rationale: "", concepts: [], terms: [{ term: "Mike", definition: "" }] }, "anthropic")).toThrow(/without a definition/);
-    expect(() => validatePageResponse({ abstained: false, rationale: "", concepts: [], terms: [] }, "anthropic")).toThrow(/without marking/);
-    expect(() => validatePageResponse({ abstained: false, rationale: "", concepts: [{ name: "X", kind: "screen", description: "", confidence: "high" }], terms: [] }, "anthropic")).toThrow(/schema/);
+    expect(() => validatePageResponse({ abstained: true, rationale: "", concepts: [{ name: "X", kind: "run", description: "", confidence: "high" }], terms: [] }, "ollama")).toThrow(/abstained/);
+    expect(() => validatePageResponse({ abstained: false, rationale: "", concepts: [{ name: "  ", kind: "run", description: "", confidence: "high" }], terms: [] }, "ollama")).toThrow(/length 0/);
+    expect(() => validatePageResponse({ abstained: false, rationale: "", concepts: [], terms: [{ term: "Mike", definition: "" }] }, "ollama")).toThrow(/without a definition/);
+    expect(() => validatePageResponse({ abstained: false, rationale: "", concepts: [], terms: [] }, "ollama")).toThrow(/without marking/);
+    expect(() => validatePageResponse({ abstained: false, rationale: "", concepts: [{ name: "X", kind: "screen", description: "", confidence: "high" }], terms: [] }, "ollama")).toThrow(/schema/);
   });
 });
 
-describe("AnthropicPageLabeler with a fake transport", () => {
+describe("OllamaPageLabeler with a fake Ollama server", () => {
   const input: LabelPageInput = { pageNumber: 7, image: { base64: Buffer.from("png").toString("base64"), mediaType: "image/png", width: 1224, height: 1584 }, vocabulary: { run: ["Counter Trey"] } };
 
-  it("sends one image with the versioned prompt and schema, returns proposals and provenance from real usage", async () => {
-    const transport = new FakeTransport(() => makeMessage({ abstained: false, rationale: "Legible.", concepts: [{ name: "Counter Trey", kind: "run", description: "", confidence: "high" }], terms: [] }));
+  it("sends one image with the versioned prompt and schema, returns proposals and provenance from the real token counts", async () => {
+    const server = fakeOllama({ chat: () => chatResponse({ abstained: false, rationale: "Legible.", concepts: [{ name: "Counter Trey", kind: "run", description: "", confidence: "high" }], terms: [] }, { prompt_eval_count: 1500, eval_count: 120 }) });
     let tick = 0;
-    const labeler = new AnthropicPageLabeler({ transport, now: () => new Date(1_700_000_000_000 + 400 * tick++) });
+    const labeler = new OllamaPageLabeler({ fetchImpl: server.fetch, now: () => new Date(1_700_000_000_000 + 400 * tick++) });
     expect(labeler.isAvailable()).toBe(true);
     const out = await labeler.labelPage(input);
 
-    const params = transport.calls[0]!;
-    expect(params.output_config?.format).toEqual({ type: "json_schema", schema: expect.objectContaining({ required: ["abstained", "rationale", "concepts", "terms"] }) });
-    const system = params.system as { text: string }[];
-    expect(system[0]!.text).toBe(loadPrompt("playbook-page", 1).text);
-    const content = params.messages[0]!.content as { type: string; text?: string }[];
-    expect(content.filter((b) => b.type === "image")).toHaveLength(1);
-    expect(content.at(-1)!.text).toContain('<team_vocabulary untrusted="true">');
-    expect(content.at(-1)!.text).toContain('"Counter Trey"');
+    // The first request is the one-time /api/show capability check; the chat follows.
+    const body = server.requests.find((r) => r.path === "/api/chat")!.body as Record<string, any>;
+    expect(body.format).toEqual(PAGE_RESPONSE_JSON_SCHEMA);
+    expect(body.format.required).toEqual(["abstained", "rationale", "concepts", "terms"]);
+    expect(body.messages[0]).toEqual({ role: "system", content: loadPrompt("playbook-page", 1).text });
+    expect(body.messages[1].images).toEqual([input.image.base64]);
+    expect(body.messages[1].content).toContain("Playbook page 7");
+    expect(body.messages[1].content).toContain('<team_vocabulary untrusted="true">');
+    expect(body.messages[1].content).toContain('"Counter Trey"');
 
     expect(out.abstained).toBe(false);
     expect(out.concepts).toEqual([{ name: "Counter Trey", kind: "run", description: "", confidence: "high" }]);
-    expect(out.provenance.promptId).toBe("playbook-page.v1");
-    expect(out.provenance.promptHash).toBe(loadPrompt("playbook-page", 1).hash);
+    expect(out.provenance).toMatchObject({ provider: "ollama", model: "qwen3-vl:4b", promptId: "playbook-page.v1", promptHash: loadPrompt("playbook-page", 1).hash, inputTokens: 1500, outputTokens: 120, costUsd: 0, latencyMs: 400 });
     expect(out.provenance.preprocessing).toEqual({ samplingFps: null, frameCount: 1, clipSec: null, resolution: "1224x1584" });
-    expect(out.provenance.inputTokens).toBe(9500);
-    expect(out.provenance.costUsd).toBeCloseTo(0.0445, 6);
-    expect(out.provenance.latencyMs).toBe(400);
     expect(ModelProvenanceSchema.safeParse(out.provenance).success).toBe(true);
-    expect(labeler.jobBudget.callCount).toBe(1);
   });
 
-  it("without a key it is unavailable and throws provider_unavailable(no_api_key) without calling anything", async () => {
-    const labeler = new AnthropicPageLabeler({ apiKey: null, env: {} });
-    expect(labeler.isAvailable()).toBe(false);
-    await expect(labeler.labelPage(input)).rejects.toMatchObject({ code: "provider_unavailable", reason: "no_api_key" });
+  it("maps a down server, truncated output and invalid JSON to provider_unavailable", async () => {
+    await expect(new OllamaPageLabeler({ fetchImpl: refusedFetch() }).labelPage(input)).rejects.toMatchObject({ code: "provider_unavailable", reason: "unreachable", retryable: false });
+    await expect(new OllamaPageLabeler({ fetchImpl: fakeOllama({ chat: () => chatResponse("{", { done_reason: "length" }) }).fetch }).labelPage(input)).rejects.toMatchObject({ reason: "truncated_output" });
+    await expect(new OllamaPageLabeler({ fetchImpl: fakeOllama({ chat: () => chatResponse("not json") }).fetch }).labelPage(input)).rejects.toMatchObject({ reason: "invalid_model_output" });
   });
 
-  it("maps refusal, invalid JSON and an over-budget estimate to provider_unavailable", async () => {
-    await expect(new AnthropicPageLabeler({ transport: new FakeTransport(() => makeMessage("{}", { stop_reason: "refusal" })) }).labelPage(input)).rejects.toMatchObject({ reason: "refusal" });
-    await expect(new AnthropicPageLabeler({ transport: new FakeTransport(() => makeMessage("not json")) }).labelPage(input)).rejects.toMatchObject({ reason: "invalid_model_output" });
-    const transport = new FakeTransport(() => makeMessage("{}"));
-    await expect(new AnthropicPageLabeler({ transport, budget: new JobBudget(0.0001) }).labelPage(input)).rejects.toMatchObject({ reason: "budget_exceeded" });
-    expect(transport.calls).toHaveLength(0);
+  it("rejects an empty or oversized page image before any request", async () => {
+    const server = fakeOllama();
+    const labeler = new OllamaPageLabeler({ fetchImpl: server.fetch });
+    await expect(labeler.labelPage({ ...input, image: { ...input.image, base64: "" } })).rejects.toMatchObject({ reason: "input_rejected" });
+    await expect(labeler.labelPage({ ...input, pageNumber: 0 })).rejects.toMatchObject({ reason: "input_rejected" });
+    expect(server.requests).toHaveLength(0);
   });
 });

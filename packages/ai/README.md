@@ -2,29 +2,29 @@
 
 Applied-AI library for FootballOS (tasks A4, B4-lib, B5-lib, C3-lib). It provides:
 
-- a replaceable **`VisionLabeler`** adapter with the **Anthropic Messages API** as the
-  primary implementation, an **OpenAI stub** and a **`NullLabeler`**;
+- the **`VisionLabeler`** adapter over a **local Ollama server** running an open-source vision
+  model (default `qwen3-vl:4b`); no API key, no per-call cost, film never leaves the host;
 - honest **abstention and provenance**: every label carries `value | null`, `abstained`,
   a short `rationale`, `evidence` that references only frames that were actually sent,
-  and a `ModelProvenance` record filled from the real response `usage`;
+  and a `ModelProvenance` record filled from the real token counts Ollama reports;
 - a **frame-sampling plan** (which timestamps to inspect, and what is *not* inspected);
 - deterministic **scouting statistics** from stored labels (`ScoutingFinding[]`), the
   **scouting report** body of CONTRACTS §14.6 and its `ReportSnapshot`;
 - the **`infer_labels` job handler** (CONTRACTS §14.8) that B's worker hosts, plus
   `applyInference` (coach corrections survive reprocessing) and `bulkAcceptPlan`;
 - **playbook proposals** (`proposeFromPages`, CONTRACTS §15.1/§15.5): text heuristics on
-  extracted pages, and a `PageLabeler` (Anthropic implementation, versioned `playbook-page`
+  extracted pages, and a `PageLabeler` (Ollama implementation, versioned `playbook-page`
   prompt) for image-only pages that abstains and records provenance; nothing is proposed
   from a diagram without a model result;
 - **grounded recommendations** (`buildRecommendations`, §15.3), `recommendationInputsHash`
   and `planReviewFlags` (§15.4): deterministic, cite findings and evidence, reference only
   installed approved concepts and available packages; rules in `docs/ai/RECOMMENDATIONS.md`;
 - an **evaluation harness** for coach-labeled footage with a held-out-by-game split;
-- documentation: `docs/ai/MODEL_CANDIDATES.md` (official-doc comparison with URLs and
-  access dates) and `docs/ai/EVALUATION_PLAN.md` (proposed acceptance targets).
+- documentation: `docs/ai/MODEL_CANDIDATES.md` (the historical hosted-model comparison) and
+  `docs/ai/EVALUATION_PLAN.md` (proposed acceptance targets).
 
-No API key exists in the development environment and **no paid call has been made**; all
-adapter tests run through a fake transport.
+All adapter tests run through a fake `fetch` that behaves like Ollama's three endpoints; a
+live call needs Ollama running with the model pulled (see "Running against Ollama").
 
 ## Architecture
 
@@ -32,24 +32,20 @@ adapter tests run through a fake transport.
 packages/ai/src
 ├── types.ts            thin aliases over @footballos/contracts (Label, ModelProvenance, PlaySegment, …)
 ├── errors.ts           ProviderUnavailableError { reason, retryable } — the only adapter error
-├── config.ts           defaults + env overrides (model, effort, budget, frame caps, timeout)
-├── cost/
-│   ├── pricing.ts      price table (dated source), cost from usage, pre-call estimate
-│   └── budget.ts       JobBudget: reserve → call → settle; aborts before an over-budget call
+├── config.ts           defaults + env overrides (OLLAMA_HOST, model, frame caps, timeout, keep_alive)
+├── ollama/client.ts    OllamaClient (/api/version, /api/show, /api/chat) + checkOllama preflight + error mapping
 ├── prompts/
 │   ├── label-segment.v1.md   versioned prompt; sha256 → ModelProvenance.promptHash
 │   └── index.ts
 ├── labeler/
 │   ├── types.ts        VisionLabeler, LabelSegmentInput/Output
-│   ├── schema.ts       JSON schema sent as output_config.format + zod mirror + vocabularies
+│   ├── schema.ts       JSON schema sent as Ollama `format` + zod mirror + vocabularies
 │   ├── validate.ts     rejects foreign timestamps, valueless abstentions, missing evidence…
-│   ├── input.ts        rejects malformed/oversized input before spending
-│   ├── anthropic.ts    AnthropicVisionLabeler (injectable transport)
-│   ├── openai.ts       stub → provider_unavailable (no_api_key / not_implemented)
-│   ├── null.ts         NullLabeler → provider_unavailable
-│   └── factory.ts      createVisionLabeler('anthropic'|'openai'|'none')
+│   ├── input.ts        rejects malformed/oversized input before any request
+│   ├── ollama.ts       OllamaVisionLabeler (injectable client / fetch)
+│   └── factory.ts      createVisionLabeler({ env?, config?, fetchImpl? }), createPageLabeler(...)
 ├── frames/plan.ts      planFrameSampling({startSec,endSec,fps,maxFrames}) → timestamps + gaps
-├── jobs/infer-labels.ts   createInferLabelsHandler({ labeler, extractFrames, budgetUsd, … }) (§14.8)
+├── jobs/infer-labels.ts   createInferLabelsHandler({ labeler, extractFrames, maxFramesPerSegment, … }) (§14.8)
 ├── labels/apply.ts     applyInference(existing, segmentId, inferred, provenanceId), bulkAcceptPlan
 ├── stats/              resolve.ts (effective value per review basis), findings.ts
 ├── scouting/report.ts  buildScoutingReport(...) → §14.6 body; snapshotFromReport(...) → ReportSnapshot
@@ -58,8 +54,8 @@ packages/ai/src
 │   ├── vocabulary.ts   DEFAULT_CONCEPT_VOCABULARY, guessKind (team vocabulary merged over it)
 │   ├── heuristics.ts   headings / numbered plays → concepts; "Term — definition" → terms
 │   ├── schema.ts       JSON schema + zod for the page model output, validatePageResponse
-│   ├── anthropic-page-labeler.ts  AnthropicPageLabeler (one page image per call, budgeted)
-│   └── propose.ts      proposeFromPages(pages, { labeler?, vocabulary?, loadImage?, budget? })
+│   ├── ollama-page-labeler.ts  OllamaPageLabeler (one page image per call)
+│   └── propose.ts      proposeFromPages(pages, { labeler?, vocabulary?, loadImage?, modelUnavailable? })
 ├── recommendations/
 │   ├── matching.ts     REPORT_UNIT_FOR_PLAN_UNIT, CONCEPT_KINDS_BY_RECOMMENDATION, classifyFinding
 │   ├── build.ts        buildRecommendations(...) → { items, blockedReasons, inputsHash, skipped, packages, types }
@@ -70,44 +66,48 @@ packages/ai/src
 bin/eval.mjs            CLI (needs `npm run build` first)
 ```
 
-### Request flow (Anthropic)
+### Request flow (Ollama)
 
 1. `assertLabelInput` — frames non-empty, strictly ascending, ≤ `maxFramesPerSegment`.
-2. Build the request: system prompt (cached block) + user turn of
-   `Frame i of N — t=12.000s` text / JPEG image pairs, then a context block that names the
-   exact timestamps shown, the asset context and the requested keys. Coach-provided
-   `teamCues` are wrapped as `<team_cues untrusted="true">` data.
-3. `JobBudget.reserve(estimate)` — the conservative pre-call estimate (frame tokens from
-   `⌈w/28⌉×⌈h/28⌉`, full `maxOutputTokens`) must fit the remaining budget or the call is
-   refused with `budget_exceeded`.
-4. One non-streaming `messages.create` with `output_config.format = { type: "json_schema" }`
-   and `output_config.effort` (adaptive thinking stays on for the Claude 5 family; forced
-   `tool_choice` is not used because it is rejected on these models).
-5. `stop_reason` checks: `refusal` → `provider_unavailable(refusal)`; `max_tokens` →
-   `truncated_output`. Then JSON parse and `validateLabelResponse`.
-6. `ModelProvenance` from `message.model` (the model that actually served) and `usage`
-   (input, cache write, cache read, output tokens → `costUsd` from the price table).
+2. Build the request: the system message is the versioned prompt; the user message carries the
+   JPEG frames as `images` in timestamp order and a text that lists `Frame i of N — t=12.000s`
+   for each one, the exact timestamps shown, the asset context and the requested keys.
+   Coach-provided `teamCues` are wrapped as `<team_cues untrusted="true">` data.
+3. One non-streaming `POST /api/chat` with `format` = the label JSON schema,
+   `options.temperature = 0`, `options.num_predict = maxOutputTokens` and `keep_alive`.
+4. `done_reason === 'length'` → `provider_unavailable(truncated_output)`. Then JSON parse and
+   `validateLabelResponse` (foreign timestamps, valueless abstentions, missing evidence are rejected).
+5. `ModelProvenance` from the response's `model` (the tag that actually served) and
+   `prompt_eval_count` / `eval_count` (input / output tokens); `costUsd` is 0.
 
 Anything that goes wrong raises `ProviderUnavailableError` with a `reason` and
-`retryable` flag. There is never a canned label.
+`retryable` flag: `unreachable` (server down; names the host and `ollama serve`),
+`model_missing` (names `ollama pull <model>`), `model_not_vision`, `network` (timeout,
+retryable), `server_error` (retryable), `bad_request`, `truncated_output`,
+`invalid_model_output` (retryable: a fresh sample may validate), `input_rejected`.
+There is never a canned label.
 
-## Running with a key
+## Running against Ollama
 
 ```bash
-export ANTHROPIC_API_KEY=...            # never committed, never logged
-export FOOTBALLOS_AI_MODEL=claude-opus-5-5   # default; see docs/ai/MODEL_CANDIDATES.md
-export FOOTBALLOS_AI_EFFORT=medium
-export FOOTBALLOS_AI_JOB_BUDGET_USD=25  # owner decision 2026-10-25
+# once per machine
+brew install ollama            # or https://ollama.com/download
+ollama serve                   # the desktop app does this for you
+ollama pull qwen3-vl:4b        # ~3.5 GB; qwen3-vl:8b (~6 GB) on a 16 GiB+ server
+
+export OLLAMA_HOST=http://127.0.0.1:11434   # default
+export FOOTBALLOS_AI_MODEL=qwen3-vl:4b      # any tag whose `ollama show` lists the vision capability
 ```
 
 ```ts
-import { createVisionLabeler, planFrameSampling, JobBudget } from "@footballos/ai";
+import { checkOllama, createVisionLabeler, loadAiConfig, planFrameSampling } from "@footballos/ai";
 
-const budget = new JobBudget(25);
-const labeler = createVisionLabeler("anthropic", { budget });
-if (!labeler.isAvailable()) {
-  // provider_unavailable path: show the manual-labeling UI
+const config = loadAiConfig();
+const status = await checkOllama(config);        // { ok: true, version, model } | { ok: false, reason, message }
+if (!status.ok) {
+  // provider_unavailable path: show the manual-labeling UI and the message (it names the fix)
 }
+const labeler = createVisionLabeler({ config });
 const plan = planFrameSampling({ startSec: seg.startSec, endSec: seg.endSec, fps: 1, maxFrames: 12 });
 // @footballos/media extracts JPEGs at plan.timestampsSec → frames[]
 const { labels, provenance } = await labeler.labelSegment({
@@ -123,34 +123,32 @@ and `plan.note` together say exactly what the model saw and did not see.
 ## The `infer_labels` job (B hosts it)
 
 ```ts
-import { createInferLabelsHandler, createVisionLabeler, applyInference } from "@footballos/ai";
+import { checkOllama, createInferLabelsHandler, createVisionLabeler, applyInference } from "@footballos/ai";
 import { extractFrames } from "@footballos/media";
 
+const status = await checkOllama(config);
+if (!status.ok) throw new NonRetryableError("provider_unavailable", `${status.reason}: ${status.message}`);
 const handler = createInferLabelsHandler({
-  labeler: createVisionLabeler(process.env.MODEL_PROVIDER === "anthropic" ? "anthropic" : "none"),
+  labeler: createVisionLabeler({ config }),
   extractFrames,
-  budgetUsd: 25,            // FOOTBALLOS_AI_JOB_BUDGET_USD
   maxFramesPerSegment: 12,  // FOOTBALLOS_AI_MAX_FRAMES_PER_SEGMENT
 });
 // job.input = { assetId, sourcePath, context, labelKeys, segments: [{ id, startSec, endSec, fps }] }
 const result = await handler({ id: job.id, input }, { signal, progress: (done, total, message) => … });
-// result = { perSegment: [{ segmentId, labels, provenance }], skipped: [{ segmentId, reason, detail }], costUsd }
+// result = { perSegment: [{ segmentId, labels, provenance }], skipped: [{ segmentId, reason, detail }], costUsd: 0 }
 for (const p of result.perSegment) {
   const { upserts } = applyInference(existingLabelsOfSegment, p.segmentId, p.labels, p.provenance.id, { teamId });
   // persist p.provenance and upserts in one transaction
 }
 ```
 
-- One `JobBudget` per job is created inside the handler and passed to the labeler as
-  `input.budget`; the Anthropic adapter reserves each call against it. The handler also
-  guards with the running average so a labeler without an estimate still stops.
-- `skipped.reason` is one of `budget_exceeded` (this and all later segments),
-  `provider_unavailable` (segment-local, non-retryable: refusal, truncated/invalid output,
-  rejected input), `no_frames`, `frame_extraction_failed`, `invalid_segment`, `canceled`
-  (after `ctx.signal` aborted). A **retryable** provider error (rate limit, network, 5xx) and
-  a job-wide one (`no_api_key`, `auth`, `not_implemented`) are **thrown** as
+- `skipped.reason` is one of `provider_unavailable` (segment-local, non-retryable: truncated or
+  invalid output, rejected input), `no_frames`, `frame_extraction_failed`, `invalid_segment`,
+  `canceled` (after `ctx.signal` aborted). A **retryable** provider error (timeout, 5xx) and a
+  job-wide one (`unreachable`, `model_missing`, `model_not_vision`) are **thrown** as
   `ProviderUnavailableError` with `retryable` preserved; `labeler.isAvailable() === false`
-  fails the job before any extraction with the §14.5 message "No model provider is configured".
+  fails the job before any extraction. Run `checkOllama` first so the job fails with the fix in
+  its message before a single frame is extracted.
 - `applyInference` never changes `accepted` when its status is `accepted`, `corrected` or
   `rejected`; it bumps `version`, writes the new `inferred` block and `provenanceId`.
   `bulkAcceptPlan(labels, { segmentIds, keys })` lists exactly the ids a bulk accept changes
@@ -175,11 +173,13 @@ sha256 of the finding's inputs).
 ## Playbook proposals (C3-lib)
 
 ```ts
-import { proposeFromPages, AnthropicPageLabeler } from "@footballos/ai";
+import { checkOllama, createPageLabeler, proposeFromPages } from "@footballos/ai";
 
 // pages: C's extractDocument(...).pages, or PlaybookPage rows mapped to { pageNumber, text, textSource, imagePath }
-const labeler = new AnthropicPageLabeler();          // isAvailable() false without ANTHROPIC_API_KEY
-const r = await proposeFromPages(pages, { labeler, vocabulary: team.conceptVocabulary });
+const status = await checkOllama(config);
+const r = await proposeFromPages(pages, status.ok
+  ? { labeler: createPageLabeler({ config }), vocabulary: team.conceptVocabulary }
+  : { modelUnavailable: `${status.reason}: ${status.message}`, vocabulary: team.conceptVocabulary });
 // r = { concepts: ProposedConcept[], terms: ProposedTerm[], basis: 'text'|'model'|'none', note, pages: PageOutcome[], provenance: ModelProvenance[] }
 ```
 
@@ -195,8 +195,8 @@ const r = await proposeFromPages(pages, { labeler, vocabulary: team.conceptVocab
   number only (`excerpt: null`) and a note naming the model; `provenance[]` holds one
   `ModelProvenance` per call (for a page, `preprocessing.frameCount` is 1 and `inspected` is
   zeroed: a page has no timestamps). Without a labeler the page yields nothing and
-  `pages[i].note` says so. A page-local provider error skips the page; `budget_exceeded`,
-  `no_api_key`, `auth` stop further calls.
+  `pages[i].note` says so, quoting `modelUnavailable` when given. A page-local provider error
+  skips the page; `unreachable`, `model_missing`, `model_not_vision` stop further calls.
 - Persisting (B): `ProposedConcept` → `Concept { status:'proposed', installed:false, sources:
   sources.map(s => ({ documentId, pageNumber: s.pageNumber, bbox: null, excerpt: s.excerpt })) }`;
   `basis` and `note` are the §15.1 fields on the proposal.
@@ -220,21 +220,23 @@ Rules, thresholds (`minSample` 4, tendency 60 %, formation share 25 %) and the m
 are in `docs/ai/RECOMMENDATIONS.md`. `Player.availability` and `ReviewFlag` are typed in this
 package (`PlayerAvailability`, `ReviewFlag`) until the contracts package carries them.
 
-## Cost controls
+## Limits and configuration
 
-| Control | Default | Env |
+| Setting | Default | Env |
 | --- | --- | --- |
-| Per-job abort threshold | $25 | `FOOTBALLOS_AI_JOB_BUDGET_USD` |
+| Ollama server | `http://127.0.0.1:11434` | `OLLAMA_HOST` (scheme optional, as for the Ollama CLI) |
+| Model tag | `qwen3-vl:4b` | `FOOTBALLOS_AI_MODEL` (must list the `vision` capability in `ollama show`) |
 | Max frames per segment | 12 | `FOOTBALLOS_AI_MAX_FRAMES_PER_SEGMENT` |
 | Max segments per job | 200 | `FOOTBALLOS_AI_MAX_SEGMENTS_PER_JOB` (enforced by the job runner; exported in config) |
-| Max output tokens | 4096 | `FOOTBALLOS_AI_MAX_OUTPUT_TOKENS` |
-| Request timeout | 120 s | `FOOTBALLOS_AI_REQUEST_TIMEOUT_MS` |
+| Max output tokens (`num_predict`) | 4096 | `FOOTBALLOS_AI_MAX_OUTPUT_TOKENS` |
+| Request timeout | 300 s | `FOOTBALLOS_AI_REQUEST_TIMEOUT_MS` (CPU inference over 12 frames is slow) |
+| Keep the model loaded | `10m` | `FOOTBALLOS_AI_KEEP_ALIVE` |
+| Context-window cap (`num_ctx`) | 32 768 | `FOOTBALLOS_AI_MAX_NUM_CTX`; each call is sized to its frames (about 1 400 tokens per image plus the answer) and capped here. Ollama's own default of 4 096 would silently truncate a multi-frame request. |
 
-The budget is a `JobBudget` instance shared across all calls of one job: every call is
-reserved before it is sent and settled with the real cost from `usage`. A model that is not
-in the price table is refused (we never spend an amount we cannot account for). SDK
-retries are disabled (`maxRetries: 0`) so the job runner owns retries and each attempt is
-budgeted and recorded.
+Local inference has no per-call charge: `ModelProvenance.costUsd` is always 0 and there is no
+spend cap. The real limits are time and memory on the host: `qwen3-vl:4b` needs about 3.5 GB
+of RAM, `qwen3-vl:8b` about 6 GB, and a segment of 12 frames can take a minute or more on a
+laptop CPU. The job runner owns retries; the client never retries on its own.
 
 ## Evaluation harness
 
@@ -254,19 +256,15 @@ npm test -w packages/ai
 
 ## What is untested / known limitations
 
-- **No real model call has been made.** The request shape follows the official
-  structured-outputs and vision docs (cited in `docs/ai/MODEL_CANDIDATES.md`), but the
-  first live call with a key may surface schema or parameter issues (for example the
-  `enum` containing `null` for `uncertainty`). Run one segment manually before a job.
-- `costUsd` is computed from a hand-maintained price table dated 2026-10-25. A requested
-  model that is not in the table is refused before the call; when the API reports a served
-  snapshot id that is not in the table, the requested model's price is used (an alias is
-  billed at the same rate). Adaptive-thinking tokens are billed as output and are included
-  only through the real `usage.output_tokens`.
-- Refusal fallbacks (`fallbacks` parameter) are deliberately **not** enabled: a silent
-  model switch would make `ModelProvenance.model` differ from the configured model without
-  the job noticing. A refusal is reported as `provider_unavailable(refusal)` instead.
-- The OpenAI adapter is a stub; Qwen3-VL is documentation only.
+- **No real model call has been made from the test suite.** The request shape follows the
+  Ollama API documentation (`/api/chat` with `images`, `format` as a JSON schema, `options`,
+  `keep_alive`), but the first live call may surface differences in how a given model follows
+  the schema (for example a `null` `uncertainty`). Run one segment manually before a job.
+- Which open-source model labels film well is unmeasured. `qwen3-vl:4b` is the default because
+  it fits the development machine; the evaluation harness exists to compare tags on
+  coach-labeled footage before trusting any of them.
+- `ModelProvenance.model` is the tag Ollama reports; it does not pin the model's digest. Record
+  `ollama show <tag>` on the host when a result must be reproducible.
 - `types.ts` imports the contracts; this package's `InferredLabel` is `{ key, inferred }`
   (the contracts' `InferredLabel` is the `inferred` block alone, aliased here as
   `InferredLabelBody`).
@@ -277,9 +275,13 @@ npm test -w packages/ai
 - The playbook heuristics are rules, not understanding: a Title-Case sentence fragment can
   become a concept and a schedule-like "X: Y" line a term. The coach's review is the filter.
   No real playbook PDF has been processed (none exists in the repository, board X1).
-- `AnthropicPageLabeler` has only been exercised against a fake transport; the same
+- `OllamaPageLabeler` has only been exercised against a fake server; the same
   first-live-call caution as for the segment labeler applies.
 - `buildRecommendations` reads a finding's dimensions (formation, play type, situation) back
   from the statement `stats/findings.ts` wrote; a finding from another compute version is
   skipped, not guessed. A structured field on `ScoutingFinding` is proposed to the contracts
   owner.
+
+## Thinking models
+
+qwen3-vl advertises the `thinking` capability. Left on, it spends the whole `num_predict` on hidden reasoning and returns an empty, truncated answer (`done_reason: length`), so both adapters read `/api/show` once per instance and send `think: false` to any model that lists `thinking`. Models without the capability get no `think` field, because older models reject it.

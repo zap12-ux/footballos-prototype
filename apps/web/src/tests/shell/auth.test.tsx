@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderApp } from './harness';
-import { DEMO_MFA_CODE } from '../../api/mock';
+import { DEMO_MFA_CODE } from '../fakeApi';
 
 describe('auth gating and sign-in', () => {
   it('redirects an unauthenticated visitor from /app/* to /sign-in and remembers where they were going', async () => {

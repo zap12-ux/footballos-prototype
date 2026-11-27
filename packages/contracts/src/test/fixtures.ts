@@ -83,7 +83,7 @@ export const fixtures = {
   },
   LabelRevision: { id: ID.audit, labelId: ID.label, previousValue: 'pass', newValue: 'run', previousStatus: 'inferred', newStatus: 'corrected', byUserId: ID.user, at: NOW, reason: null },
   ModelProvenance: {
-    id: ID.provenance, provider: 'anthropic', model: 'claude-demo', modelRevision: null, promptId: 'label-v1', promptHash: 'deadbeef',
+    id: ID.provenance, provider: 'ollama', model: 'qwen3-vl:4b', modelRevision: null, promptId: 'label-v1', promptHash: 'deadbeef',
     preprocessing: { samplingFps: 2, frameCount: 12, clipSec: 8.25, resolution: '1280x720' }, inspected: { fromSec: 10, toSec: 18.25, frameTimestampsSec: [10, 10.5, 11] },
     analysisVersion: '2026.10', inputTokens: 1200, outputTokens: 80, costUsd: 0.004321, latencyMs: 1800, requestedAt: NOW, completedAt: NOW,
   },

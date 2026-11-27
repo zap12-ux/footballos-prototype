@@ -1,11 +1,13 @@
 /**
- * MockApi: the `Api` served from the fictional Winchester Hawks demo data in `./data.ts`.
- * It keeps mutations in memory for the life of the page, persists the signed-in session in
- * `sessionStorage` so a refresh stays signed in, and adds a small delay so loading states
- * are visible. Tests construct it with `latencyMs: 0` and `persist: false`.
+ * TEST-ONLY in-memory implementation of `Api`, served from the fictional Winchester Hawks
+ * records in `./data.ts`. It exists so the product shell's tests can drive every screen
+ * without `apps/api`; it is never bundled into the app. Mutations live in memory for the life
+ * of one instance; a "simulated worker" advances jobs one step per poll so polling can be
+ * tested. `infer_labels` always fails truthfully: this fake has no model and never invents a
+ * label.
  */
-import type { Api, GamePlanBundle, Me, SignInResult, TeamSettings } from '../api';
-import { ApiError } from '../api';
+import type { Api, GamePlanBundle, Me, SignInResult, TeamSettings } from '../../api/api';
+import { ApiError } from '../../api/api';
 import type {
   Concept,
   GamePlanVersion,
@@ -24,22 +26,20 @@ import type {
   Unit,
   Upload,
   User,
-} from '../contracts';
-import { PLAN_SECTION_TEMPLATES } from '../contracts';
+} from '../../api/contracts';
+import { PLAN_SECTION_TEMPLATES } from '../../api/contracts';
 import * as demo from './data';
 import { DEMO_LABEL_KEYS, DEMO_MFA_CODE, DEMO_NOW } from './data';
-import { clearMockStore, fingerprint, mockStoreSavedAt, readMockStore, writeMockStore } from './persistence';
 
 export { DEMO_MFA_CODE, DEMO_NOW };
-export { MOCK_STORE_KEY, MOCK_SCHEMA_VERSION } from './persistence';
 
-/** Demo clips that stand in for a proxy stream in mock mode (credited CC BY-NC footage, see README). */
+/** The fake grant names one of six short stand-in clips; nothing is served, the URL is only a string the player receives. */
 const DEMO_CLIP_COUNT = 6;
-/** Measured length of each `public/demo-film/play-N.mp4` (mvhd), so the player knows the playable range. */
+/** Length of each stand-in clip (`fixtures/media/clips/play-N.mp4`), so the player knows the playable range. */
 const DEMO_CLIP_DURATIONS = [6.374, 7.408, 6.407, 5.406, 7.908, 7.408];
 
 /**
- * Thumbnail tiles in mock mode: an SVG data URL that keeps the `{n}` placeholder, so the
+ * Thumbnail tiles: an SVG data URL that keeps the `{n}` placeholder, so the
  * client's template substitution produces a tile that names its own index. Nothing is
  * pretending to be a frame of the film.
  */
@@ -47,20 +47,16 @@ const DEMO_THUMB_TEMPLATE = `data:image/svg+xml;charset=utf-8,${encodeURICompone
   '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="90" viewBox="0 0 160 90"><rect width="160" height="90" fill="#151d27"/><rect x="0.5" y="0.5" width="159" height="89" fill="none" stroke="#34455a"/><text x="80" y="40" fill="#aab6c4" font-family="ui-monospace, monospace" font-size="11" text-anchor="middle">demo tile</text><text x="80" y="62" fill="#e2b457" font-family="ui-monospace, monospace" font-size="16" text-anchor="middle">#TILE#</text></svg>',
 ).replace('%23TILE%23', '{n}')}`;
 
-/** Simulated worker: how many polls a mock job takes from `running` to done. */
+/** Simulated worker: how many polls a fake job takes from `running` to done. */
 const SIMULATED_STEPS = 2;
 
-export interface MockApiOptions {
+export interface FakeApiOptions {
   latencyMs?: number;
-  /** Keep the session in `sessionStorage` and every mutation in `localStorage` (default true; tests pass false). */
-  persist?: boolean;
-  /** Start signed in as this demo user (tests). */
+  /** Start signed in as this fictional user. */
   signedInAs?: string;
 }
 
-const SESSION_KEY = 'footballos.mock.session.v1';
-
-interface MockSession {
+interface FakeSession {
   userId: string;
   mfaVerified: boolean;
 }
@@ -113,72 +109,21 @@ function seedDb() {
     uploads: [] as Upload[],
   };
 }
-type MockDb = ReturnType<typeof seedDb>;
+type FakeDb = ReturnType<typeof seedDb>;
 
-/** What survives a reload (OC-01, PC-04): the records plus the mock worker's bookkeeping. */
-interface PersistedState {
-  db: MockDb;
-  simulated: string[];
-  uploadSha: Record<string, string | undefined>;
-}
+export function createFakeApi(options: FakeApiOptions = {}): Api {
+  const latency = options.latencyMs ?? 0;
 
-/** Changes to the seed invalidate stored state, so a demo never shows records from an older seed. */
-const SEED_FINGERPRINT = fingerprint(JSON.stringify(seedDb()));
+  const db: FakeDb = seedDb();
+  /** Jobs created in this instance whose progress the fake worker simulates on every poll. */
+  const simulated = new Set<string>();
+  const uploadSha = new Map<string, string | undefined>();
 
-/** Methods that change records; each is followed by a write-through to `localStorage`. */
-const MUTATING: Record<string, string[]> = {
-  teams: ['invite', 'updateMembership', 'updateSettings'],
-  seasons: ['createGame', 'updateGame', 'previewImport', 'applyImport'],
-  media: ['createUpload', 'putChunk', 'completeUpload', 'deleteAsset', 'jobs', 'job', 'cancelJob', 'retryJob', 'splitSegment', 'mergeSegments', 'updateSegment', 'createSegment'],
-  labels: ['correct', 'bulkAccept', 'infer'],
-  scouting: ['saveSnapshot'],
-  plans: ['get', 'createDraft', 'update', 'submit', 'approve', 'comment'],
-  playbook: ['decideConcept'],
-};
-
-export function createMockApi(options: MockApiOptions = {}): Api {
-  const latency = options.latencyMs ?? 250;
-  const persist = options.persist ?? true;
-
-  const stored = persist ? readMockStore<PersistedState>(SEED_FINGERPRINT) : null;
-  let db: MockDb = stored?.state.db ?? seedDb();
-  /** Jobs created in this session whose progress the mock worker simulates on every poll. */
-  const simulated = new Set<string>(stored?.state.simulated ?? []);
-  const uploadSha = new Map<string, string | undefined>(Object.entries(stored?.state.uploadSha ?? {}));
-
-  const serialize = (): string => JSON.stringify({ db, simulated: [...simulated], uploadSha: Object.fromEntries(uploadSha) } satisfies PersistedState);
-  /** What the store last held, so reads that change nothing (job polls, first plan reads) write nothing. */
-  let lastSerialized = stored ? JSON.stringify(stored.state) : serialize();
-
-  function save() {
-    if (!persist) return;
-    const next = serialize();
-    if (next === lastSerialized) return;
-    lastSerialized = next;
-    writeMockStore(next, SEED_FINGERPRINT);
-  }
-
-  let session: MockSession | null = options.signedInAs ? { userId: options.signedInAs, mfaVerified: true } : readSession();
+  let session: FakeSession | null = options.signedInAs ? { userId: options.signedInAs, mfaVerified: true } : null;
   let pendingMfaUser: string | null = null;
 
-  function readSession(): MockSession | null {
-    if (!persist || typeof window === 'undefined') return null;
-    try {
-      const raw = window.sessionStorage.getItem(SESSION_KEY);
-      return raw ? (JSON.parse(raw) as MockSession) : null;
-    } catch {
-      return null;
-    }
-  }
-  function writeSession(next: MockSession | null) {
+  function writeSession(next: FakeSession | null) {
     session = next;
-    if (!persist || typeof window === 'undefined') return;
-    try {
-      if (next) window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(next));
-      else window.sessionStorage.removeItem(SESSION_KEY);
-    } catch {
-      /* storage unavailable: the session lives in memory only */
-    }
   }
 
   const delay = <T>(value: T): Promise<T> =>
@@ -299,9 +244,9 @@ export function createMockApi(options: MockApiOptions = {}): Api {
   }
 
   /**
-   * The mock worker. Called on every job read: advances the oldest queued/running simulated
+   * The fake worker. Called on every job read: advances the oldest queued/running simulated
    * job of each asset one step, so polling shows a chain complete in order. `infer_labels`
-   * fails truthfully: the mock has no model provider and never invents a label.
+   * fails truthfully: the fake has no model provider and never invents a label.
    */
   function advanceJobs() {
     const byAsset = new Map<string, ProcessingJob[]>();
@@ -364,21 +309,6 @@ export function createMockApi(options: MockApiOptions = {}): Api {
   }
 
   const api: Api = {
-    mode: 'mock',
-    demo: {
-      persisted: persist,
-      savedAt: () => (persist ? mockStoreSavedAt() : null),
-      async reset() {
-        requireUser();
-        clearMockStore();
-        db = seedDb();
-        simulated.clear();
-        uploadSha.clear();
-        pendingMfaUser = null;
-        lastSerialized = serialize();
-        return delay(undefined);
-      },
-    },
     auth: {
       async me() {
         if (!session || !session.mfaVerified) return delay(null);
@@ -631,7 +561,7 @@ export function createMockApi(options: MockApiOptions = {}): Api {
         const asset = db.assets.find((a) => a.id === upload.assetId)!;
         const ts = nowIso();
         upload.completedAt = ts;
-        // The server would hash the stored file here; the mock keeps the client hash or a demo marker.
+        // The server would hash the stored file here; the fake keeps the client hash or a demo marker.
         asset.sha256 = uploadSha.get(uploadId) ?? `demo-sha-${asset.id}`;
         asset.status = 'uploaded';
         asset.updatedAt = ts;
@@ -656,7 +586,7 @@ export function createMockApi(options: MockApiOptions = {}): Api {
         const clip = (db.assets.filter((a) => a.status !== 'deleted').findIndex((a) => a.id === assetId) % DEMO_CLIP_COUNT) + 1;
         const base = (typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL) || '/';
         return delay({
-          streamUrl: `${base.replace(/\/$/, '')}/demo-film/play-${clip}.mp4?demo-grant=${newId('tok')}`,
+          streamUrl: `${base.replace(/\/$/, '')}/media/fake/play-${clip}.mp4?grant=${newId('tok')}`,
           thumbUrlTemplate: DEMO_THUMB_TEMPLATE,
           expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
           thumbEverySec: 10,
@@ -824,7 +754,7 @@ export function createMockApi(options: MockApiOptions = {}): Api {
       async report(teamId, opponentId, query) {
         requireTeam(teamId);
         if (!db.opponents.some((o) => o.id === opponentId)) fail('not_found', 'Opponent not found.', 404);
-        // The mock keeps precomputed demo findings; the API recomputes from stored labels.
+        // The fake keeps precomputed demo findings; the API recomputes from stored labels.
         // `reviewed_only` drops every finding that needed unreviewed labels.
         const findings = db.findings.filter((f) => f.opponentId === opponentId && f.unit === query.unit && (query.reviewBasis === 'includes_inferred' || f.reviewBasis === 'reviewed_only'));
         const gameIds = new Set(findings.flatMap((f) => f.gameIds));
@@ -983,23 +913,6 @@ export function createMockApi(options: MockApiOptions = {}): Api {
       },
     },
   };
-
-  // Write-through after every mutating call, so a reload finds the same records (OC-01, PC-04).
-  if (persist) {
-    for (const [group, methods] of Object.entries(MUTATING)) {
-      const target = (api as unknown as Record<string, Record<string, (...args: unknown[]) => Promise<unknown>>>)[group];
-      for (const method of methods) {
-        const original = target[method];
-        target[method] = async (...args: unknown[]) => {
-          try {
-            return await original(...args);
-          } finally {
-            save();
-          }
-        };
-      }
-    }
-  }
 
   return api;
 }

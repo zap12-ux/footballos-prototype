@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import {
-  ANALYSIS_VERSION, applyInference, createInferLabelsHandler, createVisionLabeler, isProviderUnavailable, LABEL_SEGMENT_PROMPT_VERSION,
+  ANALYSIS_VERSION, applyInference, createInferLabelsHandler, isProviderUnavailable, LABEL_SEGMENT_PROMPT_VERSION,
   type InferLabelsJobInput, type InferLabelsResult,
 } from '@footballos/ai';
 import {
@@ -12,11 +12,10 @@ import type { Db } from '../db/db.js';
 import { labels, mediaAssets, modelProvenance } from '../db/schema.js';
 import { applyRetention, gcExpiredUploads, CHAIN_KINDS, DOCUMENT_EXTRACT_KIND, type AssetRow, type DocumentJobInput } from '../services/media.js';
 import { markExtractionFailed, persistExtraction, type ExtractionJobResult } from '../services/playbook.js';
-import { AnthropicPageLabeler, createDocumentHandlers, proposeFromPages, type PageLabeler, type ProposalPage } from '../libs/index.js';
+import { checkOllama, createDocumentHandlers, createPageLabeler, createVisionLabeler, proposeFromPages, type OllamaStatus, type ProposalPage } from '../libs/index.js';
 import { keyFor, tightenPermissions } from '../services/storage.js';
 import { storeProposedSegments } from '../services/segments.js';
 import { listLabelsForSegments, serializeLabel } from '../services/labels.js';
-import { monthlyCostUsd } from '../services/usage.js';
 
 /** `ProcessingJob.input` for the validate → proxy → thumbnails → segment chain (C's MediaJobInput plus identity). */
 export type ChainJobInput = MediaJobInput & { teamId: string; gameId: string };
@@ -34,7 +33,12 @@ export function uploadLimitsFor(ctx: AppContext): Partial<UploadLimits> {
 
 /** Config version of inference jobs: provider, model, analysis and prompt versions (idempotency + provenance). */
 export function inferConfigVersion(ctx: AppContext): string {
-  return `${ctx.config.modelProvider}:${ctx.config.ai.anthropicModel}:analysis-${ANALYSIS_VERSION}:prompt-${LABEL_SEGMENT_PROMPT_VERSION}`;
+  return `ollama:${ctx.config.ai.model}:analysis-${ANALYSIS_VERSION}:prompt-${LABEL_SEGMENT_PROMPT_VERSION}`;
+}
+
+/** One sentence for a job error or a page note: the Ollama preflight's reason and message. */
+function describeUnavailable(status: Extract<OllamaStatus, { ok: false }>): string {
+  return `${status.reason}: ${status.message}`;
 }
 
 
@@ -63,30 +67,21 @@ export function registerJobHandlers(ctx: AppContext): void {
     .register('thumbnails', asJobHandler(guarded(media.thumbnails)))
     .register('segment', asJobHandler(guarded(media.segment)))
     .register<InferLabelsJobInput, InferLabelsResult>('infer_labels', async (h: HandlerContext<InferLabelsJobInput>) => {
-      // §14.5 / §14.10 (QA D-4): the provider is checked before the cost cap so the error names the
-      // real cause, and every failure here happens before any frame is extracted or any call is made.
+      // §14.5 / §14.10 (QA D-4): the Ollama preflight (server up, model pulled, model sees) runs
+      // before any frame is extracted, so a failure here names the real cause and costs nothing.
       // Manual labeling stays available in all of these cases.
-      const provider = ctx.config.modelProvider;
-      if (provider === 'none') throw new NonRetryableError('provider_unavailable', 'No model provider is configured');
-      const labeler = createVisionLabeler(provider, { config: ctx.config.ai });
-      if (!labeler.isAvailable()) {
-        const keyVar = provider === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY';
-        throw new NonRetryableError('provider_unavailable', `no_api_key: MODEL_PROVIDER=${provider} but ${keyVar} is not set; manual labeling remains available`);
-      }
-      const cap = ctx.config.limits.monthlyCostCapUsd;
-      const spent = monthlyCostUsd(ctx, h.job.teamId, ctx.now());
-      if (spent >= cap) {
-        throw new NonRetryableError('budget_exceeded', `Month-to-date model spend $${spent.toFixed(4)} has reached the monthly cap $${cap.toFixed(2)} (MONTHLY_COST_CAP_USD)`);
-      }
-      const handler = createInferLabelsHandler({ labeler, extractFrames, budgetUsd: ctx.config.ai.jobBudgetUsd, maxFramesPerSegment: ctx.config.ai.maxFramesPerSegment });
+      const status = await checkOllama(ctx.config.ai);
+      if (!status.ok) throw new NonRetryableError('provider_unavailable', `${describeUnavailable(status)}; manual labeling remains available`);
+      const labeler = createVisionLabeler({ config: ctx.config.ai });
+      const handler = createInferLabelsHandler({ labeler, extractFrames, maxFramesPerSegment: ctx.config.ai.maxFramesPerSegment });
       try {
         return await handler({ id: h.job.id, input: h.input }, { signal: h.signal, progress: (done, total, message) => h.progress({ done, total, message }) });
       } catch (err) {
         // C's runner retries everything except NonRetryableError; D's adapter says whether a retry can
-        // help. The adapter's `reason` (no_api_key, auth, rate_limited, refusal, ...) is kept in the message.
+        // help. The adapter's `reason` (unreachable, model_missing, truncated_output, ...) is kept in the message.
         if (isProviderUnavailable(err)) {
           const message = err.toJobError().message;
-          if (!err.retryable) throw new NonRetryableError(err.reason === 'budget_exceeded' ? 'budget_exceeded' : 'provider_unavailable', message);
+          if (!err.retryable) throw new NonRetryableError('provider_unavailable', message);
           throw Object.assign(new Error(message), { code: 'provider_unavailable' });
         }
         throw err;
@@ -94,8 +89,8 @@ export function registerJobHandlers(ctx: AppContext): void {
     });
 
   // §15.1 extract_document: C's extractor, then D's proposals over the extracted pages. A page
-  // image goes to a model only when a provider with a key is configured; otherwise pages without
-  // text produce nothing and the document says so.
+  // image goes to the model only when the Ollama preflight passes; otherwise pages without text
+  // produce nothing and each page's note says why.
   const documents = createDocumentHandlers({ dataDir: ctx.config.dataDir, renderDpi: ctx.config.limits.documentRenderDpi, ocr: ctx.config.limits.documentOcr });
   ctx.runner.register<DocumentJobInput, ExtractionJobResult>(DOCUMENT_EXTRACT_KIND, async (h: HandlerContext<DocumentJobInput>) => {
     requireLiveAsset(h.input);
@@ -106,14 +101,10 @@ export function registerJobHandlers(ctx: AppContext): void {
     const pages: ProposalPage[] = extraction.pages.map((p) => ({
       pageNumber: p.pageNumber, text: p.text, textSource: p.textSource, imagePath: p.imagePath, width: p.width, height: p.height, ocrConfidence: p.ocrConfidence,
     }));
-    let labeler: PageLabeler | null = null;
-    if (ctx.config.modelProvider === 'anthropic' && ctx.config.modelKeyConfigured) {
-      const cap = ctx.config.limits.monthlyCostCapUsd;
-      const spent = monthlyCostUsd(ctx, h.job.teamId, ctx.now());
-      if (spent < cap) labeler = new AnthropicPageLabeler({ config: ctx.config.ai, now: ctx.now });
-    }
+    const status = await checkOllama(ctx.config.ai);
+    if (!status.ok) ctx.logger.info('extract_document: model unavailable, text heuristics only', { jobId: h.job.id, reason: status.reason, message: status.message });
     await h.progress({ done: extraction.pageCount, total: extraction.pageCount, message: 'proposing concepts and terms' });
-    const proposals = await proposeFromPages(pages, labeler ? { labeler } : {});
+    const proposals = await proposeFromPages(pages, status.ok ? { labeler: createPageLabeler({ config: ctx.config.ai }) } : { modelUnavailable: describeUnavailable(status) });
     return { extraction, proposals };
   });
 

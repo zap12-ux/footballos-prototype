@@ -13,8 +13,8 @@
 //   restart-start          3a. start a chain and return as soon as `proxy` is running (SIGKILL the server now)
 //   restart-verify         3b. after the restart: expired lease re-claimed, chain finished, no duplicates
 //   cancel-retry           4. cancel mid-job → canceled + upstream_failed dependents; retry → chain completes
-//   provider-none          5a. MODEL_PROVIDER=none → infer_labels fails provider_unavailable, manual PATCH works
-//   provider-nokey         5b. MODEL_PROVIDER=anthropic without a key → truthful failure, no network call
+//   provider-none          5a. Ollama not running (OLLAMA_HOST unreachable) → infer_labels fails provider_unavailable, manual PATCH works
+//   provider-nokey         5b. Ollama running without the configured model pulled → truthful model_missing failure, no frame extracted
 //   corrections            6. correction persists across a segment re-run and an inference re-run
 //   scouting               7. known label mix → numerators/denominators vs hand computation; snapshots
 //   delivery               8. grant → Range 206, tampered/expired 401, thumb tiles, cross-team 404 sweep
@@ -379,7 +379,7 @@ async function providerNone() {
   const assetId = state.play1 ?? Object.values(state.assets ?? {})[0];
   const { r, job } = await inferAndWait(c, assetId);
   check('POST /assets/:id/infer → 202 { jobs: [infer_labels] }', r.status === 202 && r.body.jobs?.[0]?.kind === 'infer_labels', `${r.status} ${r.body?.jobs?.length} job(s)`);
-  check('with MODEL_PROVIDER=none the job fails with provider_unavailable, retryable:false, "No model provider is configured"', job?.status === 'failed' && job.error?.code === 'provider_unavailable' && job.error?.retryable === false && /No model provider is configured/.test(job.error?.message ?? ''), JSON.stringify(job?.error));
+  check('with Ollama unreachable the job fails with provider_unavailable, retryable:false, "unreachable: Ollama is not reachable at …"', job?.status === 'failed' && job.error?.code === 'provider_unavailable' && job.error?.retryable === false && /unreachable: Ollama is not reachable at/.test(job.error?.message ?? ''), JSON.stringify(job?.error));
   check('failed inference job finished without attempts beyond the first', job?.attempt === 1, `attempt=${job?.attempt}`);
   const prov = await c.req('GET', `/assets/${assetId}/provenance`);
   check('no ModelProvenance row was written for the failed job', prov.status === 200 && prov.body.items.length === 0, `${prov.body.items?.length}`);
@@ -406,9 +406,9 @@ async function providerNoKey() {
   const c = await signIn('pc');
   const assetId = state.play1 ?? Object.values(state.assets ?? {})[0];
   const { r, job } = await inferAndWait(c, assetId);
-  check('MODEL_PROVIDER=anthropic without a key: infer → 202 then the job fails', r.status === 202 && job?.status === 'failed', `${r.status} ${job?.status}`);
-  check('failure is non-retryable and names the missing key (no network attempted: not a proxy/connection error)', job?.error?.retryable === false && !/ECONNREFUSED|proxy|ENOTFOUND|fetch failed|timeout/i.test(job?.error?.message ?? '') && /key|provider/i.test(job?.error?.message ?? ''), JSON.stringify(job?.error));
-  check('error names the reason truthfully (contains no_api_key or ANTHROPIC_API_KEY)', /no_api_key|ANTHROPIC_API_KEY/i.test(JSON.stringify(job?.error)), JSON.stringify(job?.error));
+  check('Ollama running without the model pulled: infer → 202 then the job fails', r.status === 202 && job?.status === 'failed', `${r.status} ${job?.status}`);
+  check('failure is non-retryable and is not a connection error (the server answered)', job?.error?.retryable === false && !/ECONNREFUSED|unreachable|fetch failed|timeout/i.test(job?.error?.message ?? ''), JSON.stringify(job?.error));
+  check('error names the reason truthfully (model_missing and the `ollama pull` command)', /model_missing/.test(JSON.stringify(job?.error)) && /ollama pull/.test(JSON.stringify(job?.error)), JSON.stringify(job?.error));
   const prov = await c.req('GET', `/assets/${assetId}/provenance`);
   check('no provenance row, no cost recorded', prov.body?.items?.length === 0, `${prov.body?.items?.length}`);
   const usage = await c.req('GET', `/teams/${c.teamId}/usage`);
@@ -814,7 +814,7 @@ async function logSweep() {
     if (/fos_session=[A-Za-z0-9]/.test(log)) hits.push(`${path.basename(f)}: session cookie value`);
     if (/"password":"[^"]+"/.test(log)) hits.push(`${path.basename(f)}: password field`);
     if (/token=[A-Za-z0-9_%.-]{40,}/.test(log)) hits.push(`${path.basename(f)}: grant token in a URL`);
-    if (/"(ANTHROPIC|OPENAI)_API_KEY":"[^"]+"/.test(log) || /sk-ant-/.test(log)) hits.push(`${path.basename(f)}: API key`);
+    if (/"(ANTHROPIC|OPENAI)_API_KEY":"[^"]+"/.test(log) || /sk-ant-|sk-proj-/.test(log)) hits.push(`${path.basename(f)}: API key`);
     if (/[A-Z2-7]{32}/.test(log.replace(/"idempotencyKey":"[0-9a-f]+"/g, ''))) hits.push(`${path.basename(f)}: base32 TOTP-secret-like string`);
     const tails = [state.delivery?.tokenTail].filter(Boolean);
     for (const t of tails) if (log.includes(t)) hits.push(`${path.basename(f)}: grant token tail ${t}`);

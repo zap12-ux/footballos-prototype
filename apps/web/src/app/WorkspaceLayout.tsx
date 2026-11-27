@@ -128,9 +128,6 @@ function Shell() {
         ))}
       </ul>
       <div className="ws-nav-foot">
-        <NavLink to="/prototype/" className="small">
-          Film-review demo (prototype)
-        </NavLink>
         <button type="button" className="link small" onClick={() => void onSignOut()}>
           Sign out
         </button>
@@ -154,7 +151,7 @@ function Shell() {
           <span className="wordmark">
             Football<span>OS</span>
           </span>
-          {ws.team ? <EnvironmentLabel kind={ws.team.environmentKind} detail={ws.team.environmentKind === 'demo' ? 'Fictional demo data' : undefined} /> : null}
+          {ws.team ? <EnvironmentLabel kind={ws.team.environmentKind} detail={ws.team.environmentKind === 'demo' ? 'Fictional records for demonstration' : undefined} /> : null}
           <span className="ws-user" data-testid="signed-in-as">
             {me.user.displayName}
             {membership ? <span className="muted"> · {membership.title}</span> : null}
@@ -171,7 +168,7 @@ function Shell() {
         </main>
       </div>
       <footer className="ws-footer">
-        <span>{ws.team?.environmentKind === 'demo' ? 'Demo environment: every record on this screen is fictional and labeled demo.' : 'Team records are private to your staff.'}</span>
+        <span>{ws.team?.environmentKind === 'demo' ? 'Demo environment: every record on this screen is fictional and labeled demo.' : 'Team records are private to your staff and stay on your server.'}</span>
       </footer>
     </div>
   );

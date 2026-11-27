@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Label, PlaySegment } from '../../api/contracts';
 import { applyLabelFilter, DEFAULT_LABEL_FILTER, isBulkAcceptable, nextAdjacent, planBulkAccept, thumbIndexFor, thumbUrl, uncertaintyWord } from '../../film/review';
 import { isJobActive } from '../../film/jobPolling';
-import * as demo from '../../api/mock/data';
+import * as demo from '../fakeApi/data';
 
 function label(over: Partial<Label> & { id: string }): Label {
   return {

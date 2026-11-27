@@ -6,7 +6,6 @@
  * labeled is listed in `skipped` with the reason, never given a default.
  */
 import { DEFAULT_AI_CONFIG } from "../config.js";
-import { JobBudget } from "../cost/budget.js";
 import { ProviderUnavailableError, isProviderUnavailable, type ProviderUnavailableReason } from "../errors.js";
 import { planFrameSampling } from "../frames/plan.js";
 import type { LabelFrame, VisionLabeler } from "../labeler/types.js";
@@ -55,8 +54,6 @@ export interface InferLabelsContext {
 }
 
 export type InferLabelsSkipReason =
-  /** The job budget would be (or was) exceeded; this and every later segment are skipped. */
-  | "budget_exceeded"
   /** The provider refused this segment for a non-retryable, segment-local reason (refusal, truncated or invalid output, rejected input). */
   | "provider_unavailable"
   /** `extractFrames` returned no usable frame for the planned timestamps. */
@@ -84,15 +81,13 @@ export interface InferLabelsPerSegment {
 export interface InferLabelsResult {
   perSegment: InferLabelsPerSegment[];
   skipped: InferLabelsSkipped[];
-  /** Sum of `provenance.costUsd` over the calls that completed (USD, 6 decimals). */
+  /** Sum of `provenance.costUsd` over the calls that completed (USD, 6 decimals). Always 0 with local Ollama inference. */
   costUsd: number;
 }
 
 export interface InferLabelsHandlerOptions {
   labeler: VisionLabeler;
   extractFrames: ExtractFrames;
-  /** Per-job abort threshold; default $25 (owner decision 2026-10-25). */
-  budgetUsd?: number;
   /** Default 12. */
   maxFramesPerSegment?: number;
   /** Keys requested when the job input has none; default: every `LabelKey`. */
@@ -107,7 +102,7 @@ export type InferLabelsHandler = (job: InferLabelsJob, ctx: InferLabelsContext) 
  * Provider reasons that mean *no* segment of this job can succeed. They fail the job
  * (thrown, `retryable` preserved) instead of being recorded per segment.
  */
-const JOB_WIDE_REASONS: ReadonlySet<ProviderUnavailableReason> = new Set(["no_api_key", "not_implemented", "auth"]);
+const JOB_WIDE_REASONS: ReadonlySet<ProviderUnavailableReason> = new Set(["unreachable", "model_missing", "model_not_vision"]);
 
 function round6(n: number): number {
   return Math.round(n * 1e6) / 1e6;
@@ -139,8 +134,6 @@ export function createInferLabelsHandler(options: InferLabelsHandlerOptions): In
   const { labeler, extractFrames } = options;
   if (!labeler || typeof labeler.labelSegment !== "function") throw new TypeError("labeler is required");
   if (typeof extractFrames !== "function") throw new TypeError("extractFrames is required");
-  const budgetUsd = options.budgetUsd ?? DEFAULT_AI_CONFIG.jobBudgetUsd;
-  if (!Number.isFinite(budgetUsd) || budgetUsd < 0) throw new TypeError("budgetUsd must be a non-negative number");
   const maxFramesPerSegment = options.maxFramesPerSegment ?? DEFAULT_AI_CONFIG.maxFramesPerSegment;
   if (!Number.isInteger(maxFramesPerSegment) || maxFramesPerSegment < 1) throw new TypeError("maxFramesPerSegment must be an integer >= 1");
   const defaultKeys = validateLabelKeys(options.labelKeys, LABEL_KEYS);
@@ -152,26 +145,21 @@ export function createInferLabelsHandler(options: InferLabelsHandlerOptions): In
     if (typeof input.sourcePath !== "string" || input.sourcePath === "") throw new TypeError(`job ${job.id}: input.sourcePath is required`);
     const labelKeys = validateLabelKeys(input.labelKeys, defaultKeys);
 
-    // CONTRACTS §14.5: no provider → the job fails immediately, non-retryable, before any
-    // frame is extracted. Manual labeling stays available.
+    // CONTRACTS §14.5: no usable model server → the job fails immediately, non-retryable,
+    // before any frame is extracted. Manual labeling stays available.
     if (!labeler.isAvailable()) {
       throw new ProviderUnavailableError({
         provider: labeler.provider,
-        reason: "no_api_key",
+        reason: "unreachable",
         retryable: false,
-        message: "No model provider is configured",
+        message: "The model server is not available",
       });
     }
 
-    // One ledger per job: adapters reserve/settle against it; the handler guards with the
-    // running average for adapters that do not estimate.
-    const budget = new JobBudget(budgetUsd);
     const perSegment: InferLabelsPerSegment[] = [];
     const skipped: InferLabelsSkipped[] = [];
     const total = input.segments.length;
     let spentUsd = 0;
-    let calls = 0;
-    let budgetStopped = false;
 
     await ctx.progress(0, total, `Labeling ${total} segment${total === 1 ? "" : "s"}`);
 
@@ -184,21 +172,9 @@ export function createInferLabelsHandler(options: InferLabelsHandlerOptions): In
         skipped.push({ segmentId, reason: "canceled", detail: "job canceled before this segment started" });
         continue;
       }
-      if (budgetStopped) {
-        skipped.push({ segmentId, reason: "budget_exceeded", detail: `job budget $${budgetUsd.toFixed(2)} reached after $${spentUsd.toFixed(4)}` });
-        continue;
-      }
       if (typeof seg?.id !== "string" || seg.id === "" || !Number.isFinite(seg.startSec) || !Number.isFinite(seg.endSec) || !(seg.endSec > seg.startSec)) {
         skipped.push({ segmentId, reason: "invalid_segment", detail: "segment needs an id and endSec > startSec" });
         await done();
-        continue;
-      }
-
-      // Pre-check with the running average so a labeler without its own estimate still stops.
-      const avg = calls > 0 ? spentUsd / calls : 0;
-      if (spentUsd + avg > budgetUsd + 1e-9) {
-        budgetStopped = true;
-        skipped.push({ segmentId, reason: "budget_exceeded", detail: `spent $${spentUsd.toFixed(4)} of $${budgetUsd.toFixed(2)}; next call expected about $${avg.toFixed(4)}` });
         continue;
       }
 
@@ -229,19 +205,12 @@ export function createInferLabelsHandler(options: InferLabelsHandlerOptions): In
           labelKeys,
           samplingFps: plan.effectiveFps,
           resolution,
-          budget,
         });
         perSegment.push({ segmentId: seg.id, labels: out.labels, provenance: out.provenance });
         spentUsd = round6(spentUsd + out.provenance.costUsd);
-        calls += 1;
       } catch (err) {
         if (!isProviderUnavailable(err)) throw err;
-        if (err.reason === "budget_exceeded") {
-          budgetStopped = true;
-          skipped.push({ segmentId, reason: "budget_exceeded", detail: err.message });
-          continue;
-        }
-        // Retryable (rate limit, network, 5xx) or job-wide (no key, auth): the job fails and
+        // Retryable (timeout, 5xx) or job-wide (server down, model missing): the job fails and
         // the runner decides on a retry from `retryable`.
         if (err.retryable || JOB_WIDE_REASONS.has(err.reason)) throw err;
         skipped.push({ segmentId, reason: "provider_unavailable", detail: `${err.reason}: ${err.message}` });

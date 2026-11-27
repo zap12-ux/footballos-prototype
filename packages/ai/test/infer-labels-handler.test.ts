@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   ANALYSIS_VERSION,
-  JobBudget,
-  NullLabeler,
   ProviderUnavailableError,
   createInferLabelsHandler,
   isProviderUnavailable,
@@ -14,6 +12,7 @@ import {
   type ModelProvenance,
   type VisionLabeler,
 } from "../src/index.js";
+import { DownLabeler } from "./helpers.js";
 
 const ASSET = "0b6d1f2e-1111-4a0b-8c1d-000000000001";
 
@@ -21,7 +20,7 @@ function provenance(input: LabelSegmentInput, costUsd: number): ModelProvenance 
   const ts = input.frames.map((f) => f.atSec);
   return {
     id: crypto.randomUUID(),
-    provider: "anthropic",
+    provider: "ollama",
     model: "fake-model",
     modelRevision: null,
     promptId: "label-segment.v1",
@@ -52,7 +51,7 @@ function fakeLabels(input: LabelSegmentInput): InferredLabel[] {
 }
 
 class FakeLabeler implements VisionLabeler {
-  readonly provider = "anthropic" as const;
+  readonly provider = "ollama" as const;
   calls: LabelSegmentInput[] = [];
   constructor(
     private readonly respond: (input: LabelSegmentInput, n: number) => Promise<LabelSegmentOutput> | LabelSegmentOutput,
@@ -102,10 +101,10 @@ function ctx(signal: AbortSignal = new AbortController().signal) {
 }
 
 describe("createInferLabelsHandler", () => {
-  it("labels segments in input order with planned frames, shares one budget, sums cost and reports progress", async () => {
+  it("labels segments in input order with planned frames, sums cost and reports progress", async () => {
     const labeler = okLabeler(0.05);
     const extract = fakeExtractor();
-    const handler = createInferLabelsHandler({ labeler, extractFrames: extract, budgetUsd: 25, maxFramesPerSegment: 4 });
+    const handler = createInferLabelsHandler({ labeler, extractFrames: extract, maxFramesPerSegment: 4 });
     const c = ctx();
     const res = await handler(job(3), c);
 
@@ -116,15 +115,13 @@ describe("createInferLabelsHandler", () => {
     expect(extract.calls.map((x) => x.ts)).toEqual([[10, 11.5, 13, 14.5], [20, 21.5, 23, 24.5], [30, 31.5, 33, 34.5]]);
     expect(extract.calls[0]!.height).toBe(720);
     expect(extract.calls[0]!.src).toBe("/data/proxy.mp4");
-    // Labeler input: ordered base64 frames, the requested keys, resolution, the shared budget.
+    // Labeler input: ordered base64 frames, the requested keys, resolution.
     const first = labeler.calls[0]!;
     expect(first.frames.map((f) => f.atSec)).toEqual([10, 11.5, 13, 14.5]);
     expect(first.frames[0]!.jpegBase64).toBe(Buffer.from("jpeg@10").toString("base64"));
     expect(first.labelKeys).toEqual(["play_type", "formation_family"]);
     expect(first.resolution).toBe("1280x720");
     expect(first.samplingFps).toBeCloseTo(0.667, 3);
-    expect(first.budget).toBeInstanceOf(JobBudget);
-    expect(labeler.calls.every((x) => x.budget === first.budget)).toBe(true);
     expect(res.perSegment[0]!.labels.map((l) => l.key)).toEqual(["play_type", "formation_family"]);
     expect(res.perSegment[0]!.provenance.costUsd).toBe(0.05);
     expect(c.log[0]).toEqual([0, 3, "Labeling 3 segments"]);
@@ -155,77 +152,63 @@ describe("createInferLabelsHandler", () => {
     expect(labeler.calls).toHaveLength(2);
   });
 
-  it("stops on the handler-level budget guard (running average) and skips the remaining segments", async () => {
-    const labeler = okLabeler(10);
-    const handler = createInferLabelsHandler({ labeler, extractFrames: fakeExtractor(), budgetUsd: 25 });
-    const res = await handler(job(5), ctx());
-    // $10 + $10 = $20; a third call (expected $10) would exceed $25.
-    expect(res.perSegment.map((p) => p.segmentId)).toEqual(["seg_1", "seg_2"]);
-    expect(res.skipped.map((s) => [s.segmentId, s.reason])).toEqual([["seg_3", "budget_exceeded"], ["seg_4", "budget_exceeded"], ["seg_5", "budget_exceeded"]]);
-    expect(res.costUsd).toBe(20);
-    expect(labeler.calls).toHaveLength(2);
-  });
-
-  it("stops when the adapter refuses a call with budget_exceeded on the shared budget", async () => {
-    const labeler = new FakeLabeler((input, n) => {
-      // Behave like the Anthropic adapter: reserve against the shared job budget first.
-      const r = input.budget!.reserve(n === 3 ? 100 : 1);
-      r.settle(1);
-      return { labels: fakeLabels(input), provenance: provenance(input, 1) };
-    });
-    const handler = createInferLabelsHandler({ labeler, extractFrames: fakeExtractor(), budgetUsd: 25 });
-    const res = await handler(job(4), ctx());
-    expect(res.perSegment.map((p) => p.segmentId)).toEqual(["seg_1", "seg_2"]);
-    expect(res.skipped.map((s) => [s.segmentId, s.reason])).toEqual([["seg_3", "budget_exceeded"], ["seg_4", "budget_exceeded"]]);
-    expect(res.skipped[0]!.detail).toMatch(/job budget \$25\.00 would be exceeded/);
-    expect(res.costUsd).toBe(2);
-  });
-
-  it("fails the job immediately with a non-retryable provider_unavailable when no provider is configured", async () => {
+  it("fails the job immediately with a non-retryable provider_unavailable when the labeler reports itself unavailable", async () => {
     const extract = fakeExtractor();
-    const handler = createInferLabelsHandler({ labeler: new NullLabeler(), extractFrames: extract });
+    const handler = createInferLabelsHandler({ labeler: new DownLabeler(false), extractFrames: extract });
     const err = await handler(job(2), ctx()).catch((e: unknown) => e);
     expect(isProviderUnavailable(err)).toBe(true);
     const e = err as ProviderUnavailableError;
     expect(e.retryable).toBe(false);
-    expect(e.message).toBe("No model provider is configured");
-    expect(e.toJobError()).toEqual({ code: "provider_unavailable", message: "no_api_key: No model provider is configured" });
+    expect(e.toJobError()).toEqual({ code: "provider_unavailable", message: "unreachable: The model server is not available" });
     expect(extract.calls).toHaveLength(0);
+  });
+
+  it("fails the job on the first segment when Ollama is unreachable (job-wide, non-retryable) and names the fix", async () => {
+    const extract = fakeExtractor();
+    const handler = createInferLabelsHandler({ labeler: new DownLabeler(), extractFrames: extract });
+    const err = await handler(job(3), ctx()).catch((e: unknown) => e);
+    expect(isProviderUnavailable(err)).toBe(true);
+    const e = err as ProviderUnavailableError;
+    expect(e.reason).toBe("unreachable");
+    expect(e.retryable).toBe(false);
+    expect(e.message).toContain("ollama serve");
+    // Frames for the first segment were extracted (the server is only known to be down once asked); nothing further.
+    expect(extract.calls).toHaveLength(1);
   });
 
   it("surfaces a retryable provider failure as the job error with retryable preserved", async () => {
     const labeler = new FakeLabeler((input, n) => {
-      if (n === 2) throw new ProviderUnavailableError({ provider: "anthropic", reason: "rate_limited", retryable: true, message: "rate limited by the provider", status: 429 });
+      if (n === 2) throw new ProviderUnavailableError({ provider: "ollama", reason: "network", retryable: true, message: "Ollama did not answer within 300 s" });
       return { labels: fakeLabels(input), provenance: provenance(input, 0.02) };
     });
     const handler = createInferLabelsHandler({ labeler, extractFrames: fakeExtractor() });
     const err = await handler(job(3), ctx()).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ProviderUnavailableError);
     expect((err as ProviderUnavailableError).retryable).toBe(true);
-    expect((err as ProviderUnavailableError).reason).toBe("rate_limited");
-    expect((err as ProviderUnavailableError).status).toBe(429);
+    expect((err as ProviderUnavailableError).reason).toBe("network");
+    expect((err as ProviderUnavailableError).status).toBeNull();
     expect(labeler.calls).toHaveLength(2);
   });
 
-  it("fails the job on a job-wide non-retryable reason (auth) with retryable false", async () => {
+  it("fails the job on a job-wide non-retryable reason (model_missing) with retryable false", async () => {
     const labeler = new FakeLabeler(() => {
-      throw new ProviderUnavailableError({ provider: "anthropic", reason: "auth", retryable: false, message: "API key rejected", status: 401 });
+      throw new ProviderUnavailableError({ provider: "ollama", reason: "model_missing", retryable: false, message: "model qwen3-vl:4b is not installed", status: 404 });
     });
     const handler = createInferLabelsHandler({ labeler, extractFrames: fakeExtractor() });
     const err = await handler(job(2), ctx()).catch((e: unknown) => e);
-    expect((err as ProviderUnavailableError).reason).toBe("auth");
+    expect((err as ProviderUnavailableError).reason).toBe("model_missing");
     expect((err as ProviderUnavailableError).retryable).toBe(false);
     expect(labeler.calls).toHaveLength(1);
   });
 
   it("records segment-local non-retryable provider failures as skipped and continues", async () => {
     const labeler = new FakeLabeler((input, n) => {
-      if (n === 1) throw new ProviderUnavailableError({ provider: "anthropic", reason: "refusal", retryable: false, message: "model declined the request" });
+      if (n === 1) throw new ProviderUnavailableError({ provider: "ollama", reason: "truncated_output", retryable: false, message: "response hit num_predict=4096" });
       return { labels: fakeLabels(input), provenance: provenance(input, 0.03) };
     });
     const handler = createInferLabelsHandler({ labeler, extractFrames: fakeExtractor() });
     const res = await handler(job(2), ctx());
-    expect(res.skipped).toEqual([{ segmentId: "seg_1", reason: "provider_unavailable", detail: "refusal: model declined the request" }]);
+    expect(res.skipped).toEqual([{ segmentId: "seg_1", reason: "provider_unavailable", detail: "truncated_output: response hit num_predict=4096" }]);
     expect(res.perSegment.map((p) => p.segmentId)).toEqual(["seg_2"]);
     expect(res.costUsd).toBe(0.03);
   });
@@ -263,7 +246,6 @@ describe("createInferLabelsHandler", () => {
 
   it("validates its options", () => {
     const labeler = okLabeler();
-    expect(() => createInferLabelsHandler({ labeler, extractFrames: fakeExtractor(), budgetUsd: -1 })).toThrow(/budgetUsd/);
     expect(() => createInferLabelsHandler({ labeler, extractFrames: fakeExtractor(), maxFramesPerSegment: 0 })).toThrow(/maxFramesPerSegment/);
     expect(() => createInferLabelsHandler({ labeler, extractFrames: undefined as never })).toThrow(/extractFrames/);
   });

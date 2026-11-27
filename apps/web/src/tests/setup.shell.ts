@@ -1,5 +1,5 @@
 /**
- * Extra test setup for the product shell (the prototype's own `setup.ts` is unchanged).
+ * Extra test setup for the product shell (`setup.ts` installs an in-memory localStorage).
  *
  * react-router data routers build a `Request` for every navigation. Under vitest's jsdom
  * environment `AbortController` is jsdom's while `Request` is Node's (undici), and undici

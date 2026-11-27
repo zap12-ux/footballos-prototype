@@ -3,7 +3,6 @@ import { useSearchParams } from 'react-router';
 import { useApi, useResource } from '../api/hooks';
 import type { Opponent, ScheduledGame, Season, Team, Unit } from '../api/contracts';
 import { useMe } from '../auth/AuthContext';
-import { DEMO_NOW } from '../api/mock/data';
 import { parseUnit, selectionQuery, workspaceStore, useWorkspaceSelection, type WorkspaceSelection } from './store';
 
 interface WorkspaceData {
@@ -39,7 +38,7 @@ export interface WorkspaceValue {
 const WorkspaceContext = createContext<WorkspaceValue | null>(null);
 const CONTEXT_KEYS = new Set(['team', 'season', 'game', 'unit']);
 
-/** The next game that is not final, measured against the demo clock in mock mode. */
+/** The next game that is not final, measured against `nowIso`. */
 export function pickCurrentGame(games: ScheduledGame[], nowIso: string): ScheduledGame | null {
   const now = Date.parse(nowIso);
   const upcoming = games
@@ -68,7 +67,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, [api, teamParam, seasonParam]);
 
   const data = base.data;
-  const nowIso = api.mode === 'mock' ? DEMO_NOW : new Date().toISOString();
+  const nowIso = new Date().toISOString();
 
   const resolved = useMemo(() => {
     if (!data) return null;

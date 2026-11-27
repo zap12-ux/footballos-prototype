@@ -21,7 +21,6 @@ interface Props {
   onDuration?: (sec: number) => void;
   /** The last seek the page resolved: stand-in mapping or an unavailable moment, said at the player. */
   notice: SeekPlan | null;
-  demo: boolean;
   label: string;
 }
 
@@ -29,7 +28,7 @@ interface Props {
  * The proxy player (§14.3). The source is the grant's `streamUrl`; when the element reports an
  * error (an expired token answers 401) a fresh grant is requested once, then the error is shown.
  */
-export const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ grant, grantStatus, grantError, onRefreshGrant, onTimeUpdate, onDuration, notice, demo, label }, ref) {
+export const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer({ grant, grantStatus, grantError, onRefreshGrant, onTimeUpdate, onDuration, notice, label }, ref) {
   const video = useRef<HTMLVideoElement>(null);
   const [mediaError, setMediaError] = useState<string | null>(null);
   const refreshed = useRef<string | null>(null);
@@ -102,9 +101,9 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPl
           <span className="block" role="status" data-testid="seek-notice">
             {notice.message}
           </span>
-        ) : demo || grant.proxy?.standIn ? (
+        ) : grant.proxy?.standIn ? (
           <span className="block" data-testid="seek-notice">
-            Demo proxy: a short credited clip stands in for the full game file. Select a play or follow an evidence link and the player says which moment it stands for.
+            Stand-in proxy: a short clip stands in for the full game file. Select a play or follow an evidence link and the player says which moment it stands for.
           </span>
         ) : (
           `Proxy stream; grant renews before ${formatSeconds(Math.max(0, Math.round((Date.parse(grant.expiresAt) - Date.now()) / 1000)))} from now.`

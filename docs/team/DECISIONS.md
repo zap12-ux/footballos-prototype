@@ -169,3 +169,28 @@ stored with the version and in the audit row, never only in a transient note.
 as such). `apps/web` mock seed carries the fields. Round 2 retraces HC-03 by selecting a
 superseded version and reading its approver, time, override flag and reason; HC-07 by
 starting a new draft while one exists and landing on the existing draft.
+
+## D-015 · 2026-11-27 · Demo modes removed; Ollama is the one model provider; the app joins hubandspokerecruiting.com
+**Decision.** The web app runs only against `apps/api` (`VITE_API_MODE` and the in-browser mock
+API are gone; the mock survives solely as a test fixture under `apps/web/src/tests/fakeApi`).
+The Module 7 usability prototype (`/prototype/`, simulated AI, demo/research sessions) and the
+`seed:demo` script are retired from `integration`; `main` keeps the graded prototype. The model
+adapter is a single `OllamaVisionLabeler` / `OllamaPageLabeler` over a local Ollama server
+(`OLLAMA_HOST`, default `http://127.0.0.1:11434`) running an open-source vision model
+(`FOOTBALLOS_AI_MODEL`, default `qwen3-vl:4b`; `qwen3-vl:8b` on a 16 GiB+ server). The Anthropic
+and OpenAI adapters, API-key configuration, the USD price table and `MONTHLY_COST_CAP_USD` are
+removed; `ModelProvenance.provider` is `'ollama'` and `costUsd` is recorded as 0. The six credited
+clips moved from `apps/web/public/demo-film` to `fixtures/media/clips` (tests only; nothing is
+served). The app is planned as an addition to <https://hubandspokerecruiting.com/>, so the web
+build takes `VITE_BASE_PATH` for a path prefix and `VITE_API_BASE_URL` for a separate API origin.
+**Why.** Owner instruction (2026-11-27): remove the demo testing and make the app fully
+functional around an open-source model from Ollama. Local inference keeps film on the team's
+own machine, needs no provider account and has no per-call cost, which made the spend controls
+of D-004 dead weight. Supersedes D-004's provider choice; the replaceable-adapter rule and the
+"never a canned label" rule stand.
+**Consequences.** Inference needs Ollama running with a vision-capable model pulled; the worker
+checks reachability and the model's `vision` capability before extracting a frame and fails the
+job non-retryably with `provider_unavailable` naming the fix (`ollama serve`, `ollama pull …`).
+A static GitHub Pages deploy of the web app no longer makes sense (sign-in needs the API);
+`deploy.yml` on `main` is untouched for the prototype. Model quality on real film is
+unmeasured (EVALUATION_PLAN still applies); the 8 GiB development Mac runs the 4b model on CPU.

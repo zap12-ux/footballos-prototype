@@ -1,35 +1,38 @@
 /**
  * Runtime configuration for the AI package. Everything has an explicit default and an
- * environment-variable override. No secret is ever logged; `apiKey` is read lazily and
- * never echoed.
+ * environment-variable override. The only model provider is a local Ollama server running
+ * an open-source vision model; there is no API key and no per-call cost.
  */
 
 export interface AiConfig {
-  /** Model id passed to the Anthropic Messages API. */
-  anthropicModel: string;
-  /** Effort for adaptive thinking on Claude 5-family models. */
-  effort: "low" | "medium" | "high" | "xhigh" | "max";
-  /** Upper bound on response tokens for a labeling call. */
+  /** Base URL of the Ollama server (`OLLAMA_HOST`, Ollama's own convention). */
+  ollamaHost: string;
+  /** Ollama model tag, e.g. `qwen3-vl:4b`. Must be pulled (`ollama pull <tag>`) and support image input. */
+  model: string;
+  /** Upper bound on response tokens for one labeling call (`num_predict`). */
   maxOutputTokens: number;
-  /** Cost controls (owner decision 2026-10-25: $25 default per-job abort threshold). */
-  jobBudgetUsd: number;
   maxFramesPerSegment: number;
   maxSegmentsPerJob: number;
-  /** Request timeout in milliseconds (TypeScript SDK uses milliseconds). */
+  /** Request timeout in milliseconds; local CPU inference on a dozen frames can take minutes. */
   requestTimeoutMs: number;
+  /** Upper bound for the per-call context window (`num_ctx`); the adapters size each call to its frames and cap it here. */
+  maxNumCtx: number;
+  /** How long Ollama keeps the model loaded between calls (`keep_alive`), e.g. `10m`. */
+  keepAlive: string;
 }
 
+export const DEFAULT_OLLAMA_HOST = "http://127.0.0.1:11434";
+
 export const DEFAULT_AI_CONFIG: Readonly<AiConfig> = Object.freeze({
-  // Verified vision-capable on 2026-10-25 at
-  // https://platform.claude.com/docs/en/about-claude/models/overview ("All current models
-  // support text and image input"). See docs/ai/MODEL_CANDIDATES.md for the comparison.
-  anthropicModel: "claude-opus-5-5",
-  effort: "medium",
+  ollamaHost: DEFAULT_OLLAMA_HOST,
+  // Qwen3-VL 4B fits an 8 GiB development machine; use `qwen3-vl:8b` on a server with 16 GiB or more.
+  model: "qwen3-vl:4b",
   maxOutputTokens: 4096,
-  jobBudgetUsd: 25,
   maxFramesPerSegment: 12,
   maxSegmentsPerJob: 200,
-  requestTimeoutMs: 120_000,
+  requestTimeoutMs: 300_000,
+  maxNumCtx: 32_768,
+  keepAlive: "10m",
 });
 
 function numberEnv(name: string, fallback: number, env: NodeJS.ProcessEnv): number {
@@ -42,27 +45,35 @@ function numberEnv(name: string, fallback: number, env: NodeJS.ProcessEnv): numb
   return n;
 }
 
-const EFFORTS = new Set(["low", "medium", "high", "xhigh", "max"]);
+/**
+ * Normalize an `OLLAMA_HOST` value the way the Ollama CLI does: a bare `host:port` gets
+ * `http://`, a trailing slash is dropped. Anything that is not a valid URL is rejected.
+ */
+export function normalizeOllamaHost(raw: string | undefined): string {
+  const trimmed = (raw ?? "").trim();
+  if (trimmed === "") return DEFAULT_OLLAMA_HOST;
+  const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`;
+  let url: URL;
+  try {
+    url = new URL(withScheme);
+  } catch {
+    throw new Error(`OLLAMA_HOST is not a valid URL: ${JSON.stringify(raw)}`);
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error(`OLLAMA_HOST must be http or https, got ${url.protocol}`);
+  return url.origin + url.pathname.replace(/\/+$/, "");
+}
 
 /** Build the config from `process.env` (or an injected env) on top of the defaults. */
 export function loadAiConfig(env: NodeJS.ProcessEnv = process.env): AiConfig {
-  const effortRaw = env.FOOTBALLOS_AI_EFFORT ?? DEFAULT_AI_CONFIG.effort;
-  if (!EFFORTS.has(effortRaw)) {
-    throw new Error(`FOOTBALLOS_AI_EFFORT must be one of low|medium|high|xhigh|max, got ${effortRaw}`);
-  }
+  const keepAlive = env.FOOTBALLOS_AI_KEEP_ALIVE?.trim() || DEFAULT_AI_CONFIG.keepAlive;
   return {
-    anthropicModel: env.FOOTBALLOS_AI_MODEL?.trim() || DEFAULT_AI_CONFIG.anthropicModel,
-    effort: effortRaw as AiConfig["effort"],
+    ollamaHost: normalizeOllamaHost(env.OLLAMA_HOST),
+    model: env.FOOTBALLOS_AI_MODEL?.trim() || DEFAULT_AI_CONFIG.model,
     maxOutputTokens: numberEnv("FOOTBALLOS_AI_MAX_OUTPUT_TOKENS", DEFAULT_AI_CONFIG.maxOutputTokens, env),
-    jobBudgetUsd: numberEnv("FOOTBALLOS_AI_JOB_BUDGET_USD", DEFAULT_AI_CONFIG.jobBudgetUsd, env),
     maxFramesPerSegment: numberEnv("FOOTBALLOS_AI_MAX_FRAMES_PER_SEGMENT", DEFAULT_AI_CONFIG.maxFramesPerSegment, env),
     maxSegmentsPerJob: numberEnv("FOOTBALLOS_AI_MAX_SEGMENTS_PER_JOB", DEFAULT_AI_CONFIG.maxSegmentsPerJob, env),
     requestTimeoutMs: numberEnv("FOOTBALLOS_AI_REQUEST_TIMEOUT_MS", DEFAULT_AI_CONFIG.requestTimeoutMs, env),
+    maxNumCtx: numberEnv("FOOTBALLOS_AI_MAX_NUM_CTX", DEFAULT_AI_CONFIG.maxNumCtx, env),
+    keepAlive,
   };
-}
-
-/** Read the Anthropic key without ever placing it in a log line or error message. */
-export function readAnthropicApiKey(env: NodeJS.ProcessEnv = process.env): string | null {
-  const key = env.ANTHROPIC_API_KEY;
-  return key && key.trim() !== "" ? key : null;
 }

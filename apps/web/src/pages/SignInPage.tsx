@@ -2,8 +2,6 @@ import { useEffect, useId, useState, type FormEvent } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router';
 import { FocusOnNavigate } from '../app/FocusOnNavigate';
 import { describeError, useApi } from '../api/hooks';
-import { DEMO_MFA_CODE } from '../api/mock';
-import { users as demoUsers } from '../api/mock/data';
 import { useAuth } from '../auth/AuthContext';
 
 type Step = 'credentials' | 'mfa' | 'recovery' | 'recovery_sent';
@@ -174,25 +172,6 @@ export function SignInPage() {
         )}
       </div>
 
-      {api.mode === 'mock' ? (
-        <aside className="callout gold demo-credentials" aria-labelledby={`${id}-demo`}>
-          <h2 id={`${id}-demo`}>Demo environment</h2>
-          <p className="small">
-            No server is connected; sign-in is simulated against fictional staff accounts. Password for every demo account:{' '}
-            <code>demo</code>. Verification code: <code>{DEMO_MFA_CODE}</code>.
-          </p>
-          <ul className="small demo-accounts">
-            {demoUsers.map((u) => (
-              <li key={u.id}>
-                <button type="button" className="link" onClick={() => { setEmail(u.email); setPassword(u.password); setStep('credentials'); }}>
-                  {u.email}
-                </button>{' '}
-                <span className="muted">— {u.displayName}{u.mfaEnabled ? ', MFA on' : ''}</span>
-              </li>
-            ))}
-          </ul>
-        </aside>
-      ) : null}
       <p className="small muted">
         <Link to="/">Back to the landing page</Link>
       </p>

@@ -77,11 +77,12 @@ export async function proposeFromPages(pages: ProposalPage[], options: ProposeOp
 
     // No text at all: only a model may read the image, and only when one is available.
     if (!labeler) {
-      outcomes.push({ pageNumber: page.pageNumber, textSource: "none", basis: "none", concepts: 0, terms: 0, abstained: false, note: `Page ${page.pageNumber}: no text layer and no model configured; nothing proposed. Add concepts by hand or configure a provider.` });
+      const why = options.modelUnavailable ? `the model is unavailable (${options.modelUnavailable})` : "no model configured";
+      outcomes.push({ pageNumber: page.pageNumber, textSource: "none", basis: "none", concepts: 0, terms: 0, abstained: false, note: `Page ${page.pageNumber}: no text layer and ${why}; nothing proposed. Add concepts by hand or start Ollama with a vision model.` });
       continue;
     }
     if (!labeler.isAvailable()) {
-      outcomes.push({ pageNumber: page.pageNumber, textSource: "none", basis: "none", concepts: 0, terms: 0, abstained: false, note: `Page ${page.pageNumber}: no text layer and the model provider is unavailable (no API key); nothing proposed.` });
+      outcomes.push({ pageNumber: page.pageNumber, textSource: "none", basis: "none", concepts: 0, terms: 0, abstained: false, note: `Page ${page.pageNumber}: no text layer and the model server is unavailable; nothing proposed.` });
       continue;
     }
     if (modelStopped) {
@@ -98,7 +99,7 @@ export async function proposeFromPages(pages: ProposalPage[], options: ProposeOp
     }
 
     try {
-      const out = await labeler.labelPage({ pageNumber: page.pageNumber, image, vocabulary: custom, budget: options.budget });
+      const out = await labeler.labelPage({ pageNumber: page.pageNumber, image, vocabulary: custom });
       provenance.push(out.provenance);
       const note = (what: string) => `${what} by ${out.provenance.provider} model ${out.provenance.model} from the page ${page.pageNumber} image (no text layer). Verify against the page before approving.`;
       for (const c of out.concepts) {
@@ -119,7 +120,7 @@ export async function proposeFromPages(pages: ProposalPage[], options: ProposeOp
     } catch (err) {
       if (!isProviderUnavailable(err)) throw err;
       // Job-wide conditions stop further calls; page-local ones only skip this page.
-      if (err.reason === "budget_exceeded" || err.reason === "no_api_key" || err.reason === "auth" || err.reason === "not_implemented") modelStopped = `${err.reason}: ${err.message}`;
+      if (err.reason === "unreachable" || err.reason === "model_missing" || err.reason === "model_not_vision") modelStopped = `${err.reason}: ${err.message}`;
       outcomes.push({ pageNumber: page.pageNumber, textSource: "none", basis: "none", concepts: 0, terms: 0, abstained: false, note: `Page ${page.pageNumber}: model unavailable (${err.reason}); nothing proposed.` });
     }
   }

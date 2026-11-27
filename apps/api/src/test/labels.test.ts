@@ -6,6 +6,8 @@ import { call, makeTestApp, seedTeamWithStaff, type TestApp } from './helpers.js
 import { FIXTURE_CLIPS, seedGame, uploadFile } from './media-helpers.js';
 import { mediaAssets } from '../db/schema.js';
 
+/** Nothing listens on port 1; connection refused is immediate. */
+const UNREACHABLE_OLLAMA = 'http://127.0.0.1:1';
 let t: TestApp;
 let alpha: Awaited<ReturnType<typeof seedTeamWithStaff>>;
 let beta: Awaited<ReturnType<typeof seedTeamWithStaff>>;
@@ -14,7 +16,7 @@ let assetId: string;
 let seg: string[] = [];
 
 const provenance = (id: string) => ({
-  id, provider: 'anthropic' as const, model: 'demo-model', modelRevision: null, promptId: 'label-segment', promptHash: 'abc', analysisVersion: '0.1.0',
+  id, provider: 'ollama' as const, model: 'qwen3-vl:4b', modelRevision: null, promptId: 'label-segment', promptHash: 'abc', analysisVersion: '0.1.0',
   preprocessing: { samplingFps: 1, frameCount: 2, clipSec: 2, resolution: '1280x720' }, inspected: { fromSec: 0, toSec: 2, frameTimestampsSec: [0, 1] },
   inputTokens: 500, outputTokens: 100, costUsd: 0.01, latencyMs: 900, requestedAt: '2026-10-25T12:00:00.000Z', completedAt: '2026-10-25T12:00:01.000Z',
 });
@@ -39,7 +41,8 @@ async function labelsOf(segmentId: string, cookie = alpha.vw.cookie): Promise<Re
 }
 
 beforeAll(async () => {
-  t = makeTestApp({ UPLOAD_CHUNK_BYTES: String(2_000_000), MODEL_PROVIDER: 'none' });
+  // OLLAMA_HOST points at a closed port: the preflight fails fast with "unreachable" and no frame is extracted.
+  t = makeTestApp({ UPLOAD_CHUNK_BYTES: String(2_000_000), OLLAMA_HOST: UNREACHABLE_OLLAMA });
   alpha = await seedTeamWithStaff(t, 'Alpha (demo)');
   beta = await seedTeamWithStaff(t, 'Beta (demo)');
   game = await seedGame(t, alpha.hc.cookie, alpha.team.id, alpha.season.id);
@@ -121,7 +124,7 @@ describe('§14.5 corrections, inference persistence, bulk accept', () => {
     expect(s1.play_type.accepted.status).toBe('unknown');
     const prov = await call(t, 'GET', `/api/v1/assets/${assetId}/provenance`, undefined, alpha.vw.cookie);
     expect(prov.body.items).toHaveLength(3);
-    expect(prov.body.items[0].model).toBe('demo-model');
+    expect(prov.body.items[0].model).toBe('qwen3-vl:4b');
     const all = await call(t, 'GET', `/api/v1/assets/${assetId}/labels`, undefined, alpha.vw.cookie);
     expect(all.body.items).toHaveLength(36);
     expect((await call(t, 'GET', `/api/v1/assets/${assetId}/provenance`, undefined, beta.hc.cookie)).status).toBe(404);
@@ -161,12 +164,14 @@ describe('§14.5 corrections, inference persistence, bulk accept', () => {
     expect((await call(t, 'GET', `/api/v1/assets/${assetId}/provenance`, undefined, alpha.vw.cookie)).body.items).toHaveLength(4);
   });
 
-  it('POST /assets/:id/infer with MODEL_PROVIDER=none enqueues a job that fails truthfully and leaves labels untouched', async () => {
+  it('POST /assets/:id/infer with Ollama unreachable enqueues a job that fails truthfully and leaves labels untouched', async () => {
     const res = await call(t, 'POST', `/api/v1/assets/${assetId}/infer`, { segmentIds: [seg[0]], labelKeys: ['play_type'] }, alpha.oc.cookie);
     expect(res.status).toBe(202);
     const j = await t.ctx.runner.runOnce();
     expect(j?.kind).toBe('infer_labels');
-    expect(j?.error).toEqual({ code: 'provider_unavailable', message: 'No model provider is configured', retryable: false });
+    expect(j?.error).toMatchObject({ code: 'provider_unavailable', retryable: false });
+    expect(j?.error?.message).toContain(`unreachable: Ollama is not reachable at ${UNREACHABLE_OLLAMA}`);
+    expect(j?.error?.message).toContain('manual labeling remains available');
     expect((await labelsOf(seg[0]!)).play_type.accepted.value).toBe('run');
   });
 });

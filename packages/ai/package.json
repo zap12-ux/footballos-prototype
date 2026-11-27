@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "FootballOS applied-AI library: replaceable vision-labeling adapter (Anthropic primary), frame-sampling plans, deterministic scouting statistics, and an evaluation harness for coach-labeled footage.",
+  "description": "FootballOS applied-AI library: vision labeling over a local Ollama server (open-source vision model), frame-sampling plans, deterministic scouting statistics, playbook proposals, recommendations, and an evaluation harness for coach-labeled footage.",
   "license": "UNLICENSED",
   "engines": {
     "node": ">=22"
@@ -15,7 +15,7 @@
     "footballos-ai-eval": "bin/eval.mjs"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && cp -R src/prompts dist/prompts",
+    "build": "tsc -p tsconfig.build.json && cp src/prompts/*.md dist/prompts/",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "eval": "node bin/eval.mjs",
@@ -25,8 +25,8 @@
     "pretest": "npm run contracts:build"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^1.3.0",
     "@footballos/contracts": "0.1.0",
+    "undici": "^7.30.2",
     "zod": "^4.6.7"
   },
   "devDependencies": {

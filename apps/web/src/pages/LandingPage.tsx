@@ -35,12 +35,9 @@ export function LandingPage() {
             <Link to="/sign-in" className="btn primary large">
               Sign in
             </Link>
-            <Link to={{ pathname: '/prototype/', hash: '#/demo' }} className="btn large">
-              Try the demo
-            </Link>
           </div>
           <p className="small muted">
-            The demo is the film-review prototype: simulated evaluations on six real snaps, no account needed.
+            Staff accounts are created by invitation from the team&rsquo;s head coach. Film and labels never leave your team&rsquo;s server.
           </p>
         </div>
         <Montage manifest={manifest} />

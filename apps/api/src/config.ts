@@ -24,9 +24,6 @@ const EnvSchema = z.object({
   SESSION_TTL_HOURS: z.coerce.number().positive().default(12),
   SESSION_ABSOLUTE_DAYS: z.coerce.number().positive().default(30),
   COOKIE_SECURE: boolString.default(false),
-  MODEL_PROVIDER: z.enum(['anthropic', 'openai', 'none']).default('none'),
-  ANTHROPIC_API_KEY: z.string().optional(),
-  OPENAI_API_KEY: z.string().optional(),
   MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(21474836480),
   UPLOAD_CHUNK_BYTES: z.coerce.number().int().positive().default(16777216),
   ALLOWED_VIDEO_CONTAINERS: z.string().default('mp4,mov,mkv'),
@@ -46,7 +43,6 @@ const EnvSchema = z.object({
   ALLOWED_DOCUMENT_TYPES: z.string().default('pdf,txt,md'),
   DOCUMENT_RENDER_DPI: z.coerce.number().int().min(50).max(300).default(110),
   DOCUMENT_OCR: z.enum(['auto', 'off']).default('auto'),
-  MONTHLY_COST_CAP_USD: z.coerce.number().nonnegative().default(0),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error', 'silent']).default('info'),
   SIGN_IN_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
   SIGN_IN_RATE_LIMIT_WINDOW_SEC: z.coerce.number().int().positive().default(900),
@@ -67,13 +63,10 @@ export type AppConfig = {
   sessionIdleHours: number;
   sessionAbsoluteDays: number;
   cookieSecure: boolean;
-  modelProvider: 'anthropic' | 'openai' | 'none';
-  /** Presence only; the key value is never copied out of process.env. */
-  modelKeyConfigured: boolean;
   /**
-   * Model settings read once through `@footballos/ai` `loadAiConfig` (FOOTBALLOS_AI_*), so the
-   * model recorded in provenance is the model actually called. Replaces the former MODEL_ID and
-   * MAX_FRAMES_PER_SEGMENT readers.
+   * Model settings read once through `@footballos/ai` `loadAiConfig` (`OLLAMA_HOST`,
+   * `FOOTBALLOS_AI_*`), so the model recorded in provenance is the model actually called. The
+   * only provider is a local Ollama server; there is no API key and no per-call cost.
    */
   ai: AiConfig;
   limits: {
@@ -90,7 +83,6 @@ export type AppConfig = {
     maintenanceIntervalSec: number;
     proxyHeight: number;
     thumbnailEverySec: number;
-    monthlyCostCapUsd: number;
     maxDocumentBytes: number;
     allowedDocumentTypes: string[];
     documentRenderDpi: number;
@@ -131,7 +123,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     }
     sessionSecret = DEV_SESSION_SECRET;
   }
-  const providerKey = e.MODEL_PROVIDER === 'anthropic' ? e.ANTHROPIC_API_KEY : e.MODEL_PROVIDER === 'openai' ? e.OPENAI_API_KEY : undefined;
   return {
     nodeEnv: e.NODE_ENV,
     environment: e.FOOTBALLOS_ENV,
@@ -143,8 +134,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     sessionIdleHours: e.SESSION_TTL_HOURS,
     sessionAbsoluteDays: e.SESSION_ABSOLUTE_DAYS,
     cookieSecure: e.COOKIE_SECURE,
-    modelProvider: e.MODEL_PROVIDER,
-    modelKeyConfigured: Boolean(providerKey && providerKey.length > 0),
     ai: loadAiConfig(env),
     limits: {
       maxUploadBytes: e.MAX_UPLOAD_BYTES,
@@ -160,7 +149,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       maintenanceIntervalSec: e.WORKER_MAINTENANCE_SEC,
       proxyHeight: e.PROXY_HEIGHT,
       thumbnailEverySec: e.THUMBNAIL_EVERY_SEC,
-      monthlyCostCapUsd: e.MONTHLY_COST_CAP_USD,
       maxDocumentBytes: e.MAX_DOCUMENT_BYTES,
       allowedDocumentTypes: e.ALLOWED_DOCUMENT_TYPES.split(',').map((s) => s.trim().toLowerCase().replace(/^\./, '')).filter(Boolean),
       documentRenderDpi: e.DOCUMENT_RENDER_DPI,

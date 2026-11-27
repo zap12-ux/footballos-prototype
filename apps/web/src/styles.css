@@ -1,4 +1,4 @@
-/* FootballOS prototype — coaching console styles.
+/* FootballOS base stylesheet (buttons, cards, callouts, tables, form states) — coaching console styles.
    Dark control-panel theme. Palette roles are unchanged from the brief: dark navy (primary
    surfaces and selected states), crimson (selective emphasis), burnt gold (restrained accent
    and the "live" signal colour). Meaning is never carried by colour alone: every state also
@@ -6,7 +6,7 @@
 
 :root {
   /* Palette values live in styles/tokens.css (semantic tokens, imported before this file).
-     The historical variable names below are aliases so every prototype rule keeps working. */
+     The historical variable names below are aliases so every existing rule keeps working. */
   color-scheme: dark;
 
   /* surfaces, darkest to lightest */

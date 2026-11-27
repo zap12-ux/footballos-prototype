@@ -8,7 +8,6 @@
  * proposed from an image without a model result.
  */
 import type { ConceptKind } from "@footballos/contracts";
-import type { JobBudget } from "../cost/budget.js";
 import type { ModelProvenance } from "../types.js";
 
 /** Where a page's text came from (CONTRACTS §15.1; mirrors C's `extractDocument` output). */
@@ -103,8 +102,6 @@ export interface LabelPageInput {
   image: PageImage;
   /** Team vocabulary, passed to the model verbatim as data (never as instructions). */
   vocabulary?: ConceptVocabulary;
-  /** Shared per-job budget (CONTRACTS §14.8); the adapter reserves before each call. */
-  budget?: JobBudget;
 }
 
 export interface ModelProposedConcept {
@@ -146,6 +143,9 @@ export interface ProposeOptions {
   vocabulary?: ConceptVocabulary;
   /** Reads a page image for the model path. Defaults to reading `page.imagePath` from disk. */
   loadImage?: (page: ProposalPage) => Promise<PageImage>;
-  /** Shared budget handed to the labeler. */
-  budget?: JobBudget;
+  /**
+   * Why no labeler was passed (for example the Ollama preflight failed): quoted in the note of
+   * every image-only page so the coach sees the real cause instead of "no model configured".
+   */
+  modelUnavailable?: string | null;
 }

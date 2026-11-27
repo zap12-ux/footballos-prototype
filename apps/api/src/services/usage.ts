@@ -9,17 +9,6 @@ export function monthBounds(at: Date): { month: string; fromIso: string; toIso: 
   return { month: from.toISOString().slice(0, 7), fromIso: from.toISOString(), toIso: to.toISOString() };
 }
 
-/** Month-to-date model spend from stored provenance rows (CONTRACTS §14.2 cost accounting). */
-export function monthlyCostUsd(ctx: AppContext, teamId: string, at: Date): number {
-  const { fromIso, toIso } = monthBounds(at);
-  const row = ctx.db
-    .select({ cost: sql<number>`COALESCE(SUM(${modelProvenance.costUsd}), 0)` })
-    .from(modelProvenance)
-    .where(and(eq(modelProvenance.teamId, teamId), gte(modelProvenance.completedAt, fromIso), lt(modelProvenance.completedAt, toIso)))
-    .get();
-  return Number(row?.cost ?? 0);
-}
-
 export function computeUsage(ctx: AppContext, teamId: string): Usage {
   const now = ctx.now();
   const { month, fromIso, toIso } = monthBounds(now);
@@ -44,7 +33,8 @@ export function computeUsage(ctx: AppContext, teamId: string): Usage {
   return {
     teamId, month,
     inputTokens: Number(prov.inputTokens), outputTokens: Number(prov.outputTokens), costUsd,
-    monthlyCostCapUsd: ctx.config.limits.monthlyCostCapUsd,
+    // Local Ollama inference has no per-call charge, so there is no spend cap to report.
+    monthlyCostCapUsd: null,
     jobsSucceeded: count('succeeded'), jobsFailed: count('failed'),
     byKind: Number(prov.count) > 0 ? [{ kind: 'infer_labels', inputTokens: Number(prov.inputTokens), outputTokens: Number(prov.outputTokens), costUsd }] : [],
   };

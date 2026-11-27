@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "FootballOS web app: public landing page, sign-in and the authenticated team workspace. Includes the Module 7 usability prototype (simulated AI, research/demo modes) as the film-review demo flow under /prototype.",
+  "description": "FootballOS web app: public landing page, sign-in and the authenticated team workspace over apps/api.",
   "scripts": {
     "dev": "vite --port 5174",
     "build": "vite build",

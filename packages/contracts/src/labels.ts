@@ -95,7 +95,8 @@ export const LabelCorrectionRequestSchema = z.object({
 });
 export type LabelCorrectionRequest = z.infer<typeof LabelCorrectionRequestSchema>;
 
-export const ModelProviderSchema = z.enum(['anthropic', 'openai', 'open_source', 'none']);
+/** The one model provider: a local Ollama server running an open-source vision model. */
+export const ModelProviderSchema = z.enum(['ollama']);
 export type ModelProvider = z.infer<typeof ModelProviderSchema>;
 
 export const ModelProvenanceSchema = z.object({

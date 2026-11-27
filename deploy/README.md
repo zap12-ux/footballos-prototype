@@ -56,8 +56,11 @@ completeness, but it fits poorly here: no matching US plan and no US object stor
 Sizing assumptions (unverified until a real full game is processed): 4 GB RAM leaves room for
 ffmpeg proxy encoding alongside the API; 2 GB is likely too tight. 100 GB holds a limited
 number of full-game originals plus proxies. Measure real file sizes and grow the volume,
-which can be resized upward without moving data. Model API costs (Anthropic/OpenAI) are
-separate and capped by `MONTHLY_COST_CAP_USD`.
+which can be resized upward without moving data. Vision labeling runs on the same host through
+a local Ollama server (`OLLAMA_HOST`, `FOOTBALLOS_AI_MODEL`): there is no model API bill, but
+the model needs RAM of its own (about 6 GB for `qwen3-vl:8b`, 3.5 GB for `qwen3-vl:4b`) on top
+of the figures above, and CPU-only inference is slow; a GPU host or a separate Ollama machine on
+a private network changes the sizing.
 
 Provisioning, paying for, or transmitting team film to any host requires the owner's
 explicit authorization first.

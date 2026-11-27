@@ -69,7 +69,7 @@ export function teamRoutes(ctx: AppContext) {
     .get('/teams/:teamId/usage', zv('param', teamParam), (c) => {
       const { teamId } = c.req.valid('param');
       requireMembership(c.var.auth, teamId);
-      // §14.2 cost accounting: sums model_provenance.costUsd for the current UTC month; the cap comes from MONTHLY_COST_CAP_USD.
+      // §14.2 cost accounting: sums model_provenance.costUsd and tokens for the current UTC month (0 USD with local Ollama inference; cap null).
       const usage: Usage = computeUsage(ctx, teamId);
       return c.json(usage, 200);
     });

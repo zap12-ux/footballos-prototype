@@ -1,9 +1,8 @@
-import { createBrowserRouter, createMemoryRouter, Navigate, type RouteObject } from 'react-router';
+import { createBrowserRouter, createMemoryRouter, type RouteObject } from 'react-router';
 import { PublicLayout } from './PublicLayout';
 import { WorkspaceLayout } from './WorkspaceLayout';
 import { RequireAuth } from './RequireAuth';
 import { NotFound } from './NotFound';
-import { PrototypeRoute } from './PrototypeRoute';
 import { LandingPage } from '../pages/LandingPage';
 import { SignInPage } from '../pages/SignInPage';
 import { DashboardPage } from '../pages/DashboardPage';
@@ -19,8 +18,8 @@ import { SettingsPage } from '../pages/SettingsPage';
 
 /**
  * Global routing (owned by Frontend, DECISIONS D-006). Paths, not hashes: refresh-safe,
- * Back/Forward work, and the static build ships `404.html` = `index.html` so GitHub Pages
- * serves the app for any deep link. `basename` comes from Vite's `BASE_URL`.
+ * Back/Forward work, and the static build ships `404.html` = `index.html` so a host without
+ * rewrites still serves the app for any deep link. `basename` comes from Vite's `BASE_URL`.
  */
 export const routes: RouteObject[] = [
   {
@@ -51,14 +50,10 @@ export const routes: RouteObject[] = [
       },
     ],
   },
-  // The Module 7 prototype, unchanged, with its hash routes (#/, #/demo, #/research).
-  { path: '/prototype/*', element: <PrototypeRoute /> },
-  // TASK_BOARD names the same flow `/demo/film-review`; both paths open it.
-  { path: '/demo/film-review/*', element: <Navigate to="/prototype/" replace /> },
   { path: '*', element: <NotFound /> },
 ];
 
-/** `BASE_URL` is `/` in dev and `/footballos-prototype/` on GitHub Pages. */
+/** `BASE_URL` is `/` in dev and the `VITE_BASE_PATH` prefix when the app is mounted under a larger site. */
 export function basenameFrom(baseUrl: string): string {
   const trimmed = baseUrl.replace(/\/+$/, '');
   return trimmed === '' ? '/' : trimmed;

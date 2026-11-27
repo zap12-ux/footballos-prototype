@@ -6,7 +6,7 @@ import { PLAN_SECTION_TEMPLATES } from '../../api/contracts';
 
 const HEAD = 'user-head';
 
-describe('workspace screens on the mock API', () => {
+describe('workspace screens on the fake API', () => {
   it('dashboard: environment label, this week’s game, open tasks, recent film and plan statuses', async () => {
     renderApp('/app', { signedInAs: HEAD });
     await screen.findByRole('heading', { level: 1, name: /^Dashboard$/ });

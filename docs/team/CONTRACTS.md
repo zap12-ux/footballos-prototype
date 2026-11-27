@@ -151,7 +151,7 @@ Label {
 LabelRevision { id, labelId, previousValue, newValue, previousStatus, newStatus, byUserId, at, reason: string|null }
 EvidenceRef { assetId, atSec: number, toSec: number|null, frameIndex: number|null, note: string|null }
 ModelProvenance {
-  id, provider: 'anthropic'|'openai'|'open_source'|'none', model: string, modelRevision: string|null,
+  id, provider: 'ollama', model: string, modelRevision: string|null,   // provider: local Ollama server (2026-11-27)
   promptId: string, promptHash: string, preprocessing: { samplingFps: number|null, frameCount: number, clipSec: number|null, resolution: string },
   inspected: { fromSec: number, toSec: number, frameTimestampsSec: number[] },   // exactly what the model saw
   analysisVersion: string, inputTokens, outputTokens, costUsd, latencyMs, requestedAt, completedAt
@@ -339,9 +339,10 @@ Implemented by B in `apps/api`; consumed by A in `apps/web`; library pieces from
 ### 14.5 Labels, corrections, inference
 - `POST /assets/:assetId/infer { segmentIds?: string[], labelKeys?: LabelKey[] }` → `202 { jobs }`.
   One `infer_labels` job per batch of at most `FOOTBALLOS_AI_MAX_SEGMENTS_PER_JOB` segments.
-  `MODEL_PROVIDER=none` → the job fails immediately with
-  `error.code='provider_unavailable'`, `retryable:false`, message "No model provider is
-  configured"; manual labeling stays available. Reprocessing writes a new `inferred` block and a
+  When the Ollama preflight fails (server not running, model not pulled, model without image
+  input) the job fails immediately with `error.code='provider_unavailable'`, `retryable:false`
+  and a message that names the reason (`unreachable: …`, `model_missing: …`,
+  `model_not_vision: …`) and the fix; manual labeling stays available. Reprocessing writes a new `inferred` block and a
   new `ModelProvenance`; it never changes `accepted` when `accepted.status ∈ {accepted, corrected}`.
 - `GET /segments/:segmentId/labels` → `{ items: Label[] }`; `GET /assets/:assetId/labels` →
   `{ items: Label[] }` (all segments, for review tables).
@@ -404,9 +405,10 @@ Implemented by B in `apps/api`; consumed by A in `apps/web`; library pieces from
   `Content-Security-Policy: default-src 'none'` (QA D-1).
 - Expired leases are recovered on every maintenance tick and `claim()` may take a `running`
   row whose lease has expired (QA D-2).
-- A no-key provider failure reports `reason: 'no_api_key'` in its message, distinct from
-  "No model provider is configured"; the cost cap check runs after the provider check so the
-  error names the real cause (QA D-4). `retentionDays` minimum stays 1 (QA O-1).
+- A model failure names its reason in the message (`unreachable`, `model_missing`,
+  `model_not_vision`, …) and happens before any frame is extracted, so the error names the real
+  cause (QA D-4). Local inference has no per-call cost: `ModelProvenance.costUsd` is 0 and
+  `Usage.monthlyCostCapUsd` is `null`. `retentionDays` minimum stays 1 (QA O-1).
 - `originalFilename` is sanitized on intake: control characters removed, a stem is required,
   length capped at 255 (QA D-7).
 

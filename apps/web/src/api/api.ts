@@ -114,9 +114,9 @@ export type MediaGrantInfo = MediaGrant & { thumbEverySec?: number; thumbCount?:
 
 /**
  * What the stream behind a grant can actually show (iteration 1, HC-05 / OC-02 / PC-01). A
- * real proxy covers the whole file (`standIn: false`); the mock's credited demo clip is a
- * stand-in a few seconds long, so the player maps the cited play onto it and says so, and
- * never seeks silently to a moment the stream cannot show.
+ * real proxy covers the whole file (`standIn: false`). A grant may instead describe a short
+ * stand-in clip; the player then maps the cited play onto it and says so, and never seeks
+ * silently to a moment the stream cannot show.
  */
 export interface ProxyInfo {
   standIn: boolean;
@@ -141,21 +141,11 @@ export interface ScoutingQuery {
 }
 
 /**
- * The application-facing API. One implementation talks to `apps/api` over HTTP (the typed
- * `hc<AppType>` client); the other (`MockApi`) serves clearly labelled demo data so every
- * screen works without a server. Method groups follow the CONTRACTS §12 and §14 route tables.
+ * The application-facing API, implemented over `apps/api` (the typed `hc<AppType>` client in
+ * `./http.ts`). Tests use an in-memory implementation of the same interface
+ * (`src/tests/fakeApi`). Method groups follow the CONTRACTS §12 and §14 route tables.
  */
 export interface Api {
-  readonly mode: 'mock' | 'http';
-  /**
-   * Demo-only controls (mock mode). `reset` clears every record changed in this browser and
-   * returns the seed; `savedAt` is when the browser last stored a change, or null.
-   */
-  demo?: {
-    readonly persisted: boolean;
-    savedAt(): string | null;
-    reset(): Promise<void>;
-  };
   auth: {
     me(): Promise<Me | null>;
     signIn(input: { email: string; password: string }): Promise<SignInResult>;

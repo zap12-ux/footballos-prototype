@@ -7,6 +7,8 @@ import { CONTEXT, FIXTURE_CLIPS, seedGame, uploadFile } from './media-helpers.js
 import { mediaAssets, modelProvenance, processingJobs } from '../db/schema.js';
 import { runMaintenance } from '../jobs/worker.js';
 
+/** Nothing listens on port 1; connection refused is immediate. */
+const UNREACHABLE_OLLAMA = 'http://127.0.0.1:1';
 let t: TestApp;
 let alpha: Awaited<ReturnType<typeof seedTeamWithStaff>>;
 let beta: Awaited<ReturnType<typeof seedTeamWithStaff>>;
@@ -41,7 +43,8 @@ async function waitFor(pred: () => boolean | Promise<boolean>, ms = 15_000): Pro
 }
 
 beforeAll(async () => {
-  t = makeTestApp({ UPLOAD_CHUNK_BYTES: String(2_000_000), JOB_MAX_ATTEMPTS: '2', MODEL_PROVIDER: 'none' });
+  // OLLAMA_HOST points at a closed port: the preflight fails fast with "unreachable" and no frame is extracted.
+  t = makeTestApp({ UPLOAD_CHUNK_BYTES: String(2_000_000), JOB_MAX_ATTEMPTS: '2', OLLAMA_HOST: UNREACHABLE_OLLAMA });
   alpha = await seedTeamWithStaff(t, 'Alpha (demo)');
   beta = await seedTeamWithStaff(t, 'Beta (demo)');
   game = await seedGame(t, alpha.hc.cookie, alpha.team.id, alpha.season.id);
@@ -173,8 +176,8 @@ describe('§14.2 jobs: cancel, retry, recovery', () => {
   });
 });
 
-describe('§14.5 inference without a provider, §14.2 cost accounting', () => {
-  it('MODEL_PROVIDER=none: the infer job fails immediately with provider_unavailable, retryable false', async () => {
+describe('§14.5 inference with Ollama unreachable, §14.2 cost accounting', () => {
+  it('Ollama unreachable: the infer job fails immediately with provider_unavailable, retryable false, naming the host', async () => {
     const res = await call(t, 'POST', `/api/v1/assets/${A.assetId}/infer`, {}, alpha.an.cookie);
     expect(res.status).toBe(202);
     expect(res.body.jobs).toHaveLength(1);
@@ -182,7 +185,10 @@ describe('§14.5 inference without a provider, §14.2 cost accounting', () => {
     const j = await t.ctx.runner.runOnce();
     expect(j?.id).toBe(res.body.jobs[0].id);
     expect(j?.status).toBe('failed');
-    expect(j?.error).toEqual({ code: 'provider_unavailable', message: 'No model provider is configured', retryable: false });
+    expect(j?.error).toMatchObject({ code: 'provider_unavailable', retryable: false });
+    expect(j?.error?.message).toContain(`unreachable: Ollama is not reachable at ${UNREACHABLE_OLLAMA} (OLLAMA_HOST)`);
+    expect(j?.error?.message).toContain('ollama serve');
+    expect((await call(t, 'GET', `/api/v1/assets/${A.assetId}/provenance`, undefined, alpha.oc.cookie)).body.items).toHaveLength(0);
     expect((await call(t, 'GET', `/api/v1/assets/${A.assetId}`, undefined, alpha.oc.cookie)).body.asset.status).toBe('ready');
     // a second request after the failure creates a new generation rather than returning the failed job
     const again = await call(t, 'POST', `/api/v1/assets/${A.assetId}/infer`, {}, alpha.an.cookie);
@@ -196,12 +202,12 @@ describe('§14.5 inference without a provider, §14.2 cost accounting', () => {
     expect((await call(t, 'POST', `/api/v1/assets/${A.assetId}/infer`, {}, beta.hc.cookie)).status).toBe(404);
   });
 
-  it('usage sums model_provenance.costUsd for the month and reports the cap from env', async () => {
+  it('usage sums model_provenance.costUsd and tokens for the month and reports no cap (local inference)', async () => {
     const zero = await call(t, 'GET', `/api/v1/teams/${alpha.team.id}/usage`, undefined, alpha.vw.cookie);
     expect(zero.body.costUsd).toBe(0);
     const at = t.clock.now.toISOString();
     const prov = (id: string, cost: number, completedAt: string) => ({
-      id, teamId: alpha.team.id, assetId: A.assetId, segmentId: null, jobId: null, provider: 'anthropic', model: 'demo-model', modelRevision: null, promptId: 'label-segment', promptHash: 'x',
+      id, teamId: alpha.team.id, assetId: A.assetId, segmentId: null, jobId: null, provider: 'ollama', model: 'qwen3-vl:4b', modelRevision: null, promptId: 'label-segment', promptHash: 'x',
       preprocessing: { samplingFps: 1, frameCount: 4, clipSec: 6, resolution: '1280x720' }, inspected: { fromSec: 0, toSec: 6, frameTimestampsSec: [0, 2, 4, 6] }, analysisVersion: '0.1.0',
       inputTokens: 1000, outputTokens: 200, costUsd: cost, latencyMs: 1500, requestedAt: completedAt, completedAt,
     });
@@ -210,14 +216,14 @@ describe('§14.5 inference without a provider, §14.2 cost accounting', () => {
     expect(usage.body.month).toBe(at.slice(0, 7));
     expect(usage.body.costUsd).toBe(0.75);
     expect(usage.body.inputTokens).toBe(2000);
-    expect(usage.body.monthlyCostCapUsd).toBe(0);
+    expect(usage.body.monthlyCostCapUsd).toBeNull();
     expect(usage.body.jobsSucceeded).toBeGreaterThan(0);
     expect(usage.body.jobsFailed).toBeGreaterThan(0);
     expect(usage.body.byKind[0].kind).toBe('infer_labels');
   });
 });
 
-describe('§14.10 (QA D-4) provider check before the cost cap', () => {
+describe('§14.10 (QA D-4) the Ollama preflight runs before any frame is extracted', () => {
   async function failedInfer(app: TestApp) {
     const staff = await seedTeamWithStaff(app, 'Gamma (demo)');
     const g = await seedGame(app, staff.hc.cookie, staff.team.id, staff.season.id);
@@ -237,41 +243,17 @@ describe('§14.10 (QA D-4) provider check before the cost cap', () => {
     return j!;
   }
 
-  it('MODEL_PROVIDER=anthropic without a key: provider_unavailable naming no_api_key and ANTHROPIC_API_KEY, even with the cap left at 0', async () => {
-    const saved = process.env.ANTHROPIC_API_KEY;
-    delete process.env.ANTHROPIC_API_KEY;
-    const app = makeTestApp({ MODEL_PROVIDER: 'anthropic', MONTHLY_COST_CAP_USD: '0' });
+  it('a bare host:port in OLLAMA_HOST is accepted, and an unreachable server fails the job with the fix in the message, no provenance written', async () => {
+    const app = makeTestApp({ OLLAMA_HOST: '127.0.0.1:1' });
     try {
+      expect(app.ctx.config.ai.ollamaHost).toBe('http://127.0.0.1:1');
       const j = await failedInfer(app);
       expect(j.error?.code).toBe('provider_unavailable');
-      expect(j.error?.message).toContain('no_api_key');
-      expect(j.error?.message).toContain('ANTHROPIC_API_KEY');
-      expect(j.error?.message).not.toContain('No model provider is configured');
+      expect(j.error?.message).toContain('unreachable: Ollama is not reachable at http://127.0.0.1:1 (OLLAMA_HOST)');
+      expect(j.error?.message).toContain('ollama serve');
+      expect(j.error?.message).toContain('manual labeling remains available');
     } finally {
       app.close();
-      if (saved !== undefined) process.env.ANTHROPIC_API_KEY = saved;
-    }
-  });
-
-  it('with a key configured and the cap reached: budget_exceeded before any call; MODEL_PROVIDER=none keeps its own sentence', async () => {
-    const saved = process.env.ANTHROPIC_API_KEY;
-    process.env.ANTHROPIC_API_KEY = 'test-key-not-real'; // never sent: the cap check fails the job before any request
-    const capped = makeTestApp({ MODEL_PROVIDER: 'anthropic', MONTHLY_COST_CAP_USD: '0', ANTHROPIC_API_KEY: 'test-key-not-real' });
-    try {
-      const j = await failedInfer(capped);
-      expect(j.error?.code).toBe('budget_exceeded');
-      expect(j.error?.message).toContain('MONTHLY_COST_CAP_USD');
-    } finally {
-      capped.close();
-      if (saved === undefined) delete process.env.ANTHROPIC_API_KEY; else process.env.ANTHROPIC_API_KEY = saved;
-    }
-    const none = makeTestApp({ MODEL_PROVIDER: 'none', MONTHLY_COST_CAP_USD: '0' });
-    try {
-      const j = await failedInfer(none);
-      expect(j.error?.code).toBe('provider_unavailable');
-      expect(j.error?.message).toBe('No model provider is configured');
-    } finally {
-      none.close();
     }
   });
 });

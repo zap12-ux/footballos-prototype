@@ -1,8 +1,8 @@
 /**
- * DEMO DATA. Everything in this file is fictional: the Winchester Hawks program, every
- * opponent, every coach and every player. It exists so the product shell can be used and
- * tested without `apps/api`. The team's `environmentKind` is `demo` and the UI labels it.
- * No real player, coach or school appears here.
+ * TEST FIXTURES. Everything in this file is fictional: the Winchester Hawks program, every
+ * opponent, every coach and every player. It exists so the product shell's tests can run
+ * without `apps/api`; nothing here ships in the app. The team's `environmentKind` is `demo`
+ * so the tests also cover the environment label. No real player, coach or school appears.
  */
 import type {
   Concept,
@@ -32,9 +32,9 @@ import type {
   Team,
   Unit,
   User,
-} from '../contracts';
-import { PLAN_SECTION_TEMPLATES } from '../contracts';
-import type { TeamSettings } from '../api';
+} from '../../api/contracts';
+import { PLAN_SECTION_TEMPLATES } from '../../api/contracts';
+import type { TeamSettings } from '../../api/api';
 
 /** The demo's fixed "now" so that "this week's game" is stable across machines and tests. */
 export const DEMO_NOW = '2026-10-25T12:00:00.000Z';
@@ -539,10 +539,10 @@ export const provenance: ModelProvenance[] = Array.from({ length: INFERRED_SEGME
   const start = 120 + i * 128.5;
   const frames = Array.from({ length: 6 }, (_, f) => Math.round((start + 0.5 + f * 1.2) * 10) / 10);
   return {
-    id: `prov-westmoor-1-${i + 1}`, provider: 'anthropic', model: 'claude-demo-vision', modelRevision: '2026-10-01', promptId: 'label-v1', promptHash: 'sha256:3f9a1c…demo',
+    id: `prov-westmoor-1-${i + 1}`, provider: 'ollama', model: 'qwen3-vl:4b', modelRevision: null, promptId: 'label-v1', promptHash: 'sha256:3f9a1c…fixture',
     preprocessing: { samplingFps: 1, frameCount: frames.length, clipSec: 7.4, resolution: '1280x720' },
     inspected: { fromSec: frames[0], toSec: frames[frames.length - 1], frameTimestampsSec: frames },
-    analysisVersion: 'ai-0.1', inputTokens: 5400 + i * 37, outputTokens: 310 + i * 3, costUsd: Math.round((0.0162 + i * 0.0001) * 1e6) / 1e6, latencyMs: 4200 + i * 110,
+    analysisVersion: 'ai-0.1', inputTokens: 5400 + i * 37, outputTokens: 310 + i * 3, costUsd: 0, latencyMs: 4200 + i * 110,
     requestedAt: `2026-10-21T19:46:${String(i * 4).padStart(2, '0')}.000Z`, completedAt: `2026-10-21T19:46:${String(i * 4 + 3).padStart(2, '0')}.500Z`,
   };
 });

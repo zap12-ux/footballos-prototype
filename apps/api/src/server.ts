@@ -18,9 +18,8 @@ const server = serve({ fetch: app.fetch, hostname: config.host, port: config.por
     url: `http://${info.address}:${info.port}`,
     environment: config.environment,
     dataDir: config.dataDir,
-    modelProvider: config.modelProvider,
-    modelKeyConfigured: config.modelKeyConfigured,
-    model: config.ai.anthropicModel,
+    ollamaHost: config.ai.ollamaHost,
+    model: config.ai.model,
     workerInline: config.limits.workerInline,
   });
 });

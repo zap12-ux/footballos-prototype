@@ -15,21 +15,18 @@ describe('routing: every route renders from a direct URL', () => {
     restore.pause.mockRestore();
   });
 
-  it('renders the public landing page at / with sign-in and demo actions', async () => {
+  it('renders the public landing page at / with sign-in as the one action', async () => {
     renderApp('/');
     expect(await screen.findByRole('heading', { level: 1, name: /Game film to game plan/i })).toBeInTheDocument();
     expect(screen.getAllByRole('link', { name: /^Sign in$/i }).length).toBeGreaterThan(0);
-    const demo = screen.getByRole('link', { name: /Try the demo/i });
-    expect(demo.getAttribute('href')).toBe('/prototype/#/demo');
+    expect(screen.queryByRole('link', { name: /demo|prototype/i })).not.toBeInTheDocument();
     // Product site only: no course mention, no fabricated customers or metrics.
     expect(document.body.textContent).not.toMatch(/Georgetown|MPIM|Module 7/);
     expect(document.body.textContent).not.toMatch(/\d+\s?%/);
     expect(document.body.textContent).not.toMatch(/customers|testimonial/i);
-    // The hero montage is manifest-driven; with no clips shipped it shows the poster only
-    // and never references the prototype's credited demo clips.
+    // The hero montage is manifest-driven; with no clips shipped it shows the poster only.
     expect(screen.getByTestId('montage-poster')).toBeInTheDocument();
     expect(screen.queryByTestId('montage-video')).not.toBeInTheDocument();
-    expect(document.body.innerHTML).not.toMatch(/demo-film\//);
   });
 
   it('renders /sign-in', async () => {
@@ -61,18 +58,11 @@ describe('routing: every route renders from a direct URL', () => {
     });
   }
 
-  it('mounts the Module 7 prototype unchanged under /prototype/', async () => {
+  it('no longer serves the retired prototype or demo paths', async () => {
     renderApp('/prototype/');
-    expect(await screen.findByRole('heading', { level: 1, name: /^FootballOS$/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Try the demo \(about 5 minutes\)/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Start a research session/i })).toBeInTheDocument();
-    expect(screen.getByTestId('honesty-line')).toHaveTextContent(/Simulated AI/);
-  });
-
-  it('redirects the task-board alias /demo/film-review to the prototype', async () => {
-    const { router } = renderApp('/demo/film-review');
-    await waitFor(() => expect(router.state.location.pathname).toBe('/prototype/'));
-    expect(await screen.findByRole('button', { name: /Try the demo \(about 5 minutes\)/i })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: /Page not found/i })).toBeInTheDocument();
+    renderApp('/demo/film-review');
+    expect((await screen.findAllByRole('heading', { level: 1, name: /Page not found/i })).length).toBeGreaterThan(0);
   });
 
   it('shows a 404 page for an unknown path with ways back', async () => {
@@ -84,7 +74,7 @@ describe('routing: every route renders from a direct URL', () => {
 
   it('derives the router basename from Vite BASE_URL', () => {
     expect(basenameFrom('/')).toBe('/');
-    expect(basenameFrom('/footballos-prototype/')).toBe('/footballos-prototype');
+    expect(basenameFrom('/footballos/')).toBe('/footballos');
   });
 
   it('moves focus to the main landmark when the route changes', async () => {

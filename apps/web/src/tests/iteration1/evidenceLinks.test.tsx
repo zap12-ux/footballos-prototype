@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderApp, stubMediaPlayback } from '../shell/harness';
-import * as demo from '../../api/mock/data';
+import * as demo from '../fakeApi/data';
 import { planSeek, segmentAt } from '../../film/review';
 
 /**
@@ -15,7 +15,7 @@ const HEAD = 'user-head';
 const OC = 'user-oc';
 const OL = 'user-ol';
 const ASSET = '/app/film/asset-westmoor-1?game=game-w10&unit=offense';
-/** The mock grant's stand-in clips are 5.4–7.9 s long; any of them is shorter than this. */
+/** The fake grant's stand-in clips are 5.4–7.9 s long; any of them is shorter than this. */
 const LONGEST_CLIP = 7.908;
 
 describe('mechanism 2 · evidence links land on the cited snap', () => {

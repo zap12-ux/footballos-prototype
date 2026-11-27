@@ -12,7 +12,7 @@ loadEnvFile();
 const config = loadConfig();
 const { ctx, close } = buildContext({ config });
 const stop = await startWorker(ctx);
-ctx.logger.info('FootballOS worker running', { dataDir: config.dataDir, modelProvider: config.modelProvider, model: config.ai.anthropicModel });
+ctx.logger.info('FootballOS worker running', { dataDir: config.dataDir, ollamaHost: config.ai.ollamaHost, model: config.ai.model });
 
 async function shutdown(signal: string) {
   ctx.logger.info('worker shutting down', { signal });

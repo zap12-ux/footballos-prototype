@@ -217,7 +217,8 @@ export const UsageSchema = z.object({
   inputTokens: z.number().int().nonnegative(),
   outputTokens: z.number().int().nonnegative(),
   costUsd: z.number().nonnegative(),
-  monthlyCostCapUsd: z.number().nonnegative(),
+  /** Null when inference runs locally (Ollama) and no spend cap applies. */
+  monthlyCostCapUsd: z.number().nonnegative().nullable(),
   jobsSucceeded: z.number().int().nonnegative(),
   jobsFailed: z.number().int().nonnegative(),
   byKind: z.array(
