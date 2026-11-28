@@ -28,7 +28,7 @@ emails, Hudl data, secrets or `.env` files in anything committed here (including
 - Check hierarchy, navigation, feedback on actions, accessibility (labels, focus, contrast), and loading, empty, error and recovery states.
 - Use page text / accessibility tree for checks; one screenshot at the end.
 
-## Module 13 final project (due 2026-12-20, 100 pts)
+## Module 13 final project (due 11:59 pm Eastern, Dec 19, 2026; Canvas shows 2026-12-20T04:59Z; 100 pts)
 Deliverable: a 10-15 minute recorded presentation of the AI product prototype, plus the slide deck, and a
 reflection (up to 400 words, PDF/DOCX) with the group participation evaluation. Graded on two criteria,
 50 pts each: thoroughness of the final result, and presentation clarity, organization and language.
