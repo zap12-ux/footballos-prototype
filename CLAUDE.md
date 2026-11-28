@@ -28,9 +28,33 @@ emails, Hudl data, secrets or `.env` files in anything committed here (including
 - Check hierarchy, navigation, feedback on actions, accessibility (labels, focus, contrast), and loading, empty, error and recovery states.
 - Use page text / accessibility tree for checks; one screenshot at the end.
 
-## Module 13 final project
-Rubric, presentation requirements and demo dataset are not recorded here yet. Add them (or a pointer to the files) below so sessions can map work to the grading criteria:
-- Rubric: _TODO path_
-- Target tablet workflows: _TODO_
-- AI feature acceptance criteria: _TODO_
-- Demo dataset: `fixtures/` (anonymized only) — _TODO confirm which set_
+## Module 13 final project (due 2026-12-20, 100 pts)
+Deliverable: a 10-15 minute recorded presentation of the AI product prototype, plus the slide deck, and a
+reflection (up to 400 words, PDF/DOCX) with the group participation evaluation. Graded on two criteria,
+50 pts each: thoroughness of the final result, and presentation clarity, organization and language.
+- Rubric detail, top band (47.5-50) on each criterion:
+  - Thoroughness: all requirements met; every claim backed by cited, available evidence; prototype creative and
+    believable; multiple screenshots or a demo video. A video showing the prototype actually working earns +10
+    bonus points, so record a live walkthrough. Proficient needs at least one reference beyond course materials.
+  - Clarity: key points clear, logical flow, engaging delivery (inflection, not reading slides or a paper),
+    duration and slide count within guidelines, no language errors on slides, all sources cited accurately.
+  - Score any draft deck against these bands and list gaps before delivery.
+- Process: (1) share slides in the group forum (group of 2-5) and give written feedback to every member;
+  (2) revise the deck from teammates' feedback and credit adopted ideas on the slide; (3) record the 10-15 min
+  video (Zoom cloud recording, submit the link); (4) write the reflection and complete the group participation
+  evaluation for every member (submit as two files or one combined PDF/DOCX).
+- Reflection (max 400 words) covers all build stages: what surprised me, what was difficult, what was easy, whether
+  feedback helped and how I responded. Keep it accurate to what happened, and keep any AI-use disclosure accurate.
+- Required slides, in order: title; problem statement; user persona and stakeholder needs (how the need was
+  validated); solution overview; AI methodology and tech stack (concept over math, data sources, preprocessing);
+  prototype demo (AI-driven interactions highlighted); design choices and iteration (feedback, A/B results);
+  impact and metrics (OKRs/KPIs, ROI); scalability and future directions; references (APA 7).
+- Brief and rubric: local Canvas scrape, `Fall2026 - Developing AI Solutions/assignments/` (Module 13 files).
+  The scrape lags, so state its as-of date and re-check Canvas for changes before submitting.
+- Tablet workflows: landscape tablet (768x1024) and desktop are the primary layouts; no horizontal overflow at
+  1280x860, 768x1024 and 375x812. Demo these flows on tablet: sign-in, film upload, coach label review, game plan
+  approval. Rationale: `docs/MODULE7_DESIGN_RATIONALE.md`; test plan: `docs/USABILITY_TEST_PROTOCOL.md`.
+- AI feature acceptance: criteria and evaluation method are in `docs/ai/EVALUATION_PLAN.md`. In the demo, show
+  each AI feature running live on local Ollama; state plainly anything degraded (Ollama down, manual labeling).
+- Demo data: `fixtures/media/clips` (six credited end-zone clips) and `fixtures/documents` (demo playbook, notes,
+  anonymized). Never show real Hudl data or real names in the demo or the deck.
